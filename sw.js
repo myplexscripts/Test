@@ -1,4 +1,4 @@
-const CACHE_NAME = "home-weather-shell-v10";
+const CACHE_NAME = "home-weather-shell-v11";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -6,19 +6,64 @@ const SHELL_FILES = [
   "./icon.svg"
 ];
 
-const PATCH_ID = "weather-flat-control-hotfix-v1";
+const PATCH_ID = "weather-ios-chrome-radii-v2";
 
 const PATCH_STYLE = `
 <style id="${PATCH_ID}">
-  .status-fade {
-    z-index: 0 !important;
-    height: calc(58px + var(--safe-top)) !important;
-    background: linear-gradient(to bottom, var(--sky) 0%, var(--sky) 62%, transparent 100%) !important;
-    opacity: 0 !important;
+  :root {
+    --r-xl: 34px;
+    --r-lg: 30px;
+    --r-md: 24px;
+    --r-sm: 18px;
+    --panel-pad: clamp(16px, 3vw, 22px);
   }
-  .status-fade.show { opacity: 0.88 !important; }
-  .shell { position: relative !important; z-index: 2 !important; }
-  .topbar { position: relative !important; z-index: 3 !important; }
+
+  .status-fade {
+    position: fixed !important;
+    z-index: 32 !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: calc(64px + var(--safe-top)) !important;
+    pointer-events: none !important;
+    opacity: 0 !important;
+    background: linear-gradient(to bottom, color-mix(in srgb, var(--sky) 96%, white 4%) 0%, color-mix(in srgb, var(--sky) 86%, transparent) 54%, transparent 100%) !important;
+    -webkit-backdrop-filter: blur(18px) saturate(1.18) !important;
+    backdrop-filter: blur(18px) saturate(1.18) !important;
+    transition: opacity 180ms ease !important;
+  }
+
+  .status-fade.show { opacity: 1 !important; }
+  .shell { position: relative !important; z-index: 1 !important; }
+  .topbar { position: relative !important; z-index: 33 !important; }
+  .drawer { z-index: 40 !important; }
+  .menu-overlay { z-index: 39 !important; }
+  .graph-screen { z-index: 45 !important; }
+
+  .metrics-bar { --outer-radius: var(--r-lg); border-radius: var(--outer-radius) !important; }
+  .sticky-stats { --outer-radius: var(--r-md); border-radius: var(--outer-radius) !important; }
+  .day-card, .hour-card, .graph-day-card { --outer-radius: var(--r-md); border-radius: var(--outer-radius) !important; }
+
+  .data-group {
+    --outer-radius: var(--r-xl);
+    --outer-pad: var(--panel-pad);
+    border-radius: var(--outer-radius) !important;
+    padding: var(--outer-pad) !important;
+  }
+
+  .detail { border-radius: max(14px, calc(var(--outer-radius) - var(--outer-pad))) !important; }
+
+  .graph-canvas-wrap {
+    --outer-radius: var(--r-xl);
+    --outer-pad: clamp(14px, 3vw, 22px);
+    border-radius: var(--outer-radius) !important;
+    padding: var(--outer-pad) !important;
+  }
+
+  #graphCanvas { border-radius: max(14px, calc(var(--outer-radius) - var(--outer-pad))) !important; }
+  .brand-icon, .menu-button { border-radius: var(--r-sm) !important; }
+  .drawer-action { border-radius: 18px !important; }
+
   .more-button {
     width: 44px !important;
     height: 44px !important;
@@ -31,39 +76,30 @@ const PATCH_STYLE = `
     place-items: center !important;
     color: currentColor !important;
     box-shadow: none !important;
+    font-size: 0 !important;
+    overflow: hidden !important;
   }
+
   .more-button:hover,
   .more-button:focus-visible {
     transform: translateX(3px) !important;
     background: transparent !important;
     outline: none !important;
   }
+
   .more-button i { font-size: 2rem !important; line-height: 1 !important; }
+
   @media (max-width: 760px) {
+    :root { --r-xl: 30px; --r-lg: 26px; --r-md: 22px; --r-sm: 16px; }
+    .status-fade { height: calc(58px + var(--safe-top)) !important; }
     .more-button { width: 42px !important; height: 42px !important; min-width: 42px !important; }
     .more-button i { font-size: 1.85rem !important; }
   }
 </style>`;
 
-const PATCH_SCRIPT = `
-<script id="${PATCH_ID}-script">
-  (() => {
-    const buttons = [
-      [document.getElementById("hourlyMore"), "Open hourly graph"],
-      [document.getElementById("weeklyMore"), "Open weekly graph"]
-    ];
-    buttons.forEach(([button, label]) => {
-      if (!button) return;
-      button.setAttribute("aria-label", label);
-      button.setAttribute("title", label);
-      button.innerHTML = '<i class="ph ph-arrow-right" aria-hidden="true"></i>';
-    });
-  })();
-</script>`;
-
 function patchHtml(html) {
   if (!html || html.includes(PATCH_ID)) return html;
-  return html.replace("</head>", `${PATCH_STYLE}\n</head>`).replace("</body>", `${PATCH_SCRIPT}\n</body>`);
+  return html.replace("</head>", `${PATCH_STYLE}\n</head>`);
 }
 
 function htmlResponse(html, response) {
