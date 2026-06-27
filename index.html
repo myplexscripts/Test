@@ -26,7 +26,6 @@
       --ink: #050505;
       --muted: rgba(5, 5, 5, 0.66);
       --line: rgba(5, 5, 5, 0.18);
-      --soft-line: rgba(5, 5, 5, 0.1);
       --weather: #ffe84a;
       --weather-2: #fff4a8;
       --accent: #42c6ff;
@@ -59,7 +58,6 @@
       color: var(--white);
       --muted: rgba(255, 255, 255, 0.68);
       --line: rgba(255, 255, 255, 0.2);
-      --soft-line: rgba(255, 255, 255, 0.12);
       --glass: rgba(255, 255, 255, 0.08);
       background:
         radial-gradient(circle at 12% 8%, rgba(108, 96, 255, 0.34), transparent 31rem),
@@ -112,8 +110,8 @@
     }
 
     .brand-icon i { font-size: 1.7rem; }
-
     .brand { min-width: 0; text-align: center; }
+
     .brand-title {
       margin: 0;
       font-family: Sora, Inter, sans-serif;
@@ -224,16 +222,17 @@
       min-width: 0;
     }
 
-    .summary h2, .section-title {
-      margin: 0 0 14px;
+    .summary h2, .section-head h2, .group-title h3 {
+      margin: 0;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1.45rem, 3vw, 2.3rem);
-      line-height: 1;
       letter-spacing: -0.06em;
+      line-height: 1;
     }
 
+    .summary h2, .section-head h2 { font-size: clamp(1.45rem, 3vw, 2.3rem); }
+
     .summary p {
-      margin: 0;
+      margin: 14px 0 0;
       color: color-mix(in srgb, currentColor 82%, transparent);
       font-size: clamp(1rem, 2vw, 1.2rem);
       line-height: 1.48;
@@ -249,7 +248,6 @@
 
     .updated { margin-top: 16px; }
     .status { min-height: 22px; margin: 22px 0 0; }
-
     .side { display: grid; gap: 20px; min-width: 0; }
 
     .metrics-bar {
@@ -275,6 +273,7 @@
 
     .metric { min-width: 0; }
     .metric i { display: block; font-size: clamp(2rem, 4vw, 2.8rem); margin-bottom: 13px; }
+
     .metric strong {
       display: block;
       font-family: Sora, Inter, sans-serif;
@@ -293,12 +292,9 @@
       font-weight: 800;
     }
 
-    .forecast, .info-section {
-      min-width: 0;
-      max-width: 100%;
-    }
+    .forecast, .info-section { min-width: 0; max-width: 100%; }
 
-    .section-head, .forecast-head {
+    .section-head, .forecast-head, .group-title {
       display: flex;
       align-items: center;
       justify-content: space-between;
@@ -307,15 +303,9 @@
       min-width: 0;
     }
 
-    .section-head h2, .forecast-head h2 {
-      margin: 0;
-      font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1.45rem, 3.2vw, 2.3rem);
-      letter-spacing: -0.06em;
-      line-height: 1;
-    }
-
-    .section-head i, .forecast-head i { font-size: clamp(1.9rem, 4vw, 2.8rem); }
+    .section-head i, .forecast-head i, .group-title i { font-size: clamp(1.65rem, 4vw, 2.6rem); }
+    .section-head h2, .forecast-head h2 { margin: 0; font-size: clamp(1.45rem, 3.2vw, 2.3rem); }
+    .group-title h3 { font-size: clamp(1.1rem, 2.5vw, 1.45rem); }
 
     .rail {
       width: 100%;
@@ -363,10 +353,7 @@
       overflow-wrap: anywhere;
     }
 
-    .day-card i, .hour-card i, .reading-card i {
-      display: block;
-      font-size: clamp(1.35rem, 3vw, 1.9rem);
-    }
+    .day-card i, .hour-card i, .reading-card i { display: block; font-size: clamp(1.35rem, 3vw, 1.9rem); }
 
     .day-card span, .hour-card span, .reading-card span, .reading-card small {
       font-size: 0.78rem;
@@ -375,23 +362,19 @@
       font-weight: 850;
     }
 
-    .reading-card {
-      min-height: 146px;
-      align-content: center;
-    }
+    .reading-card { min-height: 146px; align-content: center; }
 
-    .details-grid {
+    .detail-groups {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(min(148px, 100%), 1fr));
-      gap: 12px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 16px;
       min-width: 0;
     }
 
-    .detail {
+    .data-group {
       border: 2px solid currentColor;
-      border-radius: 22px;
-      padding: 14px;
-      min-height: 102px;
+      border-radius: 28px;
+      padding: 16px;
       background:
         linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05)),
         var(--glass);
@@ -400,13 +383,30 @@
       min-width: 0;
     }
 
-    .detail i { display: block; font-size: 1.55rem; margin-bottom: 11px; }
+    .detail-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .detail {
+      border: 1px solid color-mix(in srgb, currentColor 24%, transparent);
+      border-radius: 20px;
+      padding: 13px;
+      min-height: 100px;
+      background: rgba(255, 255, 255, 0.08);
+      min-width: 0;
+    }
+
+    .detail i { display: block; font-size: 1.45rem; margin-bottom: 10px; }
     .detail span { display: block; font-size: 0.78rem; color: var(--muted); line-height: 1.2; font-weight: 800; }
+
     .detail strong {
       display: block;
       margin-top: 6px;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1rem, 2.3vw, 1.2rem);
+      font-size: clamp(0.98rem, 2.3vw, 1.16rem);
       line-height: 1.1;
       letter-spacing: -0.05em;
       overflow-wrap: anywhere;
@@ -441,8 +441,8 @@
     }
 
     .drawer.open { transform: translateX(0); }
-
     .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
     .drawer h2 {
       margin: 0;
       font-family: Sora, Inter, sans-serif;
@@ -476,6 +476,7 @@
     }
 
     .drawer-action i { color: var(--accent); font-size: 1.55rem; }
+
     .drawer p {
       margin: auto 0 0;
       color: rgba(255, 255, 255, 0.68);
@@ -488,6 +489,7 @@
       .hero { grid-template-columns: 1fr; align-items: start; }
       .weather-main { min-height: auto; }
       .side { gap: 28px; }
+      .detail-groups { grid-template-columns: 1fr; }
     }
 
     @media (max-width: 760px) {
@@ -505,8 +507,9 @@
       .metric i { font-size: 2rem; margin-bottom: 12px; }
       .metric strong { font-size: clamp(0.98rem, 4.5vw, 1.18rem); }
       .metric span { font-size: 0.78rem; }
-      .details-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-      .detail { min-height: 96px; padding: 12px; }
+      .data-group { padding: 13px; border-radius: 24px; }
+      .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+      .detail { min-height: 94px; padding: 11px; border-radius: 18px; }
       .rail { gap: 10px; }
       .day-card { flex-basis: clamp(84px, 25vw, 104px); min-height: 118px; border-width: 2px; border-radius: 20px; }
       .hour-card, .reading-card { flex-basis: clamp(110px, 34vw, 134px); border-width: 2px; border-radius: 20px; }
@@ -519,7 +522,8 @@
       .menu-button i { font-size: 2rem; }
       .brand-icon i { font-size: 1.45rem; }
       .temperature { font-size: clamp(6.6rem, 40vw, 9.6rem); }
-      .details-grid { gap: 10px; }
+      .detail-grid { gap: 8px; }
+      .detail strong { font-size: 0.96rem; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -590,7 +594,7 @@
 
     <section class="info-section" aria-label="Weather data">
       <div class="section-head"><h2>Weather data</h2><i class="ph ph-database"></i></div>
-      <div class="details-grid" id="detailsGrid"></div>
+      <div class="detail-groups" id="detailsGrid"></div>
     </section>
 
     <section class="info-section" aria-label="Upcoming readings">
@@ -605,7 +609,7 @@
     const HOME = { lat: 42.9849, lon: -81.2453 };
     const API = "https://api.openweathermap.org/data/2.5";
     const KEY_STORE = "home_weather_key";
-    const CACHE_STORE = "home_weather_cache_v7";
+    const CACHE_STORE = "home_weather_cache_v8";
     const $ = (id) => document.getElementById(id);
     const el = {
       openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), wind: $("wind"), humidity: $("humidity"), visibility: $("visibility"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), detailsGrid: $("detailsGrid"), readingRail: $("readingRail"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh")
@@ -725,33 +729,99 @@
       const sys = current.sys || {};
       const coord = current.coord || {};
       const first = (forecast.list || [])[0] || {};
-      const details = [
-        ["ph-thermometer-simple", "Feels like", deg(main.feels_like)],
-        ["ph-arrow-up", "High", deg(main.temp_max)],
-        ["ph-arrow-down", "Low", deg(main.temp_min)],
-        ["ph-gauge", "Pressure", main.pressure != null ? `${main.pressure} hPa` : "--"],
-        ["ph-drop", "Humidity", main.humidity != null ? `${main.humidity}%` : "--"],
-        ["ph-eye", "Visibility", current.visibility ? `${(current.visibility / 1000).toFixed(1)} km` : "--"],
-        ["ph-wind", "Wind speed", wind.speed != null ? `${Math.round(wind.speed * 3.6)} km/h` : "--"],
-        ["ph-wind", "Wind gust", wind.gust != null ? `${Math.round(wind.gust * 3.6)} km/h` : "--"],
-        ["ph-compass", "Wind direction", wind.deg != null ? `${wind.deg}° ${direction(wind.deg)}` : "--"],
-        ["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "--"],
-        ["ph-cloud-rain", "Rain 1h", current.rain?.["1h"] != null ? `${current.rain["1h"]} mm` : "0 mm"],
-        ["ph-cloud-rain", "Rain 3h", current.rain?.["3h"] != null ? `${current.rain["3h"]} mm` : "0 mm"],
-        ["ph-snowflake", "Snow 1h", current.snow?.["1h"] != null ? `${current.snow["1h"]} mm` : "0 mm"],
-        ["ph-snowflake", "Snow 3h", current.snow?.["3h"] != null ? `${current.snow["3h"]} mm` : "0 mm"],
-        ["ph-sun-horizon", "Sunrise", time(sys.sunrise, lastZone)],
-        ["ph-moon", "Sunset", time(sys.sunset, lastZone)],
-        ["ph-clock", "Timezone", timezoneLabel(lastZone)],
-        ["ph-map-pin", "Coordinates", coord.lat != null && coord.lon != null ? `${coord.lat.toFixed(3)}, ${coord.lon.toFixed(3)}` : "--"],
-        ["ph-identification-card", "Weather ID", weather.id != null ? `${weather.id}` : "--"],
-        ["ph-cloud-sun", "Main", weather.main || "--"],
-        ["ph-clock-countdown", "Data time", time(current.dt, lastZone)],
-        ["ph-percent", "Next rain chance", first.pop != null ? `${Math.round(first.pop * 100)}%` : "--"],
-        ["ph-gauge", "Sea pressure", main.sea_level != null ? `${main.sea_level} hPa` : "--"],
-        ["ph-mountains", "Ground pressure", main.grnd_level != null ? `${main.grnd_level} hPa` : "--"]
-      ];
-      el.detailsGrid.innerHTML = details.map(([icon, label, value]) => `<div class="detail"><i class="ph ${icon}"></i><span>${label}</span><strong>${value}</strong></div>`).join("");
+      const rainNow = precipAmount(current.rain);
+      const snowNow = precipAmount(current.snow);
+      const rainForecast = forecastTotal(forecast, "rain");
+      const snowForecast = forecastTotal(forecast, "snow");
+      const rainChance = Math.max(todayPop(forecast.list || [], lastZone), first.pop || 0);
+      const showRain = rainNow > 0 || rainForecast > 0 || rainChance > 0 || isKind(weather.main, ["rain", "drizzle", "thunderstorm"]);
+      const showSnow = snowNow > 0 || snowForecast > 0 || isKind(weather.main, ["snow"]);
+      const showPressureLevels = main.sea_level != null || main.grnd_level != null;
+      const groups = [];
+
+      groups.push({
+        title: "Temperature",
+        icon: "ph-thermometer-simple",
+        items: [
+          ["ph-thermometer-simple", "Feels like", deg(main.feels_like)],
+          ["ph-thermometer-hot", "Actual", deg(main.temp)],
+          ["ph-arrow-up", "High", deg(main.temp_max)],
+          ["ph-arrow-down", "Low", deg(main.temp_min)]
+        ]
+      });
+
+      groups.push({
+        title: "Air",
+        icon: "ph-cloud",
+        items: [
+          ["ph-drop", "Humidity", main.humidity != null ? `${main.humidity}%` : "--"],
+          ["ph-gauge", "Pressure", main.pressure != null ? `${main.pressure} hPa` : "--"],
+          ["ph-eye", "Visibility", current.visibility ? `${(current.visibility / 1000).toFixed(1)} km` : "--"],
+          ["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "--"]
+        ]
+      });
+
+      groups.push({
+        title: "Wind",
+        icon: "ph-wind",
+        items: [
+          ["ph-wind", "Speed", wind.speed != null ? `${Math.round(wind.speed * 3.6)} km/h` : "--"],
+          ["ph-wind", "Gust", wind.gust != null ? `${Math.round(wind.gust * 3.6)} km/h` : "None listed"],
+          ["ph-compass", "Direction", wind.deg != null ? `${wind.deg}° ${direction(wind.deg)}` : "--"]
+        ]
+      });
+
+      if (showRain || showSnow) {
+        const precipItems = [];
+        if (showRain) {
+          precipItems.push(["ph-percent", "Rain chance", `${Math.round(rainChance * 100)}%`]);
+          precipItems.push(["ph-cloud-rain", "Rain now", rainNow > 0 ? `${rainNow} mm` : "0 mm"]);
+          if (rainForecast > 0) precipItems.push(["ph-cloud-rain", "Forecast rain", `${rainForecast.toFixed(1)} mm`]);
+        }
+        if (showSnow) {
+          precipItems.push(["ph-snowflake", "Snow now", snowNow > 0 ? `${snowNow} mm` : "0 mm"]);
+          if (snowForecast > 0) precipItems.push(["ph-snowflake", "Forecast snow", `${snowForecast.toFixed(1)} mm`]);
+        }
+        groups.push({ title: "Precipitation", icon: showSnow ? "ph-snowflake" : "ph-cloud-rain", items: precipItems });
+      }
+
+      groups.push({
+        title: "Sun and time",
+        icon: "ph-sun-horizon",
+        items: [
+          ["ph-sun-horizon", "Sunrise", time(sys.sunrise, lastZone)],
+          ["ph-moon", "Sunset", time(sys.sunset, lastZone)],
+          ["ph-clock", "Timezone", timezoneLabel(lastZone)],
+          ["ph-clock-countdown", "Data time", time(current.dt, lastZone)]
+        ]
+      });
+
+      if (showPressureLevels) {
+        const levelItems = [];
+        if (main.sea_level != null) levelItems.push(["ph-gauge", "Sea pressure", `${main.sea_level} hPa`]);
+        if (main.grnd_level != null) levelItems.push(["ph-mountains", "Ground pressure", `${main.grnd_level} hPa`]);
+        groups.push({ title: "Pressure levels", icon: "ph-mountains", items: levelItems });
+      }
+
+      groups.push({
+        title: "Source",
+        icon: "ph-database",
+        items: [
+          ["ph-cloud-sun", "Main", weather.main || "--"],
+          ["ph-identification-card", "Weather ID", weather.id != null ? `${weather.id}` : "--"],
+          ["ph-map-pin", "Coordinates", coord.lat != null && coord.lon != null ? `${coord.lat.toFixed(3)}, ${coord.lon.toFixed(3)}` : "--"],
+          ["ph-clock-counter-clockwise", "Display", cached ? `Cached ${age(savedAt)}` : "Live refresh"]
+        ]
+      });
+
+      el.detailsGrid.innerHTML = groups.map(group => `
+        <section class="data-group">
+          <div class="group-title"><h3>${group.title}</h3><i class="ph ${group.icon}"></i></div>
+          <div class="detail-grid">
+            ${group.items.map(([icon, label, value]) => `<div class="detail"><i class="ph ${icon}"></i><span>${label}</span><strong>${value}</strong></div>`).join("")}
+          </div>
+        </section>
+      `).join("");
     }
 
     function renderDays(forecast, zone) {
@@ -827,6 +897,20 @@
     function todayPop(list, zone) {
       const today = new Date((Date.now() / 1000 + zone) * 1000).toISOString().slice(0, 10);
       return Math.max(0, ...list.filter(x => new Date((x.dt + zone) * 1000).toISOString().slice(0, 10) === today).map(x => x.pop || 0));
+    }
+
+    function precipAmount(bucket) {
+      if (!bucket) return 0;
+      return Number(bucket["1h"] || 0) + Number(bucket["3h"] || 0);
+    }
+
+    function forecastTotal(forecast, key) {
+      return (forecast.list || []).slice(0, 12).reduce((sum, item) => sum + precipAmount(item[key]), 0);
+    }
+
+    function isKind(main, names) {
+      const value = String(main || "").toLowerCase();
+      return names.some(name => value.includes(name));
     }
 
     function direction(deg) {
