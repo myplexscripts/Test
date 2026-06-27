@@ -256,7 +256,7 @@
       border-radius: 28px;
       background: var(--black);
       color: var(--weather);
-      padding: clamp(17px, 3vw, 24px);
+      padding: clamp(16px, 3vw, 22px);
       box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.12);
       overflow: hidden;
     }
@@ -265,19 +265,19 @@
 
     .metrics-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: clamp(8px, 2vw, 14px);
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: clamp(7px, 1.6vw, 12px);
       text-align: center;
       min-width: 0;
     }
 
     .metric { min-width: 0; }
-    .metric i { display: block; font-size: clamp(2rem, 4vw, 2.8rem); margin-bottom: 13px; }
+    .metric i { display: block; font-size: clamp(1.75rem, 3.5vw, 2.45rem); margin-bottom: 12px; }
 
     .metric strong {
       display: block;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1rem, 2.6vw, 1.55rem);
+      font-size: clamp(0.92rem, 2.2vw, 1.34rem);
       line-height: 1;
       letter-spacing: -0.06em;
       overflow-wrap: anywhere;
@@ -503,10 +503,11 @@
       .date-pill { margin-top: 8px; }
       .temperature { font-size: clamp(7rem, 41vw, 12.2rem); letter-spacing: -0.16em; }
       .summary { margin-top: 32px; }
-      .metrics-bar { border-radius: 24px; padding: 18px 10px; }
-      .metric i { font-size: 2rem; margin-bottom: 12px; }
-      .metric strong { font-size: clamp(0.98rem, 4.5vw, 1.18rem); }
-      .metric span { font-size: 0.78rem; }
+      .metrics-bar { border-radius: 24px; padding: 16px 8px; }
+      .metrics-grid { gap: 6px; }
+      .metric i { font-size: 1.7rem; margin-bottom: 10px; }
+      .metric strong { font-size: clamp(0.82rem, 3.8vw, 1rem); }
+      .metric span { font-size: 0.72rem; }
       .data-group { padding: 13px; border-radius: 24px; }
       .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
       .detail { min-height: 94px; padding: 11px; border-radius: 18px; }
@@ -524,6 +525,7 @@
       .temperature { font-size: clamp(6.6rem, 40vw, 9.6rem); }
       .detail-grid { gap: 8px; }
       .detail strong { font-size: 0.96rem; }
+      .metric span { font-size: 0.7rem; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -575,11 +577,12 @@
       </article>
 
       <aside class="side">
-        <section class="metrics-bar" aria-label="Current weather details">
+        <section class="metrics-bar" aria-label="Priority weather details">
           <div class="metrics-grid">
+            <div class="metric"><i class="ph ph-thermometer-simple"></i><strong id="quickFeels">--</strong><span>Feels</span></div>
+            <div class="metric"><i class="ph ph-cloud-rain"></i><strong id="quickRain">--</strong><span>Rain</span></div>
             <div class="metric"><i class="ph ph-wind"></i><strong id="wind">--</strong><span>Wind</span></div>
-            <div class="metric"><i class="ph ph-drop"></i><strong id="humidity">--</strong><span>Humidity</span></div>
-            <div class="metric"><i class="ph ph-eye"></i><strong id="visibility">--</strong><span>Visibility</span></div>
+            <div class="metric"><i class="ph ph-eye"></i><strong id="visibility">--</strong><span>View</span></div>
           </div>
         </section>
 
@@ -609,10 +612,10 @@
     const HOME = { lat: 42.9849, lon: -81.2453 };
     const API = "https://api.openweathermap.org/data/2.5";
     const KEY_STORE = "home_weather_key";
-    const CACHE_STORE = "home_weather_cache_v8";
+    const CACHE_STORE = "home_weather_cache_v9";
     const $ = (id) => document.getElementById(id);
     const el = {
-      openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), wind: $("wind"), humidity: $("humidity"), visibility: $("visibility"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), detailsGrid: $("detailsGrid"), readingRail: $("readingRail"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh")
+      openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), quickFeels: $("quickFeels"), quickRain: $("quickRain"), wind: $("wind"), visibility: $("visibility"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), detailsGrid: $("detailsGrid"), readingRail: $("readingRail"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh")
     };
     let lastZone = 0;
 
@@ -710,15 +713,26 @@
       el.datePill.textContent = dateLabel(lastZone);
       el.conditionWord.textContent = desc;
       el.tempMain.textContent = `${temp}°`;
-      el.summaryText.textContent = `Now it feels like ${feels}°. Wind is ${windKmh} km/h${windGust ? ` with gusts up to ${windGust} km/h` : ""}, humidity is ${main.humidity ?? "--"}%, and today's rain chance is ${Math.round(pop * 100)}%.`;
+      el.summaryText.textContent = buildSummary({ temp, feels, windKmh, windGust, humidity: main.humidity, pop, high: main.temp_max, low: main.temp_min, visibility, weather });
       el.updated.textContent = cached ? `Cached ${age(savedAt)}` : `Updated ${time(current.dt, lastZone)}`;
+      el.quickFeels.textContent = `${feels}°`;
+      el.quickRain.textContent = `${Math.round(pop * 100)}%`;
       el.wind.textContent = `${windKmh}km/h`;
-      el.humidity.textContent = `${main.humidity ?? "--"}%`;
       el.visibility.textContent = visibility;
       renderDays(forecast, lastZone);
       renderHours(forecast, lastZone);
       renderDetails(current, forecast, savedAt, cached);
       renderReadings(forecast, lastZone);
+    }
+
+    function buildSummary({ feels, windKmh, windGust, humidity, pop, high, low, visibility, weather }) {
+      const rain = Math.round(pop * 100);
+      const rangeText = high != null && low != null ? `The range is ${Math.round(low)}° to ${Math.round(high)}°.` : "";
+      const rainText = rain > 0 ? `Rain chance is ${rain}%.` : "No meaningful rain chance is showing right now.";
+      const gustText = windGust ? `, gusting up to ${windGust} km/h` : "";
+      const comfort = feels >= 28 ? "It will feel hot, so plan for shade and water." : feels <= 0 ? "It will feel cold, so dress warm." : feels <= 10 ? "It will feel cool, so a layer helps." : "It should feel comfortable overall.";
+      const condition = weather?.description || weather?.main || "current conditions";
+      return `It feels like ${feels}° with ${condition}. ${rangeText} Wind is ${windKmh} km/h${gustText}. Humidity is ${humidity ?? "--"}% and visibility is ${visibility}. ${rainText} ${comfort}`;
     }
 
     function renderDetails(current, forecast, savedAt, cached) {
@@ -734,7 +748,7 @@
       const rainForecast = forecastTotal(forecast, "rain");
       const snowForecast = forecastTotal(forecast, "snow");
       const rainChance = Math.max(todayPop(forecast.list || [], lastZone), first.pop || 0);
-      const showRain = rainNow > 0 || rainForecast > 0 || rainChance > 0 || isKind(weather.main, ["rain", "drizzle", "thunderstorm"]);
+      const showRain = rainNow > 0 || rainForecast > 0 || rainChance >= 0.05 || isKind(weather.main, ["rain", "drizzle", "thunderstorm"]);
       const showSnow = snowNow > 0 || snowForecast > 0 || isKind(weather.main, ["snow"]);
       const showPressureLevels = main.sea_level != null || main.grnd_level != null;
       const groups = [];
@@ -750,16 +764,19 @@
         ]
       });
 
-      groups.push({
-        title: "Air",
-        icon: "ph-cloud",
-        items: [
-          ["ph-drop", "Humidity", main.humidity != null ? `${main.humidity}%` : "--"],
-          ["ph-gauge", "Pressure", main.pressure != null ? `${main.pressure} hPa` : "--"],
-          ["ph-eye", "Visibility", current.visibility ? `${(current.visibility / 1000).toFixed(1)} km` : "--"],
-          ["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "--"]
-        ]
-      });
+      if (showRain || showSnow) {
+        const precipItems = [];
+        if (showRain) {
+          precipItems.push(["ph-percent", "Rain chance", `${Math.round(rainChance * 100)}%`]);
+          if (rainNow > 0 || isKind(weather.main, ["rain", "drizzle", "thunderstorm"])) precipItems.push(["ph-cloud-rain", "Rain now", rainNow > 0 ? `${rainNow} mm` : "Trace"]);
+          if (rainForecast > 0) precipItems.push(["ph-cloud-rain", "Next 36h rain", `${rainForecast.toFixed(1)} mm`]);
+        }
+        if (showSnow) {
+          precipItems.push(["ph-snowflake", "Snow now", snowNow > 0 ? `${snowNow} mm` : "Trace"]);
+          if (snowForecast > 0) precipItems.push(["ph-snowflake", "Next 36h snow", `${snowForecast.toFixed(1)} mm`]);
+        }
+        groups.push({ title: showSnow ? "Snow and rain" : "Rain", icon: showSnow ? "ph-snowflake" : "ph-cloud-rain", items: precipItems });
+      }
 
       groups.push({
         title: "Wind",
@@ -771,19 +788,16 @@
         ]
       });
 
-      if (showRain || showSnow) {
-        const precipItems = [];
-        if (showRain) {
-          precipItems.push(["ph-percent", "Rain chance", `${Math.round(rainChance * 100)}%`]);
-          precipItems.push(["ph-cloud-rain", "Rain now", rainNow > 0 ? `${rainNow} mm` : "0 mm"]);
-          if (rainForecast > 0) precipItems.push(["ph-cloud-rain", "Forecast rain", `${rainForecast.toFixed(1)} mm`]);
-        }
-        if (showSnow) {
-          precipItems.push(["ph-snowflake", "Snow now", snowNow > 0 ? `${snowNow} mm` : "0 mm"]);
-          if (snowForecast > 0) precipItems.push(["ph-snowflake", "Forecast snow", `${snowForecast.toFixed(1)} mm`]);
-        }
-        groups.push({ title: "Precipitation", icon: showSnow ? "ph-snowflake" : "ph-cloud-rain", items: precipItems });
-      }
+      groups.push({
+        title: "Air and visibility",
+        icon: "ph-cloud",
+        items: [
+          ["ph-drop", "Humidity", main.humidity != null ? `${main.humidity}%` : "--"],
+          ["ph-eye", "Visibility", current.visibility ? `${(current.visibility / 1000).toFixed(1)} km` : "--"],
+          ["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "--"],
+          ["ph-gauge", "Pressure", main.pressure != null ? `${main.pressure} hPa` : "--"]
+        ]
+      });
 
       groups.push({
         title: "Sun and time",
@@ -800,14 +814,14 @@
         const levelItems = [];
         if (main.sea_level != null) levelItems.push(["ph-gauge", "Sea pressure", `${main.sea_level} hPa`]);
         if (main.grnd_level != null) levelItems.push(["ph-mountains", "Ground pressure", `${main.grnd_level} hPa`]);
-        groups.push({ title: "Pressure levels", icon: "ph-mountains", items: levelItems });
+        groups.push({ title: "Advanced pressure", icon: "ph-mountains", items: levelItems });
       }
 
       groups.push({
-        title: "Source",
+        title: "Source details",
         icon: "ph-database",
         items: [
-          ["ph-cloud-sun", "Main", weather.main || "--"],
+          ["ph-cloud-sun", "Condition", weather.main || "--"],
           ["ph-identification-card", "Weather ID", weather.id != null ? `${weather.id}` : "--"],
           ["ph-map-pin", "Coordinates", coord.lat != null && coord.lon != null ? `${coord.lat.toFixed(3)}, ${coord.lon.toFixed(3)}` : "--"],
           ["ph-clock-counter-clockwise", "Display", cached ? `Cached ${age(savedAt)}` : "Live refresh"]
