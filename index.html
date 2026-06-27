@@ -26,8 +26,9 @@
       --ink: #050505;
       --muted: rgba(5, 5, 5, 0.66);
       --line: rgba(5, 5, 5, 0.18);
-      --weather: #ffe84a;
-      --weather-2: #fff4a8;
+      --sky: #42c6ff;
+      --sun: #ffe84a;
+      --clouds: #fff4a8;
       --accent: #42c6ff;
       --black: #050505;
       --white: #fffdf8;
@@ -36,21 +37,19 @@
       --max: 1240px;
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
+      --scroll-shift: 0px;
     }
 
     * { box-sizing: border-box; }
     html, body { width: 100%; max-width: 100%; min-height: 100%; overflow-x: hidden; }
-    html { background: var(--weather); }
+    html { background: var(--sky); }
 
     body {
       margin: 0;
       color: var(--ink);
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 16px;
-      background:
-        radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--weather) 78%, white 8%), transparent 31rem),
-        radial-gradient(circle at 90% 0%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 28rem),
-        linear-gradient(135deg, var(--weather) 0%, var(--weather-2) 100%);
+      background: linear-gradient(135deg, var(--sky) 0%, var(--sun) 48%, var(--clouds) 100%);
       transition: background 500ms ease, color 500ms ease;
     }
 
@@ -59,10 +58,55 @@
       --muted: rgba(255, 255, 255, 0.68);
       --line: rgba(255, 255, 255, 0.2);
       --glass: rgba(255, 255, 255, 0.08);
-      background:
-        radial-gradient(circle at 12% 8%, rgba(108, 96, 255, 0.34), transparent 31rem),
-        radial-gradient(circle at 88% 4%, rgba(255, 100, 212, 0.2), transparent 28rem),
-        linear-gradient(135deg, #090918 0%, #171039 58%, #050505 100%);
+    }
+
+    .parallax-sky {
+      position: fixed;
+      inset: -12vh -12vw;
+      z-index: -1;
+      pointer-events: none;
+      overflow: hidden;
+      background: linear-gradient(135deg, var(--sky) 0%, var(--sun) 50%, var(--clouds) 100%);
+    }
+
+    .parallax-sky::before,
+    .parallax-sky::after,
+    .cloud-layer {
+      content: "";
+      position: absolute;
+      inset: auto;
+      border-radius: 999px;
+      will-change: transform;
+      transition: background 500ms ease;
+    }
+
+    .parallax-sky::before {
+      width: min(48vw, 560px);
+      height: min(48vw, 560px);
+      left: 6vw;
+      top: 8vh;
+      background: radial-gradient(circle, color-mix(in srgb, var(--sun) 92%, white 8%), color-mix(in srgb, var(--sun) 42%, transparent) 62%, transparent 72%);
+      transform: translate3d(0, calc(var(--scroll-shift) * -0.18), 0);
+    }
+
+    .parallax-sky::after {
+      width: min(62vw, 720px);
+      height: min(36vw, 380px);
+      right: -6vw;
+      top: 6vh;
+      background: radial-gradient(ellipse, color-mix(in srgb, var(--clouds) 70%, white 8%), transparent 70%);
+      transform: translate3d(0, calc(var(--scroll-shift) * -0.08), 0);
+      opacity: 0.72;
+    }
+
+    .cloud-layer {
+      width: min(80vw, 860px);
+      height: min(44vw, 460px);
+      left: -10vw;
+      bottom: 2vh;
+      background: radial-gradient(ellipse, color-mix(in srgb, var(--clouds) 72%, white 8%), transparent 68%);
+      transform: translate3d(0, calc(var(--scroll-shift) * -0.04), 0);
+      opacity: 0.55;
     }
 
     button { font: inherit; border: 0; cursor: pointer; color: inherit; }
@@ -99,7 +143,7 @@
     .brand-icon {
       border: 3px solid currentColor;
       background: var(--black);
-      color: var(--weather);
+      color: var(--sun);
       box-shadow: 6px 6px 0 currentColor;
     }
 
@@ -165,6 +209,7 @@
       letter-spacing: -0.08em;
       opacity: 0.08;
       pointer-events: none;
+      transform: translate3d(0, calc(var(--scroll-shift) * -0.05), 0);
     }
 
     .date-pill {
@@ -248,20 +293,20 @@
 
     .updated { margin-top: 16px; }
     .status { min-height: 22px; margin: 22px 0 0; }
-    .side { display: grid; gap: 20px; min-width: 0; }
+    .side { display: grid; gap: 22px; min-width: 0; }
 
-    .metrics-bar {
+    .metrics-bar, .sticky-stats {
       width: 100%;
       max-width: 100%;
       border-radius: 28px;
       background: var(--black);
-      color: var(--weather);
+      color: var(--sun);
       padding: clamp(16px, 3vw, 22px);
       box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.12);
       overflow: hidden;
     }
 
-    body.night .metrics-bar { color: var(--accent); }
+    body.night .metrics-bar, body.night .sticky-stats { color: var(--accent); }
 
     .metrics-grid {
       display: grid;
@@ -292,6 +337,29 @@
       font-weight: 800;
     }
 
+    .sticky-stats {
+      position: fixed;
+      z-index: 26;
+      left: 50%;
+      top: calc(10px + var(--safe-top));
+      width: min(var(--max), calc(100% - 24px));
+      transform: translate(-50%, -140%);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 210ms ease, opacity 210ms ease;
+      border-radius: 24px;
+      padding: 11px 12px;
+    }
+
+    .sticky-stats.show {
+      transform: translate(-50%, 0);
+      opacity: 1;
+    }
+
+    .sticky-stats .metric i { font-size: 1.45rem; margin-bottom: 7px; }
+    .sticky-stats .metric strong { font-size: clamp(0.82rem, 2vw, 1rem); }
+    .sticky-stats .metric span { font-size: 0.7rem; }
+
     .forecast, .info-section { min-width: 0; max-width: 100%; }
 
     .section-head, .forecast-head, .group-title {
@@ -306,6 +374,22 @@
     .section-head i, .forecast-head i, .group-title i { font-size: clamp(1.65rem, 4vw, 2.6rem); }
     .section-head h2, .forecast-head h2 { margin: 0; font-size: clamp(1.45rem, 3.2vw, 2.3rem); }
     .group-title h3 { font-size: clamp(1.1rem, 2.5vw, 1.45rem); }
+
+    .more-button {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      border: 2px solid currentColor;
+      border-radius: 999px;
+      background: transparent;
+      padding: 0.66rem 1rem;
+      font-size: 0.82rem;
+      line-height: 1;
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .more-button i { font-size: 1.2rem; }
 
     .rail {
       width: 100%;
@@ -412,7 +496,7 @@
       overflow-wrap: anywhere;
     }
 
-    .menu-overlay {
+    .menu-overlay, .graph-overlay {
       position: fixed;
       inset: 0;
       z-index: 30;
@@ -422,7 +506,7 @@
       transition: opacity 180ms ease;
     }
 
-    .menu-overlay.open { opacity: 1; pointer-events: auto; }
+    .menu-overlay.open, .graph-overlay.open { opacity: 1; pointer-events: auto; }
 
     .drawer {
       position: fixed;
@@ -450,16 +534,17 @@
       letter-spacing: -0.05em;
     }
 
-    .drawer-close {
+    .drawer-close, .graph-close {
       width: 44px;
       height: 44px;
       border-radius: 50%;
       display: grid;
       place-items: center;
       background: rgba(255, 255, 255, 0.1);
+      color: var(--white);
     }
 
-    .drawer-close i { font-size: 1.5rem; }
+    .drawer-close i, .graph-close i { font-size: 1.5rem; }
     .drawer-actions { display: grid; gap: 12px; margin-top: 10px; }
 
     .drawer-action {
@@ -483,6 +568,63 @@
       line-height: 1.45;
       font-size: 0.9rem;
       font-weight: 650;
+    }
+
+    .graph-modal {
+      position: fixed;
+      z-index: 32;
+      left: 50%;
+      top: 50%;
+      width: min(760px, calc(100% - 26px));
+      max-height: min(86svh, 720px);
+      transform: translate(-50%, -45%) scale(0.96);
+      opacity: 0;
+      pointer-events: none;
+      transition: transform 200ms ease, opacity 200ms ease;
+      border-radius: 30px;
+      background: var(--black);
+      color: var(--white);
+      padding: clamp(18px, 4vw, 28px);
+      box-shadow: 0 34px 90px rgba(0, 0, 0, 0.45);
+    }
+
+    .graph-modal.open {
+      transform: translate(-50%, -50%) scale(1);
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .graph-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 18px;
+    }
+
+    .graph-head h2 {
+      margin: 0;
+      font-family: Sora, Inter, sans-serif;
+      font-size: clamp(1.45rem, 5vw, 2.2rem);
+      line-height: 1;
+      letter-spacing: -0.06em;
+    }
+
+    .graph-head p {
+      margin: 8px 0 0;
+      color: rgba(255, 255, 255, 0.68);
+      font-size: 0.9rem;
+      line-height: 1.4;
+      font-weight: 700;
+    }
+
+    #graphCanvas {
+      width: 100%;
+      height: min(54svh, 420px);
+      display: block;
+      border-radius: 24px;
+      background: var(--sun);
+      color: var(--black);
     }
 
     @media (max-width: 1040px) {
@@ -514,6 +656,7 @@
       .rail { gap: 10px; }
       .day-card { flex-basis: clamp(84px, 25vw, 104px); min-height: 118px; border-width: 2px; border-radius: 20px; }
       .hour-card, .reading-card { flex-basis: clamp(110px, 34vw, 134px); border-width: 2px; border-radius: 20px; }
+      .more-button { padding: 0.6rem 0.84rem; }
     }
 
     @media (max-width: 390px) {
@@ -534,7 +677,11 @@
   </style>
 </head>
 <body>
+  <div class="parallax-sky" aria-hidden="true"><div class="cloud-layer"></div></div>
+  <div class="sticky-stats" id="stickyStats" aria-hidden="true"><div class="metrics-grid" id="stickyGrid"></div></div>
   <div class="menu-overlay" id="menuOverlay"></div>
+  <div class="graph-overlay" id="graphOverlay"></div>
+
   <aside class="drawer" id="drawer" aria-hidden="true" aria-label="Weather controls">
     <div class="drawer-head">
       <h2>Controls</h2>
@@ -547,6 +694,17 @@
     </div>
     <p>Add this page to your home screen after opening it in Safari or Chrome. It includes app display settings, a manifest, and offline shell caching.</p>
   </aside>
+
+  <section class="graph-modal" id="graphModal" aria-hidden="true" aria-label="Weather graph">
+    <div class="graph-head">
+      <div>
+        <h2 id="graphTitle">Weather graph</h2>
+        <p id="graphNote">Tap More on a forecast section to see the trend.</p>
+      </div>
+      <button class="graph-close" id="closeGraph" aria-label="Close graph"><i class="ph ph-x"></i></button>
+    </div>
+    <canvas id="graphCanvas" role="img"></canvas>
+  </section>
 
   <main class="shell" aria-live="polite">
     <header class="topbar">
@@ -577,8 +735,8 @@
       </article>
 
       <aside class="side">
-        <section class="metrics-bar" aria-label="Priority weather details">
-          <div class="metrics-grid">
+        <section class="metrics-bar" id="metricsBar" aria-label="Priority weather details">
+          <div class="metrics-grid" id="metricsGrid">
             <div class="metric"><i class="ph ph-thermometer-simple"></i><strong id="quickFeels">--</strong><span>Feels</span></div>
             <div class="metric"><i class="ph ph-cloud-rain"></i><strong id="quickRain">--</strong><span>Rain</span></div>
             <div class="metric"><i class="ph ph-wind"></i><strong id="wind">--</strong><span>Wind</span></div>
@@ -587,10 +745,10 @@
         </section>
 
         <section class="forecast" aria-label="Forecast">
-          <div class="forecast-head"><h2>Weekly forecast</h2><i class="ph ph-arrow-right"></i></div>
-          <div class="rail" id="dailyRow"></div>
-          <div class="section-head"><h2>Hourly</h2><i class="ph ph-clock"></i></div>
+          <div class="forecast-head"><h2>Hourly</h2><button class="more-button" id="hourlyMore">More<i class="ph ph-chart-line-up"></i></button></div>
           <div class="rail" id="hourRow"></div>
+          <div class="section-head"><h2>Weekly forecast</h2><button class="more-button" id="weeklyMore">More<i class="ph ph-chart-line-up"></i></button></div>
+          <div class="rail" id="dailyRow"></div>
         </section>
       </aside>
     </section>
@@ -611,13 +769,18 @@
   <script>
     const HOME = { lat: 42.9849, lon: -81.2453 };
     const API = "https://api.openweathermap.org/data/2.5";
+    const ONECALL = "https://api.openweathermap.org/data/3.0/onecall";
     const KEY_STORE = "home_weather_key";
-    const CACHE_STORE = "home_weather_cache_v9";
+    const CACHE_STORE = "home_weather_cache_v10";
     const $ = (id) => document.getElementById(id);
     const el = {
-      openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), quickFeels: $("quickFeels"), quickRain: $("quickRain"), wind: $("wind"), visibility: $("visibility"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), detailsGrid: $("detailsGrid"), readingRail: $("readingRail"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh")
+      openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), quickFeels: $("quickFeels"), quickRain: $("quickRain"), wind: $("wind"), visibility: $("visibility"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), readingRail: $("readingRail"), detailsGrid: $("detailsGrid"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh"), hourlyMore: $("hourlyMore"), weeklyMore: $("weeklyMore"), graphOverlay: $("graphOverlay"), graphModal: $("graphModal"), graphTitle: $("graphTitle"), graphNote: $("graphNote"), graphCanvas: $("graphCanvas"), closeGraph: $("closeGraph"), metricsBar: $("metricsBar"), metricsGrid: $("metricsGrid"), stickyStats: $("stickyStats"), stickyGrid: $("stickyGrid")
     };
     let lastZone = 0;
+    let hourlyData = [];
+    let dailyData = [];
+    let graphMode = "hourly";
+    let ticking = false;
 
     start();
 
@@ -625,14 +788,20 @@
       el.openMenu.onclick = openDrawer;
       el.closeMenu.onclick = closeDrawer;
       el.menuOverlay.onclick = closeDrawer;
-      document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeDrawer(); });
+      el.closeGraph.onclick = closeGraph;
+      el.graphOverlay.onclick = closeGraph;
+      el.hourlyMore.onclick = () => openGraph("hourly");
+      el.weeklyMore.onclick = () => openGraph("weekly");
+      document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeDrawer(); closeGraph(); } });
       el.saveKey.onclick = () => { closeDrawer(); saveKey(); };
       el.clearCache.onclick = () => { localStorage.removeItem(CACHE_STORE); closeDrawer(); status("Cache cleared. Refreshing..."); load(true); };
       el.refresh.onclick = () => { closeDrawer(); load(true); };
+      window.addEventListener("scroll", onScroll, { passive: true });
+      window.addEventListener("resize", () => { updateSticky(); if (el.graphModal.classList.contains("open")) drawGraph(graphMode); });
       registerServiceWorker();
       const cached = readCache();
       if (cached) {
-        render(cached.current, cached.forecast, cached.savedAt, true);
+        render(cached.current, cached.forecast, cached.onecall, cached.savedAt, true);
         status("Showing cached weather while checking for fresh data.");
       }
       if (!key()) {
@@ -662,18 +831,20 @@
       if (force) status("Refreshing live weather...");
       try {
         const q = new URLSearchParams({ lat: HOME.lat, lon: HOME.lon, appid, units: "metric" });
-        const [current, forecast] = await Promise.all([
+        const onecallQ = new URLSearchParams({ lat: HOME.lat, lon: HOME.lon, appid, units: "metric", exclude: "minutely,alerts" });
+        const [current, forecast, onecall] = await Promise.all([
           getJSON(`${API}/weather?${q}`),
-          getJSON(`${API}/forecast?${q}`)
+          getJSON(`${API}/forecast?${q}`),
+          getJSON(`${ONECALL}?${onecallQ}`).catch(() => null)
         ]);
         const savedAt = Date.now();
-        localStorage.setItem(CACHE_STORE, JSON.stringify({ current, forecast, savedAt }));
-        render(current, forecast, savedAt, false);
-        status("Fresh weather loaded just now.");
+        localStorage.setItem(CACHE_STORE, JSON.stringify({ current, forecast, onecall, savedAt }));
+        render(current, forecast, onecall, savedAt, false);
+        status(onecall?.daily ? "Fresh weather loaded with 7 day data." : "Fresh weather loaded. Weekly uses available forecast data because daily data was not returned.");
       } catch (err) {
         const cached = readCache();
         if (cached) {
-          render(cached.current, cached.forecast, cached.savedAt, true);
+          render(cached.current, cached.forecast, cached.onecall, cached.savedAt, true);
           status(`Live refresh failed. Cached weather is showing. ${err.message}`);
         } else {
           status(`Could not load weather. ${err.message}`);
@@ -692,8 +863,8 @@
       return data;
     }
 
-    function render(current, forecast, savedAt, cached) {
-      lastZone = current.timezone || forecast.city?.timezone || 0;
+    function render(current, forecast, onecall, savedAt, cached) {
+      lastZone = current.timezone || forecast.city?.timezone || onecall?.timezone_offset || 0;
       const weather = current.weather?.[0] || {};
       const main = current.main || {};
       const city = current.name || forecast.city?.name || "London";
@@ -702,27 +873,32 @@
       const feels = Math.round(main.feels_like ?? temp);
       const windKmh = Math.round((current.wind?.speed || 0) * 3.6);
       const windGust = current.wind?.gust ? Math.round(current.wind.gust * 3.6) : null;
-      const pop = todayPop(forecast.list || [], lastZone);
+      const pop = todayPop(forecast.list || [], lastZone, onecall);
       const desc = weather.description || weather.main || "current conditions";
       const visibility = current.visibility ? `${Math.min(10, current.visibility / 1000).toFixed(current.visibility >= 10000 ? 0 : 1)} km` : "--";
       const icon = iconFor(weather.main, localHour(lastZone), true);
 
+      hourlyData = buildHourly(forecast, onecall, lastZone);
+      dailyData = buildDaily(forecast, onecall, lastZone);
       applyPalette(weather.main, lastZone);
       el.brandIcon.className = icon;
       el.place.textContent = `${city}, ${country}`;
       el.datePill.textContent = dateLabel(lastZone);
       el.conditionWord.textContent = desc;
       el.tempMain.textContent = `${temp}°`;
-      el.summaryText.textContent = buildSummary({ temp, feels, windKmh, windGust, humidity: main.humidity, pop, high: main.temp_max, low: main.temp_min, visibility, weather });
+      el.summaryText.textContent = buildSummary({ feels, windKmh, windGust, humidity: main.humidity, pop, high: main.temp_max, low: main.temp_min, visibility, weather });
       el.updated.textContent = cached ? `Cached ${age(savedAt)}` : `Updated ${time(current.dt, lastZone)}`;
       el.quickFeels.textContent = `${feels}°`;
       el.quickRain.textContent = `${Math.round(pop * 100)}%`;
       el.wind.textContent = `${windKmh}km/h`;
       el.visibility.textContent = visibility;
-      renderDays(forecast, lastZone);
-      renderHours(forecast, lastZone);
-      renderDetails(current, forecast, savedAt, cached);
-      renderReadings(forecast, lastZone);
+      renderHours();
+      renderDays();
+      renderDetails(current, forecast, onecall, savedAt, cached);
+      renderReadings();
+      updateStickyContent();
+      updateSticky();
+      if (el.graphModal.classList.contains("open")) drawGraph(graphMode);
     }
 
     function buildSummary({ feels, windKmh, windGust, humidity, pop, high, low, visibility, weather }) {
@@ -735,7 +911,19 @@
       return `It feels like ${feels}° with ${condition}. ${rangeText} Wind is ${windKmh} km/h${gustText}. Humidity is ${humidity ?? "--"}% and visibility is ${visibility}. ${rainText} ${comfort}`;
     }
 
-    function renderDetails(current, forecast, savedAt, cached) {
+    function renderHours() {
+      el.hourRow.innerHTML = hourlyData.slice(0, 12).map(item => `<div class="hour-card"><span>${item.label}</span><i class="${iconFor(item.main, item.hour)}"></i><strong>${Math.round(item.temp)}°</strong><span>${Math.round(item.pop * 100)}% rain</span></div>`).join("");
+    }
+
+    function renderDays() {
+      el.dailyRow.innerHTML = dailyData.slice(0, 7).map(day => `<div class="day-card"><strong>${Math.round(day.max)}°</strong><i class="${iconFor(day.main, 12)}"></i><span>${day.label}</span><span>${Math.round(day.min)}° low</span></div>`).join("");
+    }
+
+    function renderReadings() {
+      el.readingRail.innerHTML = hourlyData.slice(0, 12).map(item => `<div class="reading-card"><span>${item.label}</span><i class="${iconFor(item.main, item.hour)}"></i><strong>${Math.round(item.temp)}°</strong><small>Feels ${Math.round(item.feels)}° · ${item.wind} km/h · ${item.humidity}%</small></div>`).join("");
+    }
+
+    function renderDetails(current, forecast, onecall, savedAt, cached) {
       const main = current.main || {};
       const weather = current.weather?.[0] || {};
       const wind = current.wind || {};
@@ -745,24 +933,15 @@
       const first = (forecast.list || [])[0] || {};
       const rainNow = precipAmount(current.rain);
       const snowNow = precipAmount(current.snow);
-      const rainForecast = forecastTotal(forecast, "rain");
-      const snowForecast = forecastTotal(forecast, "snow");
-      const rainChance = Math.max(todayPop(forecast.list || [], lastZone), first.pop || 0);
+      const rainForecast = forecastTotal(forecast, onecall, "rain");
+      const snowForecast = forecastTotal(forecast, onecall, "snow");
+      const rainChance = Math.max(todayPop(forecast.list || [], lastZone, onecall), first.pop || 0);
       const showRain = rainNow > 0 || rainForecast > 0 || rainChance >= 0.05 || isKind(weather.main, ["rain", "drizzle", "thunderstorm"]);
       const showSnow = snowNow > 0 || snowForecast > 0 || isKind(weather.main, ["snow"]);
       const showPressureLevels = main.sea_level != null || main.grnd_level != null;
       const groups = [];
 
-      groups.push({
-        title: "Temperature",
-        icon: "ph-thermometer-simple",
-        items: [
-          ["ph-thermometer-simple", "Feels like", deg(main.feels_like)],
-          ["ph-thermometer-hot", "Actual", deg(main.temp)],
-          ["ph-arrow-up", "High", deg(main.temp_max)],
-          ["ph-arrow-down", "Low", deg(main.temp_min)]
-        ]
-      });
+      groups.push({ title: "Temperature", icon: "ph-thermometer-simple", items: [["ph-thermometer-simple", "Feels like", deg(main.feels_like)], ["ph-thermometer-hot", "Actual", deg(main.temp)], ["ph-arrow-up", "High", deg(main.temp_max)], ["ph-arrow-down", "Low", deg(main.temp_min)]] });
 
       if (showRain || showSnow) {
         const precipItems = [];
@@ -778,37 +957,9 @@
         groups.push({ title: showSnow ? "Snow and rain" : "Rain", icon: showSnow ? "ph-snowflake" : "ph-cloud-rain", items: precipItems });
       }
 
-      groups.push({
-        title: "Wind",
-        icon: "ph-wind",
-        items: [
-          ["ph-wind", "Speed", wind.speed != null ? `${Math.round(wind.speed * 3.6)} km/h` : "--"],
-          ["ph-wind", "Gust", wind.gust != null ? `${Math.round(wind.gust * 3.6)} km/h` : "None listed"],
-          ["ph-compass", "Direction", wind.deg != null ? `${wind.deg}° ${direction(wind.deg)}` : "--"]
-        ]
-      });
-
-      groups.push({
-        title: "Air and visibility",
-        icon: "ph-cloud",
-        items: [
-          ["ph-drop", "Humidity", main.humidity != null ? `${main.humidity}%` : "--"],
-          ["ph-eye", "Visibility", current.visibility ? `${(current.visibility / 1000).toFixed(1)} km` : "--"],
-          ["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "--"],
-          ["ph-gauge", "Pressure", main.pressure != null ? `${main.pressure} hPa` : "--"]
-        ]
-      });
-
-      groups.push({
-        title: "Sun and time",
-        icon: "ph-sun-horizon",
-        items: [
-          ["ph-sun-horizon", "Sunrise", time(sys.sunrise, lastZone)],
-          ["ph-moon", "Sunset", time(sys.sunset, lastZone)],
-          ["ph-clock", "Timezone", timezoneLabel(lastZone)],
-          ["ph-clock-countdown", "Data time", time(current.dt, lastZone)]
-        ]
-      });
+      groups.push({ title: "Wind", icon: "ph-wind", items: [["ph-wind", "Speed", wind.speed != null ? `${Math.round(wind.speed * 3.6)} km/h` : "--"], ["ph-wind", "Gust", wind.gust != null ? `${Math.round(wind.gust * 3.6)} km/h` : "None listed"], ["ph-compass", "Direction", wind.deg != null ? `${wind.deg}° ${direction(wind.deg)}` : "--"]] });
+      groups.push({ title: "Air and visibility", icon: "ph-cloud", items: [["ph-drop", "Humidity", main.humidity != null ? `${main.humidity}%` : "--"], ["ph-eye", "Visibility", current.visibility ? `${(current.visibility / 1000).toFixed(1)} km` : "--"], ["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "--"], ["ph-gauge", "Pressure", main.pressure != null ? `${main.pressure} hPa` : "--"]] });
+      groups.push({ title: "Sun and time", icon: "ph-sun-horizon", items: [["ph-sun-horizon", "Sunrise", time(sys.sunrise, lastZone)], ["ph-moon", "Sunset", time(sys.sunset, lastZone)], ["ph-clock", "Timezone", timezoneLabel(lastZone)], ["ph-clock-countdown", "Data time", time(current.dt, lastZone)]] });
 
       if (showPressureLevels) {
         const levelItems = [];
@@ -817,68 +968,106 @@
         groups.push({ title: "Advanced pressure", icon: "ph-mountains", items: levelItems });
       }
 
-      groups.push({
-        title: "Source details",
-        icon: "ph-database",
-        items: [
-          ["ph-cloud-sun", "Condition", weather.main || "--"],
-          ["ph-identification-card", "Weather ID", weather.id != null ? `${weather.id}` : "--"],
-          ["ph-map-pin", "Coordinates", coord.lat != null && coord.lon != null ? `${coord.lat.toFixed(3)}, ${coord.lon.toFixed(3)}` : "--"],
-          ["ph-clock-counter-clockwise", "Display", cached ? `Cached ${age(savedAt)}` : "Live refresh"]
-        ]
+      groups.push({ title: "Source details", icon: "ph-database", items: [["ph-cloud-sun", "Condition", weather.main || "--"], ["ph-identification-card", "Weather ID", weather.id != null ? `${weather.id}` : "--"], ["ph-map-pin", "Coordinates", coord.lat != null && coord.lon != null ? `${coord.lat.toFixed(3)}, ${coord.lon.toFixed(3)}` : "--"], ["ph-clock-counter-clockwise", "Display", cached ? `Cached ${age(savedAt)}` : "Live refresh"]] });
+
+      el.detailsGrid.innerHTML = groups.map(group => `<section class="data-group"><div class="group-title"><h3>${group.title}</h3><i class="ph ${group.icon}"></i></div><div class="detail-grid">${group.items.map(([icon, label, value]) => `<div class="detail"><i class="ph ${icon}"></i><span>${label}</span><strong>${value}</strong></div>`).join("")}</div></section>`).join("");
+    }
+
+    function openGraph(mode) {
+      graphMode = mode;
+      el.graphOverlay.classList.add("open");
+      el.graphModal.classList.add("open");
+      el.graphModal.setAttribute("aria-hidden", "false");
+      drawGraph(mode);
+    }
+
+    function closeGraph() {
+      el.graphOverlay.classList.remove("open");
+      el.graphModal.classList.remove("open");
+      el.graphModal.setAttribute("aria-hidden", "true");
+    }
+
+    function drawGraph(mode) {
+      const canvas = el.graphCanvas;
+      const ctx = canvas.getContext("2d");
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      const isWeekly = mode === "weekly";
+      const rows = isWeekly ? dailyData.slice(0, 7).map(d => ({ label: d.label, value: d.max, low: d.min, pop: d.pop })) : hourlyData.slice(0, 12).map(h => ({ label: h.label, value: h.temp, low: h.feels, pop: h.pop }));
+      el.graphTitle.textContent = isWeekly ? "7 day temperature trend" : "Hourly temperature trend";
+      el.graphNote.textContent = isWeekly ? "Highs and lows across the weekly forecast." : "Temperature and feels-like trend across the next readings.";
+      canvas.setAttribute("aria-label", el.graphTitle.textContent);
+      if (!rows.length) return;
+
+      const pad = 30;
+      const chartW = rect.width - pad * 2;
+      const chartH = rect.height - pad * 2;
+      const values = rows.flatMap(r => [r.value, r.low]).filter(Number.isFinite);
+      const min = Math.floor(Math.min(...values)) - 1;
+      const max = Math.ceil(Math.max(...values)) + 1;
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--sun") || "#ffe84a";
+      ctx.fillRect(0, 0, rect.width, rect.height);
+      ctx.strokeStyle = "rgba(5,5,5,.18)";
+      ctx.lineWidth = 1;
+      for (let i = 0; i < 4; i++) {
+        const y = pad + (chartH / 3) * i;
+        ctx.beginPath();
+        ctx.moveTo(pad, y);
+        ctx.lineTo(rect.width - pad, y);
+        ctx.stroke();
+      }
+
+      const toY = value => pad + chartH - ((value - min) / Math.max(1, max - min)) * chartH;
+      const points = rows.map((r, i) => ({ ...r, x: pad + (chartW / Math.max(1, rows.length - 1)) * i, y: toY(r.value), yLow: toY(r.low) }));
+      drawLine(ctx, points, "y", "#050505", 4);
+      drawLine(ctx, points, "yLow", "rgba(5,5,5,.42)", 3);
+      ctx.font = "800 12px Inter, system-ui";
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#050505";
+      points.forEach((p, i) => {
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        if (i % (rows.length > 8 ? 2 : 1) === 0) {
+          ctx.fillText(`${Math.round(p.value)}°`, p.x, p.y - 12);
+          ctx.fillText(p.label, p.x, rect.height - 10);
+        }
       });
-
-      el.detailsGrid.innerHTML = groups.map(group => `
-        <section class="data-group">
-          <div class="group-title"><h3>${group.title}</h3><i class="ph ${group.icon}"></i></div>
-          <div class="detail-grid">
-            ${group.items.map(([icon, label, value]) => `<div class="detail"><i class="ph ${icon}"></i><span>${label}</span><strong>${value}</strong></div>`).join("")}
-          </div>
-        </section>
-      `).join("");
     }
 
-    function renderDays(forecast, zone) {
-      el.dailyRow.innerHTML = byDay(forecast.list || [], zone).slice(0, 5).map(day => `
-        <div class="day-card">
-          <strong>${Math.round(day.max)}°</strong>
-          <i class="${iconFor(day.main, 12)}"></i>
-          <span>${day.label}</span>
-        </div>
-      `).join("");
+    function drawLine(ctx, points, key, stroke, width) {
+      ctx.beginPath();
+      points.forEach((pt, i) => {
+        if (i === 0) ctx.moveTo(pt.x, pt[key]);
+        else {
+          const prev = points[i - 1];
+          const cx = (prev.x + pt.x) / 2;
+          ctx.bezierCurveTo(cx, prev[key], cx, pt[key], pt.x, pt[key]);
+        }
+      });
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = width;
+      ctx.lineCap = "round";
+      ctx.stroke();
     }
 
-    function renderHours(forecast, zone) {
-      el.hourRow.innerHTML = (forecast.list || []).slice(0, 10).map(item => {
-        const weather = item.weather?.[0] || {};
-        return `<div class="hour-card"><span>${hour(item.dt, zone)}</span><i class="${iconFor(weather.main, hourNumber(item.dt, zone))}"></i><strong>${Math.round(item.main.temp)}°</strong><span>${Math.round((item.pop || 0) * 100)}% rain</span></div>`;
-      }).join("");
+    function buildHourly(forecast, onecall, zone) {
+      if (Array.isArray(onecall?.hourly) && onecall.hourly.length) {
+        return onecall.hourly.slice(0, 24).map(item => ({ label: hour(item.dt, zone), hour: hourNumber(item.dt, zone), temp: item.temp, feels: item.feels_like, humidity: item.humidity, wind: Math.round((item.wind_speed || 0) * 3.6), pop: item.pop || 0, main: item.weather?.[0]?.main || "" }));
+      }
+      return (forecast.list || []).slice(0, 12).map(item => ({ label: hour(item.dt, zone), hour: hourNumber(item.dt, zone), temp: item.main.temp, feels: item.main.feels_like, humidity: item.main.humidity, wind: Math.round((item.wind?.speed || 0) * 3.6), pop: item.pop || 0, main: item.weather?.[0]?.main || "" }));
     }
 
-    function renderReadings(forecast, zone) {
-      el.readingRail.innerHTML = (forecast.list || []).slice(0, 12).map(item => {
-        const weather = item.weather?.[0] || {};
-        const wind = Math.round((item.wind?.speed || 0) * 3.6);
-        return `<div class="reading-card"><span>${hour(item.dt, zone)}</span><i class="${iconFor(weather.main, hourNumber(item.dt, zone))}"></i><strong>${Math.round(item.main.temp)}°</strong><small>Feels ${Math.round(item.main.feels_like)}° · ${wind} km/h · ${item.main.humidity}%</small></div>`;
-      }).join("");
-    }
-
-    function applyPalette(main = "", zone = 0) {
-      const hour = localHour(zone);
-      const condition = String(main).toLowerCase();
-      const night = hour < 6 || hour >= 20;
-      document.body.classList.toggle("night", night);
-      document.body.dataset.weather = condition;
-      let palette = { weather: "#FFE84A", weather2: "#FFF4A8", accent: "#42C6FF", theme: "#FFE84A" };
-      if (night) palette = { weather: "#171039", weather2: "#050505", accent: "#FF64D4", theme: "#171039" };
-      if (condition.includes("rain") || condition.includes("drizzle")) palette = night ? { weather: "#0B1535", weather2: "#050505", accent: "#42C6FF", theme: "#0B1535" } : { weather: "#42C6FF", weather2: "#BFEFFF", accent: "#FFE84A", theme: "#42C6FF" };
-      if (condition.includes("cloud")) palette = night ? { weather: "#171039", weather2: "#2E2A4F", accent: "#C6FF8B", theme: "#171039" } : { weather: "#E7E2D4", weather2: "#FFFDF8", accent: "#42C6FF", theme: "#E7E2D4" };
-      if (condition.includes("snow")) palette = { weather: "#F4FBFF", weather2: "#DDEEFF", accent: "#42C6FF", theme: "#F4FBFF" };
-      if (condition.includes("thunder")) palette = { weather: "#050505", weather2: "#241C4D", accent: "#FFE84A", theme: "#050505" };
-      document.documentElement.style.setProperty("--weather", palette.weather);
-      document.documentElement.style.setProperty("--weather-2", palette.weather2);
-      document.documentElement.style.setProperty("--accent", palette.accent);
-      document.querySelector('meta[name="theme-color"]').setAttribute("content", palette.theme);
+    function buildDaily(forecast, onecall, zone) {
+      if (Array.isArray(onecall?.daily) && onecall.daily.length) {
+        return onecall.daily.slice(0, 7).map(item => ({ label: dayLabel(item.dt, zone), min: item.temp?.min, max: item.temp?.max, pop: item.pop || 0, main: item.weather?.[0]?.main || "" }));
+      }
+      return byDay(forecast.list || [], zone).slice(0, 7);
     }
 
     function byDay(list, zone) {
@@ -897,41 +1086,58 @@
       return [...map.values()].sort((a, b) => b.count - a.count)[0]?.weather || {};
     }
 
-    function iconFor(main = "", hour = 12, fill = false) {
-      const prefix = fill ? "ph-fill" : "ph";
+    function applyPalette(main = "", zone = 0) {
+      const hour = localHour(zone);
       const condition = String(main).toLowerCase();
-      if (condition.includes("thunder")) return `${prefix} ph-cloud-lightning`;
-      if (condition.includes("rain") || condition.includes("drizzle")) return `${prefix} ph-cloud-rain`;
-      if (condition.includes("snow")) return `${prefix} ph-cloud-snow`;
-      if (condition.includes("cloud")) return `${prefix} ph-cloud`;
-      if (hour < 6 || hour >= 20) return `${prefix} ph-moon-stars`;
-      return `${prefix} ph-sun`;
+      const night = hour < 6 || hour >= 20;
+      document.body.classList.toggle("night", night);
+      let palette = { sky: "#42C6FF", sun: "#FFE84A", clouds: "#FFF4A8", accent: "#42C6FF", theme: "#FFE84A" };
+      if (night) palette = { sky: "#090918", sun: "#171039", clouds: "#050505", accent: "#FF64D4", theme: "#171039" };
+      if (condition.includes("rain") || condition.includes("drizzle")) palette = night ? { sky: "#0B1535", sun: "#102A48", clouds: "#050505", accent: "#42C6FF", theme: "#0B1535" } : { sky: "#42C6FF", sun: "#A9E7FF", clouds: "#E8F8FF", accent: "#FFE84A", theme: "#42C6FF" };
+      if (condition.includes("cloud")) palette = night ? { sky: "#171039", sun: "#2E2A4F", clouds: "#3A365A", accent: "#C6FF8B", theme: "#171039" } : { sky: "#AFC7D6", sun: "#E7E2D4", clouds: "#FFFDF8", accent: "#42C6FF", theme: "#E7E2D4" };
+      if (condition.includes("snow")) palette = { sky: "#DDEEFF", sun: "#F4FBFF", clouds: "#FFFFFF", accent: "#42C6FF", theme: "#F4FBFF" };
+      if (condition.includes("thunder")) palette = { sky: "#050505", sun: "#241C4D", clouds: "#36304F", accent: "#FFE84A", theme: "#050505" };
+      document.documentElement.style.setProperty("--sky", palette.sky);
+      document.documentElement.style.setProperty("--sun", palette.sun);
+      document.documentElement.style.setProperty("--clouds", palette.clouds);
+      document.documentElement.style.setProperty("--accent", palette.accent);
+      document.querySelector('meta[name="theme-color"]').setAttribute("content", palette.theme);
     }
 
-    function todayPop(list, zone) {
+    function updateStickyContent() { el.stickyGrid.innerHTML = el.metricsGrid.innerHTML; }
+    function updateSticky() {
+      if (!el.metricsBar) return;
+      const rect = el.metricsBar.getBoundingClientRect();
+      const shouldShow = rect.bottom < 0;
+      el.stickyStats.classList.toggle("show", shouldShow);
+      el.stickyStats.setAttribute("aria-hidden", shouldShow ? "false" : "true");
+    }
+
+    function onScroll() {
+      if (ticking) return;
+      ticking = true;
+      requestAnimationFrame(() => {
+        document.documentElement.style.setProperty("--scroll-shift", `${Math.min(520, window.scrollY)}px`);
+        updateSticky();
+        ticking = false;
+      });
+    }
+
+    function todayPop(list, zone, onecall) {
+      if (onecall?.daily?.[0]?.pop != null) return onecall.daily[0].pop;
       const today = new Date((Date.now() / 1000 + zone) * 1000).toISOString().slice(0, 10);
       return Math.max(0, ...list.filter(x => new Date((x.dt + zone) * 1000).toISOString().slice(0, 10) === today).map(x => x.pop || 0));
     }
 
-    function precipAmount(bucket) {
-      if (!bucket) return 0;
-      return Number(bucket["1h"] || 0) + Number(bucket["3h"] || 0);
-    }
-
-    function forecastTotal(forecast, key) {
+    function precipAmount(bucket) { if (!bucket) return 0; return Number(bucket["1h"] || 0) + Number(bucket["3h"] || 0); }
+    function forecastTotal(forecast, onecall, key) {
+      if (Array.isArray(onecall?.daily)) return onecall.daily.slice(0, 2).reduce((sum, item) => sum + Number(item[key] || 0), 0);
       return (forecast.list || []).slice(0, 12).reduce((sum, item) => sum + precipAmount(item[key]), 0);
     }
 
-    function isKind(main, names) {
-      const value = String(main || "").toLowerCase();
-      return names.some(name => value.includes(name));
-    }
-
-    function direction(deg) {
-      const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-      return dirs[Math.round(deg / 45) % 8];
-    }
-
+    function isKind(main, names) { const value = String(main || "").toLowerCase(); return names.some(name => value.includes(name)); }
+    function iconFor(main = "", hour = 12, fill = false) { const prefix = fill ? "ph-fill" : "ph"; const condition = String(main).toLowerCase(); if (condition.includes("thunder")) return `${prefix} ph-cloud-lightning`; if (condition.includes("rain") || condition.includes("drizzle")) return `${prefix} ph-cloud-rain`; if (condition.includes("snow")) return `${prefix} ph-cloud-snow`; if (condition.includes("cloud")) return `${prefix} ph-cloud`; if (hour < 6 || hour >= 20) return `${prefix} ph-moon-stars`; return `${prefix} ph-sun`; }
+    function direction(deg) { const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]; return dirs[Math.round(deg / 45) % 8]; }
     function deg(value) { return value != null ? `${Math.round(value)}°` : "--"; }
     function timezoneLabel(seconds) { const hours = seconds / 3600; return `UTC${hours >= 0 ? "+" : ""}${hours}`; }
     function readCache() { try { const x = JSON.parse(localStorage.getItem(CACHE_STORE) || "null"); if (x?.current && x?.forecast) return x; } catch {} return null; }
