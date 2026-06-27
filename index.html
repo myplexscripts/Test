@@ -25,44 +25,44 @@
       color-scheme: light;
       --ink: #050505;
       --muted: rgba(5, 5, 5, 0.66);
-      --line: rgba(5, 5, 5, 0.2);
+      --line: rgba(5, 5, 5, 0.18);
+      --soft-line: rgba(5, 5, 5, 0.1);
       --weather: #ffe84a;
       --weather-2: #fff4a8;
       --accent: #42c6ff;
       --black: #050505;
       --white: #fffdf8;
-      --shadow: 0 28px 80px rgba(0, 0, 0, 0.24);
-      --max: 1220px;
-      --radius-xl: 38px;
-      --radius-lg: 28px;
-      --radius-md: 22px;
+      --glass: rgba(255, 255, 255, 0.18);
+      --shadow: 0 28px 80px rgba(0, 0, 0, 0.22);
+      --max: 1240px;
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
     }
 
     * { box-sizing: border-box; }
-    html { min-height: 100%; background: var(--weather); }
+    html, body { width: 100%; max-width: 100%; min-height: 100%; overflow-x: hidden; }
+    html { background: var(--weather); }
 
     body {
-      min-height: 100svh;
       margin: 0;
       color: var(--ink);
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 16px;
       background:
-        radial-gradient(circle at 12% 10%, color-mix(in srgb, var(--weather) 78%, white 8%), transparent 32rem),
+        radial-gradient(circle at 12% 8%, color-mix(in srgb, var(--weather) 78%, white 8%), transparent 31rem),
         radial-gradient(circle at 90% 0%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 28rem),
         linear-gradient(135deg, var(--weather) 0%, var(--weather-2) 100%);
-      overflow-x: hidden;
-      transition: background 600ms ease, color 600ms ease;
+      transition: background 500ms ease, color 500ms ease;
     }
 
     body.night {
       color: var(--white);
       --muted: rgba(255, 255, 255, 0.68);
       --line: rgba(255, 255, 255, 0.2);
+      --soft-line: rgba(255, 255, 255, 0.12);
+      --glass: rgba(255, 255, 255, 0.08);
       background:
-        radial-gradient(circle at 12% 10%, rgba(108, 96, 255, 0.34), transparent 32rem),
+        radial-gradient(circle at 12% 8%, rgba(108, 96, 255, 0.34), transparent 31rem),
         radial-gradient(circle at 88% 4%, rgba(255, 100, 212, 0.2), transparent 28rem),
         linear-gradient(135deg, #090918 0%, #171039 58%, #050505 100%);
     }
@@ -71,60 +71,35 @@
     i { font-size: 1.25rem; line-height: 1; }
 
     .shell {
-      width: min(var(--max), calc(100% - clamp(24px, 5vw, 72px)));
+      width: min(var(--max), calc(100% - clamp(20px, 5vw, 72px)));
       margin: 0 auto;
-      padding: calc(clamp(18px, 4vw, 42px) + var(--safe-top)) 0 calc(54px + var(--safe-bottom));
+      padding: calc(clamp(14px, 4vw, 42px) + var(--safe-top)) 0 calc(54px + var(--safe-bottom));
+      min-width: 0;
     }
 
     .topbar {
       display: grid;
-      grid-template-columns: auto minmax(0, 1fr) auto;
+      grid-template-columns: 52px minmax(0, 1fr) 52px;
       align-items: center;
-      gap: 16px;
-      margin-bottom: clamp(26px, 5vw, 60px);
+      gap: 14px;
+      margin-bottom: clamp(20px, 5vw, 52px);
+      min-width: 0;
     }
 
-    .menu-button {
+    .menu-button, .brand-icon {
       width: 52px;
       height: 52px;
+      min-width: 52px;
       border-radius: 18px;
-      background: transparent;
       display: grid;
       place-items: center;
     }
 
-    .menu-button i { font-size: 2.2rem; }
-
-    .brand {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 0;
-      text-align: center;
-    }
-
-    .brand-title {
-      margin: 0;
-      font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1.2rem, 2vw, 1.55rem);
-      letter-spacing: -0.05em;
-      line-height: 1;
-    }
-
-    .brand-subtitle {
-      margin: 6px 0 0;
-      color: var(--muted);
-      font-size: 0.9rem;
-      font-weight: 750;
-    }
+    .menu-button { background: transparent; }
+    .menu-button i { font-size: 2.25rem; }
 
     .brand-icon {
-      width: 52px;
-      height: 52px;
       border: 3px solid currentColor;
-      border-radius: 18px;
-      display: grid;
-      place-items: center;
       background: var(--black);
       color: var(--weather);
       box-shadow: 6px 6px 0 currentColor;
@@ -138,20 +113,45 @@
 
     .brand-icon i { font-size: 1.7rem; }
 
+    .brand { min-width: 0; text-align: center; }
+    .brand-title {
+      margin: 0;
+      font-family: Sora, Inter, sans-serif;
+      font-size: clamp(1.15rem, 2vw, 1.55rem);
+      letter-spacing: -0.05em;
+      line-height: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .brand-subtitle {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.82rem;
+      line-height: 1.1;
+      font-weight: 750;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
     .hero {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
-      gap: clamp(24px, 4vw, 52px);
+      grid-template-columns: minmax(0, 1fr) minmax(0, 460px);
+      gap: clamp(22px, 4vw, 54px);
       align-items: end;
+      min-width: 0;
     }
 
     .weather-main {
-      min-height: min(760px, calc(100svh - 150px));
+      min-height: min(720px, calc(100svh - 132px));
       display: flex;
       flex-direction: column;
       justify-content: space-between;
-      padding-block: clamp(6px, 2vw, 22px);
+      min-width: 0;
       position: relative;
+      padding-block: clamp(4px, 2vw, 20px);
     }
 
     .weather-main::before {
@@ -159,8 +159,9 @@
       position: absolute;
       inset: auto auto 1rem -2rem;
       width: max-content;
+      max-width: none;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(2.8rem, 7vw, 6.6rem);
+      font-size: clamp(2.8rem, 7vw, 6.4rem);
       line-height: 0.9;
       font-weight: 800;
       letter-spacing: -0.08em;
@@ -170,25 +171,26 @@
 
     .date-pill {
       width: fit-content;
+      max-width: 100%;
       margin: 0 auto;
       border-radius: 999px;
       background: var(--black);
       color: var(--white);
-      padding: 0.72rem 1.25rem;
+      padding: 0.72rem 1.22rem;
       font-size: clamp(0.82rem, 1.5vw, 0.98rem);
+      line-height: 1;
       font-weight: 850;
+      white-space: nowrap;
     }
 
-    body.night .date-pill {
-      background: var(--white);
-      color: var(--black);
-    }
+    body.night .date-pill { background: var(--white); color: var(--black); }
 
     .hero-copy {
       position: relative;
       z-index: 1;
       text-align: center;
-      margin-top: clamp(28px, 6vw, 70px);
+      margin-top: clamp(26px, 6vw, 70px);
+      min-width: 0;
     }
 
     .condition {
@@ -202,25 +204,30 @@
     }
 
     .temperature {
-      margin: clamp(24px, 5vw, 44px) 0 0;
+      margin: clamp(22px, 5vw, 44px) auto 0;
+      width: min-content;
+      max-width: 100%;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(8.5rem, 26vw, 20rem);
+      font-size: clamp(7.6rem, 24vw, 18.4rem);
       line-height: 0.72;
-      letter-spacing: -0.16em;
+      letter-spacing: -0.15em;
       font-weight: 800;
+      white-space: nowrap;
+      transform: translateX(-0.06em);
     }
 
     .summary {
       position: relative;
       z-index: 1;
       max-width: 720px;
-      margin-top: clamp(38px, 8vw, 86px);
+      margin-top: clamp(32px, 7vw, 76px);
+      min-width: 0;
     }
 
-    .summary h2 {
+    .summary h2, .section-title {
       margin: 0 0 14px;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1.55rem, 3vw, 2.35rem);
+      font-size: clamp(1.45rem, 3vw, 2.3rem);
       line-height: 1;
       letter-spacing: -0.06em;
     }
@@ -229,29 +236,31 @@
       margin: 0;
       color: color-mix(in srgb, currentColor 82%, transparent);
       font-size: clamp(1rem, 2vw, 1.2rem);
-      line-height: 1.5;
+      line-height: 1.48;
       font-weight: 750;
     }
 
-    .updated {
-      margin-top: 18px;
+    .updated, .status {
       color: var(--muted);
-      font-size: 0.9rem;
-      font-weight: 800;
+      font-size: 0.88rem;
+      line-height: 1.3;
+      font-weight: 780;
     }
 
-    .side {
-      display: grid;
-      gap: 20px;
-      min-width: 0;
-    }
+    .updated { margin-top: 16px; }
+    .status { min-height: 22px; margin: 22px 0 0; }
+
+    .side { display: grid; gap: 20px; min-width: 0; }
 
     .metrics-bar {
-      border-radius: var(--radius-lg);
+      width: 100%;
+      max-width: 100%;
+      border-radius: 28px;
       background: var(--black);
       color: var(--weather);
-      padding: clamp(18px, 3vw, 26px);
-      box-shadow: var(--shadow);
+      padding: clamp(17px, 3vw, 24px);
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+      overflow: hidden;
     }
 
     body.night .metrics-bar { color: var(--accent); }
@@ -259,152 +268,148 @@
     .metrics-grid {
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 14px;
+      gap: clamp(8px, 2vw, 14px);
       text-align: center;
+      min-width: 0;
     }
 
-    .metric i {
-      display: block;
-      font-size: clamp(2.2rem, 4vw, 3rem);
-      margin-bottom: 14px;
-    }
-
+    .metric { min-width: 0; }
+    .metric i { display: block; font-size: clamp(2rem, 4vw, 2.8rem); margin-bottom: 13px; }
     .metric strong {
       display: block;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1.15rem, 2.6vw, 1.75rem);
+      font-size: clamp(1rem, 2.6vw, 1.55rem);
       line-height: 1;
       letter-spacing: -0.06em;
-      color: currentColor;
+      overflow-wrap: anywhere;
     }
 
     .metric span {
       display: block;
       margin-top: 7px;
       color: color-mix(in srgb, currentColor 68%, white 10%);
-      font-size: 0.82rem;
+      font-size: 0.78rem;
+      line-height: 1.2;
       font-weight: 800;
     }
 
-    .forecast {
-      color: currentColor;
+    .forecast, .info-section {
+      min-width: 0;
+      max-width: 100%;
     }
 
-    .forecast-head {
+    .section-head, .forecast-head {
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 14px;
-      margin: 8px 0 18px;
+      margin: 8px 0 16px;
+      min-width: 0;
     }
 
-    .forecast-head h2 {
+    .section-head h2, .forecast-head h2 {
       margin: 0;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1.6rem, 3.3vw, 2.45rem);
+      font-size: clamp(1.45rem, 3.2vw, 2.3rem);
       letter-spacing: -0.06em;
       line-height: 1;
     }
 
-    .forecast-head i { font-size: clamp(2rem, 4vw, 3rem); }
+    .section-head i, .forecast-head i { font-size: clamp(1.9rem, 4vw, 2.8rem); }
 
-    .forecast-row,
-    .hour-row {
-      display: grid;
-      grid-auto-flow: column;
+    .rail {
+      width: 100%;
+      max-width: 100%;
+      display: flex;
       gap: 12px;
       overflow-x: auto;
-      padding-bottom: 4px;
+      overflow-y: hidden;
+      padding: 2px 2px 8px;
       scrollbar-width: none;
-      scroll-snap-type: x mandatory;
+      scroll-snap-type: x proximity;
+      scroll-padding-inline: 2px;
+      overscroll-behavior-x: contain;
+      -webkit-overflow-scrolling: touch;
+      touch-action: pan-x;
     }
 
-    .forecast-row::-webkit-scrollbar,
-    .hour-row::-webkit-scrollbar { display: none; }
+    .rail::-webkit-scrollbar { display: none; }
 
-    .forecast-row { grid-auto-columns: minmax(96px, 1fr); }
-    .hour-row { grid-auto-columns: minmax(112px, 1fr); margin-top: 16px; }
-
-    .day-card,
-    .hour-card {
+    .day-card, .hour-card, .reading-card {
+      flex: 0 0 clamp(92px, 26vw, 132px);
       scroll-snap-align: start;
       border: 3px solid currentColor;
       border-radius: 24px;
-      min-height: 132px;
+      min-height: 130px;
       padding: 14px 10px;
       display: grid;
       place-items: center;
       text-align: center;
       gap: 8px;
       background: rgba(255, 255, 255, 0.08);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
       font-weight: 850;
+      min-width: 0;
     }
 
-    .day-card strong,
-    .hour-card strong {
+    .hour-card, .reading-card { flex-basis: clamp(116px, 35vw, 154px); }
+
+    .day-card strong, .hour-card strong, .reading-card strong {
       display: block;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1.2rem, 2.5vw, 1.5rem);
+      font-size: clamp(1.13rem, 2.5vw, 1.45rem);
       letter-spacing: -0.06em;
       line-height: 1;
+      overflow-wrap: anywhere;
     }
 
-    .day-card i,
-    .hour-card i {
+    .day-card i, .hour-card i, .reading-card i {
       display: block;
-      font-size: clamp(1.4rem, 3vw, 1.9rem);
+      font-size: clamp(1.35rem, 3vw, 1.9rem);
     }
 
-    .day-card span,
-    .hour-card span {
-      font-size: 0.82rem;
+    .day-card span, .hour-card span, .reading-card span, .reading-card small {
+      font-size: 0.78rem;
+      line-height: 1.2;
       color: color-mix(in srgb, currentColor 74%, transparent);
       font-weight: 850;
     }
 
-    .more-panel {
+    .reading-card {
+      min-height: 146px;
+      align-content: center;
+    }
+
+    .details-grid {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(auto-fit, minmax(min(148px, 100%), 1fr));
       gap: 12px;
-      margin-top: 18px;
+      min-width: 0;
     }
 
     .detail {
       border: 2px solid currentColor;
       border-radius: 22px;
       padding: 14px;
-      min-height: 104px;
-      background: rgba(255, 255, 255, 0.08);
+      min-height: 102px;
+      background:
+        linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05)),
+        var(--glass);
+      backdrop-filter: blur(14px);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
+      min-width: 0;
     }
 
-    .detail i {
-      display: block;
-      font-size: 1.55rem;
-      margin-bottom: 11px;
-    }
-
-    .detail span {
-      display: block;
-      font-size: 0.8rem;
-      color: var(--muted);
-      font-weight: 800;
-    }
-
+    .detail i { display: block; font-size: 1.55rem; margin-bottom: 11px; }
+    .detail span { display: block; font-size: 0.78rem; color: var(--muted); line-height: 1.2; font-weight: 800; }
     .detail strong {
       display: block;
       margin-top: 6px;
       font-family: Sora, Inter, sans-serif;
-      font-size: 1.06rem;
+      font-size: clamp(1rem, 2.3vw, 1.2rem);
+      line-height: 1.1;
       letter-spacing: -0.05em;
       overflow-wrap: anywhere;
-    }
-
-    .status {
-      min-height: 22px;
-      margin: 22px 0 0;
-      color: var(--muted);
-      font-size: 0.92rem;
-      font-weight: 750;
     }
 
     .menu-overlay {
@@ -417,16 +422,13 @@
       transition: opacity 180ms ease;
     }
 
-    .menu-overlay.open {
-      opacity: 1;
-      pointer-events: auto;
-    }
+    .menu-overlay.open { opacity: 1; pointer-events: auto; }
 
     .drawer {
       position: fixed;
       z-index: 31;
       inset: 0 auto 0 0;
-      width: min(360px, calc(100% - 34px));
+      width: min(360px, calc(100% - 28px));
       padding: calc(24px + var(--safe-top)) 20px calc(24px + var(--safe-bottom));
       background: var(--black);
       color: var(--white);
@@ -440,13 +442,7 @@
 
     .drawer.open { transform: translateX(0); }
 
-    .drawer-head {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-    }
-
+    .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
     .drawer h2 {
       margin: 0;
       font-family: Sora, Inter, sans-serif;
@@ -464,12 +460,7 @@
     }
 
     .drawer-close i { font-size: 1.5rem; }
-
-    .drawer-actions {
-      display: grid;
-      gap: 12px;
-      margin-top: 10px;
-    }
+    .drawer-actions { display: grid; gap: 12px; margin-top: 10px; }
 
     .drawer-action {
       min-height: 58px;
@@ -485,7 +476,6 @@
     }
 
     .drawer-action i { color: var(--accent); font-size: 1.55rem; }
-
     .drawer p {
       margin: auto 0 0;
       color: rgba(255, 255, 255, 0.68);
@@ -500,32 +490,36 @@
       .side { gap: 28px; }
     }
 
-    @media (max-width: 700px) {
-      .shell { width: min(100% - 24px, var(--max)); padding-top: calc(14px + var(--safe-top)); }
-      .topbar { margin-bottom: 22px; }
-      .brand { justify-content: center; }
-      .brand-icon { width: 48px; height: 48px; }
-      .date-pill { margin-top: 10px; }
-      .temperature { font-size: clamp(7.8rem, 43vw, 12.2rem); }
-      .summary { margin-top: 34px; }
-      .metrics-grid { gap: 8px; }
-      .metrics-bar { border-radius: 24px; padding: 18px 10px; }
-      .metric i { font-size: 2.05rem; }
-      .metric strong { font-size: 1.05rem; }
-      .metric span { font-size: 0.78rem; }
-      .more-panel { grid-template-columns: 1fr; }
-      .forecast-row { grid-auto-columns: minmax(84px, 1fr); }
-      .hour-row { grid-auto-columns: minmax(104px, 1fr); }
-    }
-
-    @media (max-width: 420px) {
-      .shell { width: min(100% - 18px, var(--max)); }
-      .menu-button { width: 46px; height: 46px; }
-      .brand-icon { width: 46px; height: 46px; box-shadow: 5px 5px 0 currentColor; }
+    @media (max-width: 760px) {
+      .shell { width: min(100% - 22px, var(--max)); padding-top: calc(12px + var(--safe-top)); }
+      .topbar { grid-template-columns: 48px minmax(0, 1fr) 48px; margin-bottom: 20px; gap: 10px; }
+      .menu-button, .brand-icon { width: 48px; height: 48px; min-width: 48px; }
+      .brand-icon { box-shadow: 5px 5px 0 currentColor; }
       .brand-title { font-size: 1.08rem; }
       .brand-subtitle { font-size: 0.78rem; }
-      .forecast-row { grid-auto-columns: minmax(78px, 1fr); gap: 9px; }
-      .day-card, .hour-card { min-height: 118px; border-radius: 20px; border-width: 2px; }
+      .weather-main::before { left: -1rem; font-size: 3.2rem; }
+      .date-pill { margin-top: 8px; }
+      .temperature { font-size: clamp(7rem, 41vw, 12.2rem); letter-spacing: -0.16em; }
+      .summary { margin-top: 32px; }
+      .metrics-bar { border-radius: 24px; padding: 18px 10px; }
+      .metric i { font-size: 2rem; margin-bottom: 12px; }
+      .metric strong { font-size: clamp(0.98rem, 4.5vw, 1.18rem); }
+      .metric span { font-size: 0.78rem; }
+      .details-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .detail { min-height: 96px; padding: 12px; }
+      .rail { gap: 10px; }
+      .day-card { flex-basis: clamp(84px, 25vw, 104px); min-height: 118px; border-width: 2px; border-radius: 20px; }
+      .hour-card, .reading-card { flex-basis: clamp(110px, 34vw, 134px); border-width: 2px; border-radius: 20px; }
+    }
+
+    @media (max-width: 390px) {
+      .shell { width: min(100% - 16px, var(--max)); }
+      .topbar { grid-template-columns: 44px minmax(0, 1fr) 44px; }
+      .menu-button, .brand-icon { width: 44px; height: 44px; min-width: 44px; border-radius: 16px; }
+      .menu-button i { font-size: 2rem; }
+      .brand-icon i { font-size: 1.45rem; }
+      .temperature { font-size: clamp(6.6rem, 40vw, 9.6rem); }
+      .details-grid { gap: 10px; }
     }
 
     @media (prefers-reduced-motion: reduce) {
@@ -587,15 +581,21 @@
 
         <section class="forecast" aria-label="Forecast">
           <div class="forecast-head"><h2>Weekly forecast</h2><i class="ph ph-arrow-right"></i></div>
-          <div class="forecast-row" id="dailyRow"></div>
-          <div class="hour-row" id="hourRow"></div>
-          <div class="more-panel">
-            <div class="detail"><i class="ph ph-thermometer-simple"></i><span>Feels like</span><strong id="feels">--°</strong></div>
-            <div class="detail"><i class="ph ph-cloud-rain"></i><span>Rain chance</span><strong id="rainChance">--</strong></div>
-            <div class="detail"><i class="ph ph-gauge"></i><span>Pressure</span><strong id="pressure">--</strong></div>
-          </div>
+          <div class="rail" id="dailyRow"></div>
+          <div class="section-head"><h2>Hourly</h2><i class="ph ph-clock"></i></div>
+          <div class="rail" id="hourRow"></div>
         </section>
       </aside>
+    </section>
+
+    <section class="info-section" aria-label="Weather data">
+      <div class="section-head"><h2>Weather data</h2><i class="ph ph-database"></i></div>
+      <div class="details-grid" id="detailsGrid"></div>
+    </section>
+
+    <section class="info-section" aria-label="Upcoming readings">
+      <div class="section-head"><h2>Next readings</h2><i class="ph ph-chart-line-up"></i></div>
+      <div class="rail" id="readingRail"></div>
     </section>
 
     <p class="status" id="status">Starting dashboard...</p>
@@ -605,10 +605,10 @@
     const HOME = { lat: 42.9849, lon: -81.2453 };
     const API = "https://api.openweathermap.org/data/2.5";
     const KEY_STORE = "home_weather_key";
-    const CACHE_STORE = "home_weather_cache_v6";
+    const CACHE_STORE = "home_weather_cache_v7";
     const $ = (id) => document.getElementById(id);
     const el = {
-      openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), wind: $("wind"), humidity: $("humidity"), visibility: $("visibility"), feels: $("feels"), rainChance: $("rainChance"), pressure: $("pressure"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh")
+      openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), wind: $("wind"), humidity: $("humidity"), visibility: $("visibility"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), detailsGrid: $("detailsGrid"), readingRail: $("readingRail"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh")
     };
     let lastZone = 0;
 
@@ -693,7 +693,8 @@
       const country = current.sys?.country || forecast.city?.country || "CA";
       const temp = Math.round(main.temp ?? 0);
       const feels = Math.round(main.feels_like ?? temp);
-      const wind = Math.round((current.wind?.speed || 0) * 3.6);
+      const windKmh = Math.round((current.wind?.speed || 0) * 3.6);
+      const windGust = current.wind?.gust ? Math.round(current.wind.gust * 3.6) : null;
       const pop = todayPop(forecast.list || [], lastZone);
       const desc = weather.description || weather.main || "current conditions";
       const visibility = current.visibility ? `${Math.min(10, current.visibility / 1000).toFixed(current.visibility >= 10000 ? 0 : 1)} km` : "--";
@@ -705,16 +706,77 @@
       el.datePill.textContent = dateLabel(lastZone);
       el.conditionWord.textContent = desc;
       el.tempMain.textContent = `${temp}°`;
-      el.summaryText.textContent = `Now it feels like ${feels}°. Wind is ${wind} km/h, humidity is ${main.humidity ?? "--"}%, and today's rain chance is ${Math.round(pop * 100)}%.`;
+      el.summaryText.textContent = `Now it feels like ${feels}°. Wind is ${windKmh} km/h${windGust ? ` with gusts up to ${windGust} km/h` : ""}, humidity is ${main.humidity ?? "--"}%, and today's rain chance is ${Math.round(pop * 100)}%.`;
       el.updated.textContent = cached ? `Cached ${age(savedAt)}` : `Updated ${time(current.dt, lastZone)}`;
-      el.wind.textContent = `${wind}km/h`;
+      el.wind.textContent = `${windKmh}km/h`;
       el.humidity.textContent = `${main.humidity ?? "--"}%`;
       el.visibility.textContent = visibility;
-      el.feels.textContent = `${feels}°`;
-      el.rainChance.textContent = `${Math.round(pop * 100)}%`;
-      el.pressure.textContent = `${main.pressure ?? "--"} hPa`;
       renderDays(forecast, lastZone);
       renderHours(forecast, lastZone);
+      renderDetails(current, forecast, savedAt, cached);
+      renderReadings(forecast, lastZone);
+    }
+
+    function renderDetails(current, forecast, savedAt, cached) {
+      const main = current.main || {};
+      const weather = current.weather?.[0] || {};
+      const wind = current.wind || {};
+      const clouds = current.clouds || {};
+      const sys = current.sys || {};
+      const coord = current.coord || {};
+      const first = (forecast.list || [])[0] || {};
+      const details = [
+        ["ph-thermometer-simple", "Feels like", deg(main.feels_like)],
+        ["ph-arrow-up", "High", deg(main.temp_max)],
+        ["ph-arrow-down", "Low", deg(main.temp_min)],
+        ["ph-gauge", "Pressure", main.pressure != null ? `${main.pressure} hPa` : "--"],
+        ["ph-drop", "Humidity", main.humidity != null ? `${main.humidity}%` : "--"],
+        ["ph-eye", "Visibility", current.visibility ? `${(current.visibility / 1000).toFixed(1)} km` : "--"],
+        ["ph-wind", "Wind speed", wind.speed != null ? `${Math.round(wind.speed * 3.6)} km/h` : "--"],
+        ["ph-wind", "Wind gust", wind.gust != null ? `${Math.round(wind.gust * 3.6)} km/h` : "--"],
+        ["ph-compass", "Wind direction", wind.deg != null ? `${wind.deg}° ${direction(wind.deg)}` : "--"],
+        ["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "--"],
+        ["ph-cloud-rain", "Rain 1h", current.rain?.["1h"] != null ? `${current.rain["1h"]} mm` : "0 mm"],
+        ["ph-cloud-rain", "Rain 3h", current.rain?.["3h"] != null ? `${current.rain["3h"]} mm` : "0 mm"],
+        ["ph-snowflake", "Snow 1h", current.snow?.["1h"] != null ? `${current.snow["1h"]} mm` : "0 mm"],
+        ["ph-snowflake", "Snow 3h", current.snow?.["3h"] != null ? `${current.snow["3h"]} mm` : "0 mm"],
+        ["ph-sun-horizon", "Sunrise", time(sys.sunrise, lastZone)],
+        ["ph-moon", "Sunset", time(sys.sunset, lastZone)],
+        ["ph-clock", "Timezone", timezoneLabel(lastZone)],
+        ["ph-map-pin", "Coordinates", coord.lat != null && coord.lon != null ? `${coord.lat.toFixed(3)}, ${coord.lon.toFixed(3)}` : "--"],
+        ["ph-identification-card", "Weather ID", weather.id != null ? `${weather.id}` : "--"],
+        ["ph-cloud-sun", "Main", weather.main || "--"],
+        ["ph-clock-countdown", "Data time", time(current.dt, lastZone)],
+        ["ph-percent", "Next rain chance", first.pop != null ? `${Math.round(first.pop * 100)}%` : "--"],
+        ["ph-gauge", "Sea pressure", main.sea_level != null ? `${main.sea_level} hPa` : "--"],
+        ["ph-mountains", "Ground pressure", main.grnd_level != null ? `${main.grnd_level} hPa` : "--"]
+      ];
+      el.detailsGrid.innerHTML = details.map(([icon, label, value]) => `<div class="detail"><i class="ph ${icon}"></i><span>${label}</span><strong>${value}</strong></div>`).join("");
+    }
+
+    function renderDays(forecast, zone) {
+      el.dailyRow.innerHTML = byDay(forecast.list || [], zone).slice(0, 5).map(day => `
+        <div class="day-card">
+          <strong>${Math.round(day.max)}°</strong>
+          <i class="${iconFor(day.main, 12)}"></i>
+          <span>${day.label}</span>
+        </div>
+      `).join("");
+    }
+
+    function renderHours(forecast, zone) {
+      el.hourRow.innerHTML = (forecast.list || []).slice(0, 10).map(item => {
+        const weather = item.weather?.[0] || {};
+        return `<div class="hour-card"><span>${hour(item.dt, zone)}</span><i class="${iconFor(weather.main, hourNumber(item.dt, zone))}"></i><strong>${Math.round(item.main.temp)}°</strong><span>${Math.round((item.pop || 0) * 100)}% rain</span></div>`;
+      }).join("");
+    }
+
+    function renderReadings(forecast, zone) {
+      el.readingRail.innerHTML = (forecast.list || []).slice(0, 12).map(item => {
+        const weather = item.weather?.[0] || {};
+        const wind = Math.round((item.wind?.speed || 0) * 3.6);
+        return `<div class="reading-card"><span>${hour(item.dt, zone)}</span><i class="${iconFor(weather.main, hourNumber(item.dt, zone))}"></i><strong>${Math.round(item.main.temp)}°</strong><small>Feels ${Math.round(item.main.feels_like)}° · ${wind} km/h · ${item.main.humidity}%</small></div>`;
+      }).join("");
     }
 
     function applyPalette(main = "", zone = 0) {
@@ -733,23 +795,6 @@
       document.documentElement.style.setProperty("--weather-2", palette.weather2);
       document.documentElement.style.setProperty("--accent", palette.accent);
       document.querySelector('meta[name="theme-color"]').setAttribute("content", palette.theme);
-    }
-
-    function renderDays(forecast, zone) {
-      el.dailyRow.innerHTML = byDay(forecast.list || [], zone).slice(0, 5).map(day => `
-        <div class="day-card">
-          <strong>${Math.round(day.max)}°</strong>
-          <i class="${iconFor(day.main, 12)}"></i>
-          <span>${day.label}</span>
-        </div>
-      `).join("");
-    }
-
-    function renderHours(forecast, zone) {
-      el.hourRow.innerHTML = (forecast.list || []).slice(0, 8).map(item => {
-        const weather = item.weather?.[0] || {};
-        return `<div class="hour-card"><span>${hour(item.dt, zone)}</span><i class="${iconFor(weather.main, localHour(zone))}"></i><strong>${Math.round(item.main.temp)}°</strong></div>`;
-      }).join("");
     }
 
     function byDay(list, zone) {
@@ -784,9 +829,17 @@
       return Math.max(0, ...list.filter(x => new Date((x.dt + zone) * 1000).toISOString().slice(0, 10) === today).map(x => x.pop || 0));
     }
 
+    function direction(deg) {
+      const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+      return dirs[Math.round(deg / 45) % 8];
+    }
+
+    function deg(value) { return value != null ? `${Math.round(value)}°` : "--"; }
+    function timezoneLabel(seconds) { const hours = seconds / 3600; return `UTC${hours >= 0 ? "+" : ""}${hours}`; }
     function readCache() { try { const x = JSON.parse(localStorage.getItem(CACHE_STORE) || "null"); if (x?.current && x?.forecast) return x; } catch {} return null; }
     function age(savedAt) { const m = Math.max(0, Math.round((Date.now() - savedAt) / 60000)); if (m < 1) return "just now"; if (m < 60) return `${m} min ago`; return `${Math.round(m / 60)} hr ago`; }
     function localHour(zone) { return new Date((Date.now() / 1000 + zone) * 1000).getUTCHours(); }
+    function hourNumber(t, zone) { return new Date((t + zone) * 1000).getUTCHours(); }
     function time(t, zone) { if (!t) return "--"; return new Date((t + zone) * 1000).toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit", timeZone: "UTC" }); }
     function hour(t, zone) { return new Date((t + zone) * 1000).toLocaleTimeString("en-CA", { hour: "numeric", timeZone: "UTC" }).toLowerCase(); }
     function dateLabel(zone) { return new Date((Date.now() / 1000 + zone) * 1000).toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }); }
