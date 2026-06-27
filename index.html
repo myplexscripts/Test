@@ -25,7 +25,7 @@
       color-scheme: light;
       --ink: #050505;
       --muted: rgba(5, 5, 5, 0.66);
-      --line: rgba(5, 5, 5, 0.18);
+      --line: rgba(5, 5, 5, 0.2);
       --sky: #42c6ff;
       --sun: #ffe84a;
       --clouds: #fff4a8;
@@ -37,7 +37,7 @@
       --max: 1240px;
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
-      --scroll-shift: 0px;
+      --bg-y: 0px;
     }
 
     * { box-sizing: border-box; }
@@ -49,64 +49,30 @@
       color: var(--ink);
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 16px;
-      background: linear-gradient(135deg, var(--sky) 0%, var(--sun) 48%, var(--clouds) 100%);
-      transition: background 500ms ease, color 500ms ease;
+      background: var(--sky);
+      transition: color 500ms ease;
     }
 
     body.night {
       color: var(--white);
       --muted: rgba(255, 255, 255, 0.68);
-      --line: rgba(255, 255, 255, 0.2);
+      --line: rgba(255, 255, 255, 0.22);
       --glass: rgba(255, 255, 255, 0.08);
     }
 
-    .parallax-sky {
+    .bg-gradient {
       position: fixed;
-      inset: -12vh -12vw;
+      inset: -18vh -14vw;
       z-index: -1;
       pointer-events: none;
-      overflow: hidden;
-      background: linear-gradient(135deg, var(--sky) 0%, var(--sun) 50%, var(--clouds) 100%);
-    }
-
-    .parallax-sky::before,
-    .parallax-sky::after,
-    .cloud-layer {
-      content: "";
-      position: absolute;
-      inset: auto;
-      border-radius: 999px;
-      will-change: transform;
-      transition: background 500ms ease;
-    }
-
-    .parallax-sky::before {
-      width: min(48vw, 560px);
-      height: min(48vw, 560px);
-      left: 6vw;
-      top: 8vh;
-      background: radial-gradient(circle, color-mix(in srgb, var(--sun) 92%, white 8%), color-mix(in srgb, var(--sun) 42%, transparent) 62%, transparent 72%);
-      transform: translate3d(0, calc(var(--scroll-shift) * -0.18), 0);
-    }
-
-    .parallax-sky::after {
-      width: min(62vw, 720px);
-      height: min(36vw, 380px);
-      right: -6vw;
-      top: 6vh;
-      background: radial-gradient(ellipse, color-mix(in srgb, var(--clouds) 70%, white 8%), transparent 70%);
-      transform: translate3d(0, calc(var(--scroll-shift) * -0.08), 0);
-      opacity: 0.72;
-    }
-
-    .cloud-layer {
-      width: min(80vw, 860px);
-      height: min(44vw, 460px);
-      left: -10vw;
-      bottom: 2vh;
-      background: radial-gradient(ellipse, color-mix(in srgb, var(--clouds) 72%, white 8%), transparent 68%);
-      transform: translate3d(0, calc(var(--scroll-shift) * -0.04), 0);
-      opacity: 0.55;
+      background:
+        linear-gradient(135deg, var(--sky) 0%, var(--sun) 48%, var(--clouds) 100%);
+      background-size: 135% 145%;
+      background-position: 50% calc(50% + var(--bg-y));
+      transform: translate3d(0, calc(var(--bg-y) * -0.22), 0) scale(1.04);
+      transition: background 600ms ease;
+      animation: gradientBreath 18s ease-in-out infinite alternate;
+      will-change: transform, background-position;
     }
 
     button { font: inherit; border: 0; cursor: pointer; color: inherit; }
@@ -126,6 +92,7 @@
       gap: 14px;
       margin-bottom: clamp(20px, 5vw, 52px);
       min-width: 0;
+      animation: fadeUp 520ms ease both;
     }
 
     .menu-button, .brand-icon {
@@ -145,6 +112,7 @@
       background: var(--black);
       color: var(--sun);
       box-shadow: 6px 6px 0 currentColor;
+      transition: transform 180ms ease, box-shadow 180ms ease, background 300ms ease, color 300ms ease;
     }
 
     body.night .brand-icon {
@@ -194,6 +162,7 @@
       min-width: 0;
       position: relative;
       padding-block: clamp(4px, 2vw, 20px);
+      animation: fadeUp 680ms ease both 80ms;
     }
 
     .weather-main::before {
@@ -209,7 +178,6 @@
       letter-spacing: -0.08em;
       opacity: 0.08;
       pointer-events: none;
-      transform: translate3d(0, calc(var(--scroll-shift) * -0.05), 0);
     }
 
     .date-pill {
@@ -224,6 +192,7 @@
       line-height: 1;
       font-weight: 850;
       white-space: nowrap;
+      transition: transform 180ms ease;
     }
 
     body.night .date-pill { background: var(--white); color: var(--black); }
@@ -257,7 +226,10 @@
       font-weight: 800;
       white-space: nowrap;
       transform: translateX(-0.06em);
+      transition: transform 280ms ease, opacity 280ms ease;
     }
+
+    .temperature.refreshing { opacity: 0.72; transform: translateX(-0.06em) scale(0.985); }
 
     .summary {
       position: relative;
@@ -293,7 +265,7 @@
 
     .updated { margin-top: 16px; }
     .status { min-height: 22px; margin: 22px 0 0; }
-    .side { display: grid; gap: 22px; min-width: 0; }
+    .side { display: grid; gap: 22px; min-width: 0; animation: fadeUp 680ms ease both 150ms; }
 
     .metrics-bar, .sticky-stats {
       width: 100%;
@@ -304,9 +276,12 @@
       padding: clamp(16px, 3vw, 22px);
       box-shadow: var(--shadow), inset 0 1px 0 rgba(255, 255, 255, 0.12);
       overflow: hidden;
+      transition: transform 200ms ease, box-shadow 200ms ease, color 300ms ease;
     }
 
     body.night .metrics-bar, body.night .sticky-stats { color: var(--accent); }
+
+    .metrics-bar:hover { transform: translateY(-2px); }
 
     .metrics-grid {
       display: grid;
@@ -351,16 +326,12 @@
       padding: 11px 12px;
     }
 
-    .sticky-stats.show {
-      transform: translate(-50%, 0);
-      opacity: 1;
-    }
-
+    .sticky-stats.show { transform: translate(-50%, 0); opacity: 1; }
     .sticky-stats .metric i { font-size: 1.45rem; margin-bottom: 7px; }
     .sticky-stats .metric strong { font-size: clamp(0.82rem, 2vw, 1rem); }
-    .sticky-stats .metric span { font-size: 0.7rem; }
+    .sticky-stats .metric span { font-size: 0.75rem; }
 
-    .forecast, .info-section { min-width: 0; max-width: 100%; }
+    .forecast, .info-section { min-width: 0; max-width: 100%; animation: fadeUp 660ms ease both; }
 
     .section-head, .forecast-head, .group-title {
       display: flex;
@@ -387,8 +358,10 @@
       line-height: 1;
       font-weight: 900;
       white-space: nowrap;
+      transition: transform 180ms ease, background 180ms ease;
     }
 
+    .more-button:hover, .more-button:focus-visible { transform: translateY(-2px); background: rgba(255, 255, 255, 0.1); outline: none; }
     .more-button i { font-size: 1.2rem; }
 
     .rail {
@@ -424,8 +397,10 @@
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.14);
       font-weight: 850;
       min-width: 0;
+      transition: transform 180ms ease, background 180ms ease;
     }
 
+    .day-card:hover, .hour-card:hover, .reading-card:hover { transform: translateY(-3px); background: rgba(255, 255, 255, 0.14); }
     .hour-card, .reading-card { flex-basis: clamp(116px, 35vw, 154px); }
 
     .day-card strong, .hour-card strong, .reading-card strong {
@@ -459,13 +434,14 @@
       border: 2px solid currentColor;
       border-radius: 28px;
       padding: 16px;
-      background:
-        linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05)),
-        var(--glass);
+      background: linear-gradient(145deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.05)), var(--glass);
       backdrop-filter: blur(14px);
       box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.16);
       min-width: 0;
+      transition: transform 180ms ease, background 180ms ease;
     }
+
+    .data-group:hover { transform: translateY(-2px); }
 
     .detail-grid {
       display: grid;
@@ -526,13 +502,7 @@
 
     .drawer.open { transform: translateX(0); }
     .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-
-    .drawer h2 {
-      margin: 0;
-      font-family: Sora, Inter, sans-serif;
-      font-size: 1.45rem;
-      letter-spacing: -0.05em;
-    }
+    .drawer h2 { margin: 0; font-family: Sora, Inter, sans-serif; font-size: 1.45rem; letter-spacing: -0.05em; }
 
     .drawer-close, .graph-close {
       width: 44px;
@@ -542,8 +512,10 @@
       place-items: center;
       background: rgba(255, 255, 255, 0.1);
       color: var(--white);
+      transition: transform 180ms ease, background 180ms ease;
     }
 
+    .drawer-close:hover, .graph-close:hover { transform: rotate(6deg) scale(1.03); background: rgba(255, 255, 255, 0.16); }
     .drawer-close i, .graph-close i { font-size: 1.5rem; }
     .drawer-actions { display: grid; gap: 12px; margin-top: 10px; }
 
@@ -558,17 +530,12 @@
       padding: 0 16px;
       font-weight: 850;
       text-align: left;
+      transition: transform 180ms ease, background 180ms ease;
     }
 
+    .drawer-action:hover { transform: translateX(3px); background: rgba(255, 255, 255, 0.16); }
     .drawer-action i { color: var(--accent); font-size: 1.55rem; }
-
-    .drawer p {
-      margin: auto 0 0;
-      color: rgba(255, 255, 255, 0.68);
-      line-height: 1.45;
-      font-size: 0.9rem;
-      font-weight: 650;
-    }
+    .drawer p { margin: auto 0 0; color: rgba(255, 255, 255, 0.68); line-height: 1.45; font-size: 0.9rem; font-weight: 650; }
 
     .graph-modal {
       position: fixed;
@@ -588,35 +555,11 @@
       box-shadow: 0 34px 90px rgba(0, 0, 0, 0.45);
     }
 
-    .graph-modal.open {
-      transform: translate(-50%, -50%) scale(1);
-      opacity: 1;
-      pointer-events: auto;
-    }
+    .graph-modal.open { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
 
-    .graph-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 16px;
-      margin-bottom: 18px;
-    }
-
-    .graph-head h2 {
-      margin: 0;
-      font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1.45rem, 5vw, 2.2rem);
-      line-height: 1;
-      letter-spacing: -0.06em;
-    }
-
-    .graph-head p {
-      margin: 8px 0 0;
-      color: rgba(255, 255, 255, 0.68);
-      font-size: 0.9rem;
-      line-height: 1.4;
-      font-weight: 700;
-    }
+    .graph-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+    .graph-head h2 { margin: 0; font-family: Sora, Inter, sans-serif; font-size: clamp(1.45rem, 5vw, 2.2rem); line-height: 1; letter-spacing: -0.06em; }
+    .graph-head p { margin: 8px 0 0; color: rgba(255, 255, 255, 0.68); font-size: 0.9rem; line-height: 1.4; font-weight: 700; }
 
     #graphCanvas {
       width: 100%;
@@ -625,6 +568,16 @@
       border-radius: 24px;
       background: var(--sun);
       color: var(--black);
+    }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes gradientBreath {
+      from { background-position: 46% calc(48% + var(--bg-y)); }
+      to { background-position: 54% calc(52% + var(--bg-y)); }
     }
 
     @media (max-width: 1040px) {
@@ -649,7 +602,7 @@
       .metrics-grid { gap: 6px; }
       .metric i { font-size: 1.7rem; margin-bottom: 10px; }
       .metric strong { font-size: clamp(0.82rem, 3.8vw, 1rem); }
-      .metric span { font-size: 0.72rem; }
+      .metric span { font-size: 0.75rem; }
       .data-group { padding: 13px; border-radius: 24px; }
       .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
       .detail { min-height: 94px; padding: 11px; border-radius: 18px; }
@@ -668,16 +621,16 @@
       .temperature { font-size: clamp(6.6rem, 40vw, 9.6rem); }
       .detail-grid { gap: 8px; }
       .detail strong { font-size: 0.96rem; }
-      .metric span { font-size: 0.7rem; }
     }
 
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
+      *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; }
+      .bg-gradient { transform: none !important; }
     }
   </style>
 </head>
 <body>
-  <div class="parallax-sky" aria-hidden="true"><div class="cloud-layer"></div></div>
+  <div class="bg-gradient" aria-hidden="true"></div>
   <div class="sticky-stats" id="stickyStats" aria-hidden="true"><div class="metrics-grid" id="stickyGrid"></div></div>
   <div class="menu-overlay" id="menuOverlay"></div>
   <div class="graph-overlay" id="graphOverlay"></div>
@@ -771,7 +724,7 @@
     const API = "https://api.openweathermap.org/data/2.5";
     const ONECALL = "https://api.openweathermap.org/data/3.0/onecall";
     const KEY_STORE = "home_weather_key";
-    const CACHE_STORE = "home_weather_cache_v10";
+    const CACHE_STORE = "home_weather_cache_v11";
     const $ = (id) => document.getElementById(id);
     const el = {
       openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), quickFeels: $("quickFeels"), quickRain: $("quickRain"), wind: $("wind"), visibility: $("visibility"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), readingRail: $("readingRail"), detailsGrid: $("detailsGrid"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh"), hourlyMore: $("hourlyMore"), weeklyMore: $("weeklyMore"), graphOverlay: $("graphOverlay"), graphModal: $("graphModal"), graphTitle: $("graphTitle"), graphNote: $("graphNote"), graphCanvas: $("graphCanvas"), closeGraph: $("closeGraph"), metricsBar: $("metricsBar"), metricsGrid: $("metricsGrid"), stickyStats: $("stickyStats"), stickyGrid: $("stickyGrid")
@@ -978,7 +931,7 @@
       el.graphOverlay.classList.add("open");
       el.graphModal.classList.add("open");
       el.graphModal.setAttribute("aria-hidden", "false");
-      drawGraph(mode);
+      drawGraph(mode, true);
     }
 
     function closeGraph() {
@@ -987,7 +940,7 @@
       el.graphModal.setAttribute("aria-hidden", "true");
     }
 
-    function drawGraph(mode) {
+    function drawGraph(mode, animate = false) {
       const canvas = el.graphCanvas;
       const ctx = canvas.getContext("2d");
       const rect = canvas.getBoundingClientRect();
@@ -995,7 +948,6 @@
       canvas.width = Math.max(1, Math.floor(rect.width * dpr));
       canvas.height = Math.max(1, Math.floor(rect.height * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, rect.width, rect.height);
 
       const isWeekly = mode === "weekly";
       const rows = isWeekly ? dailyData.slice(0, 7).map(d => ({ label: d.label, value: d.max, low: d.min, pop: d.pop })) : hourlyData.slice(0, 12).map(h => ({ label: h.label, value: h.temp, low: h.feels, pop: h.pop }));
@@ -1004,6 +956,18 @@
       canvas.setAttribute("aria-label", el.graphTitle.textContent);
       if (!rows.length) return;
 
+      const start = performance.now();
+      const duration = animate && !matchMedia("(prefers-reduced-motion: reduce)").matches ? 460 : 0;
+      const frame = (now) => {
+        const progress = duration ? Math.min(1, (now - start) / duration) : 1;
+        drawGraphFrame(ctx, rect, rows, progress);
+        if (progress < 1) requestAnimationFrame(frame);
+      };
+      requestAnimationFrame(frame);
+    }
+
+    function drawGraphFrame(ctx, rect, rows, progress) {
+      ctx.clearRect(0, 0, rect.width, rect.height);
       const pad = 30;
       const chartW = rect.width - pad * 2;
       const chartH = rect.height - pad * 2;
@@ -1016,27 +980,20 @@
       ctx.lineWidth = 1;
       for (let i = 0; i < 4; i++) {
         const y = pad + (chartH / 3) * i;
-        ctx.beginPath();
-        ctx.moveTo(pad, y);
-        ctx.lineTo(rect.width - pad, y);
-        ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(rect.width - pad, y); ctx.stroke();
       }
-
       const toY = value => pad + chartH - ((value - min) / Math.max(1, max - min)) * chartH;
       const points = rows.map((r, i) => ({ ...r, x: pad + (chartW / Math.max(1, rows.length - 1)) * i, y: toY(r.value), yLow: toY(r.low) }));
-      drawLine(ctx, points, "y", "#050505", 4);
-      drawLine(ctx, points, "yLow", "rgba(5,5,5,.42)", 3);
+      const visible = Math.max(2, Math.ceil(points.length * easeOut(progress)));
+      const partial = points.slice(0, visible);
+      drawLine(ctx, partial, "y", "#050505", 4);
+      drawLine(ctx, partial, "yLow", "rgba(5,5,5,.42)", 3);
       ctx.font = "800 12px Inter, system-ui";
       ctx.textAlign = "center";
       ctx.fillStyle = "#050505";
-      points.forEach((p, i) => {
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, 5, 0, Math.PI * 2);
-        ctx.fill();
-        if (i % (rows.length > 8 ? 2 : 1) === 0) {
-          ctx.fillText(`${Math.round(p.value)}°`, p.x, p.y - 12);
-          ctx.fillText(p.label, p.x, rect.height - 10);
-        }
+      partial.forEach((p, i) => {
+        ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
+        if (i % (points.length > 8 ? 2 : 1) === 0) { ctx.fillText(`${Math.round(p.value)}°`, p.x, p.y - 12); ctx.fillText(p.label, p.x, rect.height - 10); }
       });
     }
 
@@ -1117,7 +1074,7 @@
       if (ticking) return;
       ticking = true;
       requestAnimationFrame(() => {
-        document.documentElement.style.setProperty("--scroll-shift", `${Math.min(520, window.scrollY)}px`);
+        document.documentElement.style.setProperty("--bg-y", `${Math.min(320, window.scrollY * 0.22)}px`);
         updateSticky();
         ticking = false;
       });
@@ -1142,6 +1099,7 @@
     function timezoneLabel(seconds) { const hours = seconds / 3600; return `UTC${hours >= 0 ? "+" : ""}${hours}`; }
     function readCache() { try { const x = JSON.parse(localStorage.getItem(CACHE_STORE) || "null"); if (x?.current && x?.forecast) return x; } catch {} return null; }
     function age(savedAt) { const m = Math.max(0, Math.round((Date.now() - savedAt) / 60000)); if (m < 1) return "just now"; if (m < 60) return `${m} min ago`; return `${Math.round(m / 60)} hr ago`; }
+    function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
     function localHour(zone) { return new Date((Date.now() / 1000 + zone) * 1000).getUTCHours(); }
     function hourNumber(t, zone) { return new Date((t + zone) * 1000).getUTCHours(); }
     function time(t, zone) { if (!t) return "--"; return new Date((t + zone) * 1000).toLocaleTimeString("en-CA", { hour: "numeric", minute: "2-digit", timeZone: "UTC" }); }
@@ -1149,7 +1107,7 @@
     function dateLabel(zone) { return new Date((Date.now() / 1000 + zone) * 1000).toLocaleDateString("en-CA", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" }); }
     function dayLabel(t, zone) { const d = new Date((t + zone) * 1000); const today = new Date((Date.now() / 1000 + zone) * 1000).toISOString().slice(0, 10); return d.toISOString().slice(0, 10) === today ? "Today" : d.toLocaleDateString("en-CA", { weekday: "short", timeZone: "UTC" }); }
     function status(x) { el.status.textContent = x; }
-    function busy(v) { el.refresh.disabled = v; el.refresh.style.opacity = v ? ".66" : ""; }
+    function busy(v) { el.refresh.disabled = v; el.refresh.style.opacity = v ? ".66" : ""; el.tempMain.classList.toggle("refreshing", v); }
     function registerServiceWorker() { if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {}); }
   </script>
 </body>
