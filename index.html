@@ -2,9 +2,18 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#050505">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#FFE84A">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Weather">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="format-detection" content="telephone=no">
+  <meta name="description" content="A personal weather dashboard for home.">
   <title>Home Weather</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icon.svg">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://api.openweathermap.org">
@@ -15,31 +24,34 @@
     :root {
       color-scheme: light;
       --ink: #050505;
-      --muted: rgba(5, 5, 5, 0.62);
-      --line: rgba(5, 5, 5, 0.18);
+      --muted: rgba(5, 5, 5, 0.66);
+      --line: rgba(5, 5, 5, 0.2);
       --weather: #ffe84a;
       --weather-2: #fff4a8;
       --accent: #42c6ff;
       --black: #050505;
       --white: #fffdf8;
-      --shadow: 0 32px 90px rgba(0, 0, 0, 0.24);
-      --max: 1240px;
-      --radius-xl: 44px;
-      --radius-lg: 30px;
+      --shadow: 0 28px 80px rgba(0, 0, 0, 0.24);
+      --max: 1220px;
+      --radius-xl: 38px;
+      --radius-lg: 28px;
       --radius-md: 22px;
+      --safe-top: env(safe-area-inset-top, 0px);
+      --safe-bottom: env(safe-area-inset-bottom, 0px);
     }
 
     * { box-sizing: border-box; }
-    html { background: var(--black); }
+    html { min-height: 100%; background: var(--weather); }
 
     body {
       min-height: 100svh;
       margin: 0;
       color: var(--ink);
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      font-size: 16px;
       background:
-        radial-gradient(circle at 10% 8%, color-mix(in srgb, var(--weather) 72%, white 10%), transparent 30rem),
-        radial-gradient(circle at 92% 4%, color-mix(in srgb, var(--accent) 42%, transparent), transparent 28rem),
+        radial-gradient(circle at 12% 10%, color-mix(in srgb, var(--weather) 78%, white 8%), transparent 32rem),
+        radial-gradient(circle at 90% 0%, color-mix(in srgb, var(--accent) 38%, transparent), transparent 28rem),
         linear-gradient(135deg, var(--weather) 0%, var(--weather-2) 100%);
       overflow-x: hidden;
       transition: background 600ms ease, color 600ms ease;
@@ -47,366 +59,235 @@
 
     body.night {
       color: var(--white);
-      --muted: rgba(255, 255, 255, 0.66);
-      --line: rgba(255, 255, 255, 0.18);
+      --muted: rgba(255, 255, 255, 0.68);
+      --line: rgba(255, 255, 255, 0.2);
       background:
-        radial-gradient(circle at 10% 8%, rgba(108, 96, 255, 0.32), transparent 30rem),
-        radial-gradient(circle at 90% 6%, rgba(255, 100, 212, 0.18), transparent 28rem),
+        radial-gradient(circle at 12% 10%, rgba(108, 96, 255, 0.34), transparent 32rem),
+        radial-gradient(circle at 88% 4%, rgba(255, 100, 212, 0.2), transparent 28rem),
         linear-gradient(135deg, #090918 0%, #171039 58%, #050505 100%);
     }
 
-    button { font: inherit; border: 0; cursor: pointer; }
+    button { font: inherit; border: 0; cursor: pointer; color: inherit; }
+    i { font-size: 1.25rem; line-height: 1; }
 
     .shell {
       width: min(var(--max), calc(100% - clamp(24px, 5vw, 72px)));
       margin: 0 auto;
-      padding: clamp(20px, 4vw, 48px) 0 54px;
+      padding: calc(clamp(18px, 4vw, 42px) + var(--safe-top)) 0 calc(54px + var(--safe-bottom));
     }
 
     .topbar {
-      display: flex;
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr) auto;
       align-items: center;
-      justify-content: space-between;
-      gap: 18px;
-      margin-bottom: clamp(26px, 5vw, 64px);
+      gap: 16px;
+      margin-bottom: clamp(26px, 5vw, 60px);
     }
+
+    .menu-button {
+      width: 52px;
+      height: 52px;
+      border-radius: 18px;
+      background: transparent;
+      display: grid;
+      place-items: center;
+    }
+
+    .menu-button i { font-size: 2.2rem; }
 
     .brand {
       display: flex;
       align-items: center;
-      gap: 14px;
+      justify-content: center;
       min-width: 0;
+      text-align: center;
     }
-
-    .brand-mark {
-      width: 48px;
-      height: 48px;
-      border: 3px solid currentColor;
-      border-radius: 17px;
-      display: grid;
-      place-items: center;
-      background: var(--black);
-      color: var(--weather);
-      box-shadow: 7px 7px 0 currentColor;
-    }
-
-    body.night .brand-mark {
-      background: var(--white);
-      color: var(--black);
-      box-shadow: 7px 7px 0 rgba(255, 255, 255, 0.16);
-    }
-
-    .brand-mark i { font-size: 25px; }
 
     .brand-title {
       margin: 0;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1.1rem, 2vw, 1.42rem);
+      font-size: clamp(1.2rem, 2vw, 1.55rem);
       letter-spacing: -0.05em;
       line-height: 1;
     }
 
     .brand-subtitle {
-      margin: 5px 0 0;
+      margin: 6px 0 0;
       color: var(--muted);
-      font-size: 0.92rem;
+      font-size: 0.9rem;
       font-weight: 750;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
     }
 
-    .actions {
-      display: flex;
-      gap: 10px;
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-
-    .btn {
-      min-height: 46px;
-      border: 2px solid currentColor;
-      border-radius: 999px;
-      color: currentColor;
-      background: transparent;
-      padding: 0 18px;
-      font-weight: 850;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      transition: transform 180ms ease, background 180ms ease, color 180ms ease;
-    }
-
-    .btn:hover, .btn:focus-visible { transform: translateY(-2px); outline: none; }
-
-    .btn.primary {
-      background: var(--black);
-      color: var(--white);
-      border-color: var(--black);
-    }
-
-    body.night .btn.primary {
-      background: var(--white);
-      color: var(--black);
-      border-color: var(--white);
-    }
-
-    .hero {
-      display: grid;
-      grid-template-columns: minmax(0, 1.15fr) minmax(320px, 0.85fr);
-      gap: clamp(18px, 3vw, 34px);
-      align-items: stretch;
-    }
-
-    .main-card {
-      min-height: min(760px, calc(100svh - 150px));
-      border: 4px solid currentColor;
-      border-radius: var(--radius-xl);
-      padding: clamp(24px, 5vw, 54px);
-      background:
-        radial-gradient(circle at 88% 8%, color-mix(in srgb, var(--accent) 26%, transparent), transparent 16rem),
-        linear-gradient(155deg, var(--weather) 0%, var(--weather-2) 100%);
-      color: var(--black);
-      box-shadow: var(--shadow), 12px 12px 0 var(--black);
-      display: flex;
-      flex-direction: column;
-      justify-content: space-between;
-      overflow: hidden;
-      position: relative;
-    }
-
-    body.night .main-card {
-      color: var(--white);
-      box-shadow: var(--shadow), 12px 12px 0 rgba(255, 255, 255, 0.12);
-    }
-
-    .main-card::before {
-      content: "Weather Forecast Weather Forecast";
-      position: absolute;
-      inset: auto -3rem 2rem -3rem;
-      font-family: Sora, Inter, sans-serif;
-      font-size: clamp(2.2rem, 6vw, 5.2rem);
-      line-height: 1;
-      font-weight: 800;
-      letter-spacing: -0.08em;
-      opacity: 0.075;
-      white-space: nowrap;
-      pointer-events: none;
-    }
-
-    .hero-top {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 22px;
-      position: relative;
-      z-index: 1;
-    }
-
-    .pill {
-      width: fit-content;
-      border: 2px solid currentColor;
-      border-radius: 999px;
-      background: var(--black);
-      color: var(--white);
-      padding: 9px 14px;
-      font-size: 0.78rem;
-      font-weight: 850;
-    }
-
-    body.night .pill {
-      background: var(--white);
-      color: var(--black);
-    }
-
-    .weather-icon {
-      width: clamp(58px, 8vw, 94px);
-      height: clamp(58px, 8vw, 94px);
-      border-radius: 26px;
+    .brand-icon {
+      width: 52px;
+      height: 52px;
+      border: 3px solid currentColor;
+      border-radius: 18px;
       display: grid;
       place-items: center;
       background: var(--black);
-      color: var(--accent);
-      transform: rotate(4deg);
+      color: var(--weather);
+      box-shadow: 6px 6px 0 currentColor;
     }
 
-    body.night .weather-icon {
+    body.night .brand-icon {
+      background: var(--white);
+      color: var(--black);
+      box-shadow: 6px 6px 0 rgba(255, 255, 255, 0.16);
+    }
+
+    .brand-icon i { font-size: 1.7rem; }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(320px, 440px);
+      gap: clamp(24px, 4vw, 52px);
+      align-items: end;
+    }
+
+    .weather-main {
+      min-height: min(760px, calc(100svh - 150px));
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding-block: clamp(6px, 2vw, 22px);
+      position: relative;
+    }
+
+    .weather-main::before {
+      content: "Weather Forecast Weather Forecast";
+      position: absolute;
+      inset: auto auto 1rem -2rem;
+      width: max-content;
+      font-family: Sora, Inter, sans-serif;
+      font-size: clamp(2.8rem, 7vw, 6.6rem);
+      line-height: 0.9;
+      font-weight: 800;
+      letter-spacing: -0.08em;
+      opacity: 0.08;
+      pointer-events: none;
+    }
+
+    .date-pill {
+      width: fit-content;
+      margin: 0 auto;
+      border-radius: 999px;
+      background: var(--black);
+      color: var(--white);
+      padding: 0.72rem 1.25rem;
+      font-size: clamp(0.82rem, 1.5vw, 0.98rem);
+      font-weight: 850;
+    }
+
+    body.night .date-pill {
       background: var(--white);
       color: var(--black);
     }
 
-    .weather-icon i { font-size: clamp(32px, 5vw, 56px); }
-
-    .hero-main {
+    .hero-copy {
       position: relative;
       z-index: 1;
-      margin-top: clamp(30px, 6vw, 70px);
+      text-align: center;
+      margin-top: clamp(28px, 6vw, 70px);
     }
 
-    .eyebrow {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 12px;
-      margin: 0 0 20px;
-      color: color-mix(in srgb, currentColor 72%, transparent);
-      font-family: Sora, Inter, sans-serif;
-      font-size: clamp(0.9rem, 2vw, 1.1rem);
-      font-weight: 750;
-    }
-
-    .spark {
-      width: 28px;
-      height: 28px;
-      position: relative;
-      opacity: 0.55;
-      flex: 0 0 auto;
-    }
-
-    .spark::before, .spark::after {
-      content: "";
-      position: absolute;
-      inset: 50% auto auto 50%;
-      width: 100%;
-      height: 2px;
-      background: currentColor;
-      transform: translate(-50%, -50%);
-    }
-
-    .spark::after { transform: translate(-50%, -50%) rotate(90deg); }
-
-    .city {
+    .condition {
       margin: 0;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(4.4rem, 15vw, 12rem);
-      line-height: 0.84;
-      letter-spacing: -0.11em;
-      font-weight: 800;
+      font-size: clamp(1.35rem, 4vw, 2.4rem);
+      line-height: 1;
+      letter-spacing: -0.05em;
+      font-weight: 750;
+      text-transform: capitalize;
     }
 
     .temperature {
-      margin: clamp(16px, 3vw, 28px) 0 0;
+      margin: clamp(24px, 5vw, 44px) 0 0;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(7rem, 20vw, 16rem);
-      line-height: 0.75;
-      letter-spacing: -0.14em;
+      font-size: clamp(8.5rem, 26vw, 20rem);
+      line-height: 0.72;
+      letter-spacing: -0.16em;
       font-weight: 800;
     }
 
-    .summary-card {
+    .summary {
       position: relative;
       z-index: 1;
-      margin-top: clamp(30px, 5vw, 56px);
-      display: grid;
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 20px;
-      align-items: end;
+      max-width: 720px;
+      margin-top: clamp(38px, 8vw, 86px);
     }
 
-    .summary-card h2 {
-      margin: 0 0 8px;
+    .summary h2 {
+      margin: 0 0 14px;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1rem, 2vw, 1.35rem);
-      letter-spacing: -0.04em;
-    }
-
-    .summary-card p {
-      margin: 0;
-      max-width: 560px;
-      line-height: 1.48;
-      font-weight: 750;
-      color: color-mix(in srgb, currentColor 78%, transparent);
-    }
-
-    .updated {
-      white-space: nowrap;
-      font-weight: 850;
-      color: color-mix(in srgb, currentColor 70%, transparent);
-    }
-
-    .side-stack {
-      display: grid;
-      gap: clamp(18px, 3vw, 28px);
-      min-width: 0;
-    }
-
-    .black-panel {
-      border-radius: var(--radius-xl);
-      background: var(--black);
-      color: var(--white);
-      padding: clamp(22px, 3vw, 32px);
-      box-shadow: var(--shadow);
-      min-width: 0;
-    }
-
-    .panel-title {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 18px;
-    }
-
-    .panel-title h2 {
-      margin: 0;
-      font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1.35rem, 3vw, 2.2rem);
+      font-size: clamp(1.55rem, 3vw, 2.35rem);
       line-height: 1;
       letter-spacing: -0.06em;
     }
 
-    .panel-title i { font-size: 28px; color: var(--accent); }
-
-    .metric-grid {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
+    .summary p {
+      margin: 0;
+      color: color-mix(in srgb, currentColor 82%, transparent);
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      line-height: 1.5;
+      font-weight: 750;
     }
 
-    .metric-card {
-      border: 1px solid rgba(255, 255, 255, 0.14);
-      border-radius: var(--radius-md);
-      background: rgba(255, 255, 255, 0.07);
-      padding: 17px;
-      min-width: 0;
-    }
-
-    .metric-card i {
-      display: block;
-      color: var(--accent);
-      font-size: 28px;
-      margin-bottom: 16px;
-    }
-
-    .metric-card span {
-      display: block;
-      color: rgba(255, 255, 255, 0.62);
-      font-size: 0.76rem;
+    .updated {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 0.9rem;
       font-weight: 800;
     }
 
-    .metric-card strong {
-      display: block;
-      margin-top: 7px;
-      font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1.25rem, 3vw, 1.9rem);
-      letter-spacing: -0.06em;
-      overflow-wrap: anywhere;
+    .side {
+      display: grid;
+      gap: 20px;
+      min-width: 0;
     }
 
-    .forecast-panel {
-      border-radius: var(--radius-xl);
-      background: color-mix(in srgb, var(--white) 64%, var(--weather) 28%);
-      color: var(--black);
-      border: 3px solid var(--black);
-      padding: clamp(20px, 3vw, 28px);
+    .metrics-bar {
+      border-radius: var(--radius-lg);
+      background: var(--black);
+      color: var(--weather);
+      padding: clamp(18px, 3vw, 26px);
       box-shadow: var(--shadow);
     }
 
-    body.night .forecast-panel {
-      background: rgba(255, 255, 255, 0.1);
-      color: var(--white);
-      border-color: rgba(255, 255, 255, 0.24);
+    body.night .metrics-bar { color: var(--accent); }
+
+    .metrics-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      text-align: center;
+    }
+
+    .metric i {
+      display: block;
+      font-size: clamp(2.2rem, 4vw, 3rem);
+      margin-bottom: 14px;
+    }
+
+    .metric strong {
+      display: block;
+      font-family: Sora, Inter, sans-serif;
+      font-size: clamp(1.15rem, 2.6vw, 1.75rem);
+      line-height: 1;
+      letter-spacing: -0.06em;
+      color: currentColor;
+    }
+
+    .metric span {
+      display: block;
+      margin-top: 7px;
+      color: color-mix(in srgb, currentColor 68%, white 10%);
+      font-size: 0.82rem;
+      font-weight: 800;
+    }
+
+    .forecast {
+      color: currentColor;
     }
 
     .forecast-head {
@@ -414,166 +295,307 @@
       align-items: center;
       justify-content: space-between;
       gap: 14px;
-      margin-bottom: 18px;
+      margin: 8px 0 18px;
     }
 
     .forecast-head h2 {
       margin: 0;
       font-family: Sora, Inter, sans-serif;
-      font-size: clamp(1.2rem, 3vw, 1.8rem);
-      letter-spacing: -0.05em;
+      font-size: clamp(1.6rem, 3.3vw, 2.45rem);
+      letter-spacing: -0.06em;
+      line-height: 1;
     }
 
-    .forecast-head i { font-size: 26px; }
+    .forecast-head i { font-size: clamp(2rem, 4vw, 3rem); }
 
-    .forecast-row, .hour-row {
+    .forecast-row,
+    .hour-row {
       display: grid;
       grid-auto-flow: column;
-      gap: 10px;
+      gap: 12px;
       overflow-x: auto;
-      padding-bottom: 2px;
+      padding-bottom: 4px;
       scrollbar-width: none;
       scroll-snap-type: x mandatory;
     }
 
-    .forecast-row::-webkit-scrollbar, .hour-row::-webkit-scrollbar { display: none; }
-    .forecast-row { grid-auto-columns: minmax(92px, 1fr); }
-    .hour-row { grid-auto-columns: minmax(116px, 1fr); margin-top: 14px; }
+    .forecast-row::-webkit-scrollbar,
+    .hour-row::-webkit-scrollbar { display: none; }
 
-    .day-card, .hour-card {
+    .forecast-row { grid-auto-columns: minmax(96px, 1fr); }
+    .hour-row { grid-auto-columns: minmax(112px, 1fr); margin-top: 16px; }
+
+    .day-card,
+    .hour-card {
       scroll-snap-align: start;
-      border: 2px solid currentColor;
-      border-radius: 20px;
-      padding: 14px 12px;
-      min-height: 128px;
+      border: 3px solid currentColor;
+      border-radius: 24px;
+      min-height: 132px;
+      padding: 14px 10px;
       display: grid;
       place-items: center;
       text-align: center;
-      gap: 7px;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.08);
       font-weight: 850;
-      background: rgba(255, 255, 255, 0.1);
     }
 
-    .day-card strong, .hour-card strong {
-      font-family: Sora, Inter, sans-serif;
-      font-size: 1.3rem;
-      letter-spacing: -0.06em;
-    }
-
-    .day-card i, .hour-card i {
-      font-size: 26px;
-      color: var(--accent);
-    }
-
-    .day-card span, .hour-card span {
-      font-size: 0.74rem;
-      color: color-mix(in srgb, currentColor 68%, transparent);
-    }
-
-    .chart-panel {
-      margin-top: 18px;
-      border-radius: var(--radius-lg);
-      background: var(--weather);
-      color: var(--black);
-      padding: 16px;
-      border: 2px solid var(--black);
-    }
-
-    .chart-panel h3 {
-      margin: 0 0 12px;
-      font-family: Sora, Inter, sans-serif;
-      letter-spacing: -0.04em;
-    }
-
-    canvas {
+    .day-card strong,
+    .hour-card strong {
       display: block;
-      width: 100%;
-      height: 190px;
+      font-family: Sora, Inter, sans-serif;
+      font-size: clamp(1.2rem, 2.5vw, 1.5rem);
+      letter-spacing: -0.06em;
+      line-height: 1;
+    }
+
+    .day-card i,
+    .hour-card i {
+      display: block;
+      font-size: clamp(1.4rem, 3vw, 1.9rem);
+    }
+
+    .day-card span,
+    .hour-card span {
+      font-size: 0.82rem;
+      color: color-mix(in srgb, currentColor 74%, transparent);
+      font-weight: 850;
+    }
+
+    .more-panel {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+
+    .detail {
+      border: 2px solid currentColor;
+      border-radius: 22px;
+      padding: 14px;
+      min-height: 104px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .detail i {
+      display: block;
+      font-size: 1.55rem;
+      margin-bottom: 11px;
+    }
+
+    .detail span {
+      display: block;
+      font-size: 0.8rem;
+      color: var(--muted);
+      font-weight: 800;
+    }
+
+    .detail strong {
+      display: block;
+      margin-top: 6px;
+      font-family: Sora, Inter, sans-serif;
+      font-size: 1.06rem;
+      letter-spacing: -0.05em;
+      overflow-wrap: anywhere;
     }
 
     .status {
-      margin: 20px 0 0;
+      min-height: 22px;
+      margin: 22px 0 0;
       color: var(--muted);
       font-size: 0.92rem;
       font-weight: 750;
-      min-height: 22px;
+    }
+
+    .menu-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 30;
+      background: rgba(5, 5, 5, 0.48);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 180ms ease;
+    }
+
+    .menu-overlay.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .drawer {
+      position: fixed;
+      z-index: 31;
+      inset: 0 auto 0 0;
+      width: min(360px, calc(100% - 34px));
+      padding: calc(24px + var(--safe-top)) 20px calc(24px + var(--safe-bottom));
+      background: var(--black);
+      color: var(--white);
+      transform: translateX(-104%);
+      transition: transform 220ms ease;
+      box-shadow: 22px 0 70px rgba(0, 0, 0, 0.32);
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+    }
+
+    .drawer.open { transform: translateX(0); }
+
+    .drawer-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .drawer h2 {
+      margin: 0;
+      font-family: Sora, Inter, sans-serif;
+      font-size: 1.45rem;
+      letter-spacing: -0.05em;
+    }
+
+    .drawer-close {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      display: grid;
+      place-items: center;
+      background: rgba(255, 255, 255, 0.1);
+    }
+
+    .drawer-close i { font-size: 1.5rem; }
+
+    .drawer-actions {
+      display: grid;
+      gap: 12px;
+      margin-top: 10px;
+    }
+
+    .drawer-action {
+      min-height: 58px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--white);
+      display: flex;
+      align-items: center;
+      gap: 13px;
+      padding: 0 16px;
+      font-weight: 850;
+      text-align: left;
+    }
+
+    .drawer-action i { color: var(--accent); font-size: 1.55rem; }
+
+    .drawer p {
+      margin: auto 0 0;
+      color: rgba(255, 255, 255, 0.68);
+      line-height: 1.45;
+      font-size: 0.9rem;
+      font-weight: 650;
     }
 
     @media (max-width: 1040px) {
-      .hero { grid-template-columns: 1fr; }
-      .main-card { min-height: auto; }
-      .city { font-size: clamp(4.2rem, 18vw, 9rem); }
-      .temperature { font-size: clamp(7rem, 28vw, 13rem); }
+      .hero { grid-template-columns: 1fr; align-items: start; }
+      .weather-main { min-height: auto; }
+      .side { gap: 28px; }
     }
 
-    @media (max-width: 660px) {
-      .shell { width: min(100% - 24px, var(--max)); padding-top: 16px; }
-      .topbar { align-items: stretch; flex-direction: column; }
-      .actions { justify-content: stretch; }
-      .btn { flex: 1 1 auto; justify-content: center; padding: 0 12px; }
-      .main-card { border-width: 3px; border-radius: 32px; box-shadow: var(--shadow), 8px 8px 0 var(--black); }
-      .summary-card { grid-template-columns: 1fr; }
-      .metric-grid { grid-template-columns: 1fr; }
-      .city { font-size: clamp(3.7rem, 20vw, 6.4rem); }
-      .temperature { font-size: clamp(6.2rem, 34vw, 9rem); }
-      .forecast-row { grid-auto-columns: minmax(82px, 1fr); }
+    @media (max-width: 700px) {
+      .shell { width: min(100% - 24px, var(--max)); padding-top: calc(14px + var(--safe-top)); }
+      .topbar { margin-bottom: 22px; }
+      .brand { justify-content: center; }
+      .brand-icon { width: 48px; height: 48px; }
+      .date-pill { margin-top: 10px; }
+      .temperature { font-size: clamp(7.8rem, 43vw, 12.2rem); }
+      .summary { margin-top: 34px; }
+      .metrics-grid { gap: 8px; }
+      .metrics-bar { border-radius: 24px; padding: 18px 10px; }
+      .metric i { font-size: 2.05rem; }
+      .metric strong { font-size: 1.05rem; }
+      .metric span { font-size: 0.78rem; }
+      .more-panel { grid-template-columns: 1fr; }
+      .forecast-row { grid-auto-columns: minmax(84px, 1fr); }
+      .hour-row { grid-auto-columns: minmax(104px, 1fr); }
+    }
+
+    @media (max-width: 420px) {
+      .shell { width: min(100% - 18px, var(--max)); }
+      .menu-button { width: 46px; height: 46px; }
+      .brand-icon { width: 46px; height: 46px; box-shadow: 5px 5px 0 currentColor; }
+      .brand-title { font-size: 1.08rem; }
+      .brand-subtitle { font-size: 0.78rem; }
+      .forecast-row { grid-auto-columns: minmax(78px, 1fr); gap: 9px; }
+      .day-card, .hour-card { min-height: 118px; border-radius: 20px; border-width: 2px; }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { transition-duration: 0.001ms !important; animation-duration: 0.001ms !important; animation-iteration-count: 1 !important; }
     }
   </style>
 </head>
 <body>
+  <div class="menu-overlay" id="menuOverlay"></div>
+  <aside class="drawer" id="drawer" aria-hidden="true" aria-label="Weather controls">
+    <div class="drawer-head">
+      <h2>Controls</h2>
+      <button class="drawer-close" id="closeMenu" aria-label="Close menu"><i class="ph ph-x"></i></button>
+    </div>
+    <div class="drawer-actions">
+      <button class="drawer-action" id="saveKey"><i class="ph ph-key"></i><span>Save OpenWeather key</span></button>
+      <button class="drawer-action" id="clearCache"><i class="ph ph-trash"></i><span>Clear cached weather</span></button>
+      <button class="drawer-action" id="refresh"><i class="ph ph-arrows-clockwise"></i><span>Refresh weather</span></button>
+    </div>
+    <p>Add this page to your home screen after opening it in Safari or Chrome. It includes app display settings, a manifest, and offline shell caching.</p>
+  </aside>
+
   <main class="shell" aria-live="polite">
     <header class="topbar">
+      <button class="menu-button" id="openMenu" aria-label="Open menu"><i class="ph ph-list"></i></button>
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true"><i id="brandIcon" class="ph-fill ph-sun"></i></div>
         <div>
           <p class="brand-title">Home Weather</p>
           <p class="brand-subtitle" id="place">London, Ontario</p>
         </div>
       </div>
-      <div class="actions">
-        <button class="btn" id="saveKey"><i class="ph ph-key"></i>Key</button>
-        <button class="btn" id="clearCache"><i class="ph ph-trash"></i>Cache</button>
-        <button class="btn primary" id="refresh"><i class="ph ph-arrows-clockwise"></i>Refresh</button>
-      </div>
+      <div class="brand-icon" aria-hidden="true"><i id="brandIcon" class="ph-fill ph-sun"></i></div>
     </header>
 
     <section class="hero">
-      <article class="main-card" aria-label="Current weather">
-        <div class="hero-top">
-          <div class="pill" id="datePill">Loading</div>
-          <div class="weather-icon" aria-hidden="true"><i id="heroIcon" class="ph-fill ph-sun"></i></div>
+      <article class="weather-main" aria-label="Current weather">
+        <div>
+          <div class="date-pill" id="datePill">Loading</div>
+          <div class="hero-copy">
+            <p class="condition" id="conditionWord">Weather</p>
+            <h1 class="temperature" id="tempMain">--°</h1>
+          </div>
         </div>
-        <div class="hero-main">
-          <p class="eyebrow"><span>Weather</span><span class="spark"></span><span id="conditionWord">Forecast</span><span class="spark"></span></p>
-          <h1 class="city" id="cityBig">London</h1>
-          <div class="temperature" id="tempMain">--°</div>
-        </div>
-        <div class="summary-card">
-          <div><h2>Daily Summary</h2><p id="summaryText">Loading your local weather.</p></div>
+        <section class="summary">
+          <h2>Daily Summary</h2>
+          <p id="summaryText">Loading your local weather.</p>
           <div class="updated" id="updated">Starting</div>
-        </div>
+        </section>
       </article>
 
-      <div class="side-stack">
-        <section class="black-panel" aria-label="Current weather details">
-          <div class="panel-title"><h2>Right now</h2><i id="panelIcon" class="ph-fill ph-sun"></i></div>
-          <div class="metric-grid">
-            <div class="metric-card"><i class="ph ph-wind"></i><span>Wind</span><strong id="wind">--</strong></div>
-            <div class="metric-card"><i class="ph ph-drop"></i><span>Humidity</span><strong id="humidity">--</strong></div>
-            <div class="metric-card"><i class="ph ph-eye"></i><span>Visibility</span><strong id="visibility">--</strong></div>
-            <div class="metric-card"><i class="ph ph-thermometer-simple"></i><span>Feels like</span><strong id="feels">--°</strong></div>
-            <div class="metric-card"><i class="ph ph-cloud-rain"></i><span>Rain chance</span><strong id="rainChance">--</strong></div>
-            <div class="metric-card"><i class="ph ph-gauge"></i><span>Pressure</span><strong id="pressure">--</strong></div>
+      <aside class="side">
+        <section class="metrics-bar" aria-label="Current weather details">
+          <div class="metrics-grid">
+            <div class="metric"><i class="ph ph-wind"></i><strong id="wind">--</strong><span>Wind</span></div>
+            <div class="metric"><i class="ph ph-drop"></i><strong id="humidity">--</strong><span>Humidity</span></div>
+            <div class="metric"><i class="ph ph-eye"></i><strong id="visibility">--</strong><span>Visibility</span></div>
           </div>
         </section>
 
-        <section class="forecast-panel" aria-label="Forecast">
+        <section class="forecast" aria-label="Forecast">
           <div class="forecast-head"><h2>Weekly forecast</h2><i class="ph ph-arrow-right"></i></div>
           <div class="forecast-row" id="dailyRow"></div>
-          <div class="chart-panel"><h3>Next 36 hours</h3><canvas id="chart" role="img" aria-label="Temperature trend for the next 36 hours"></canvas></div>
           <div class="hour-row" id="hourRow"></div>
+          <div class="more-panel">
+            <div class="detail"><i class="ph ph-thermometer-simple"></i><span>Feels like</span><strong id="feels">--°</strong></div>
+            <div class="detail"><i class="ph ph-cloud-rain"></i><span>Rain chance</span><strong id="rainChance">--</strong></div>
+            <div class="detail"><i class="ph ph-gauge"></i><span>Pressure</span><strong id="pressure">--</strong></div>
+          </div>
         </section>
-      </div>
+      </aside>
     </section>
 
     <p class="status" id="status">Starting dashboard...</p>
@@ -583,21 +605,24 @@
     const HOME = { lat: 42.9849, lon: -81.2453 };
     const API = "https://api.openweathermap.org/data/2.5";
     const KEY_STORE = "home_weather_key";
-    const CACHE_STORE = "home_weather_cache_v5";
+    const CACHE_STORE = "home_weather_cache_v6";
     const $ = (id) => document.getElementById(id);
     const el = {
-      brandIcon: $("brandIcon"), heroIcon: $("heroIcon"), panelIcon: $("panelIcon"), place: $("place"), cityBig: $("cityBig"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), wind: $("wind"), humidity: $("humidity"), visibility: $("visibility"), feels: $("feels"), rainChance: $("rainChance"), pressure: $("pressure"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), chart: $("chart"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh")
+      openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), wind: $("wind"), humidity: $("humidity"), visibility: $("visibility"), feels: $("feels"), rainChance: $("rainChance"), pressure: $("pressure"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh")
     };
-    let lastForecast = [];
     let lastZone = 0;
 
     start();
 
     function start() {
-      el.saveKey.onclick = saveKey;
-      el.clearCache.onclick = () => { localStorage.removeItem(CACHE_STORE); status("Cache cleared. Refreshing..."); load(true); };
-      el.refresh.onclick = () => load(true);
-      window.addEventListener("resize", debounce(() => draw(lastForecast, lastZone), 160));
+      el.openMenu.onclick = openDrawer;
+      el.closeMenu.onclick = closeDrawer;
+      el.menuOverlay.onclick = closeDrawer;
+      document.addEventListener("keydown", (event) => { if (event.key === "Escape") closeDrawer(); });
+      el.saveKey.onclick = () => { closeDrawer(); saveKey(); };
+      el.clearCache.onclick = () => { localStorage.removeItem(CACHE_STORE); closeDrawer(); status("Cache cleared. Refreshing..."); load(true); };
+      el.refresh.onclick = () => { closeDrawer(); load(true); };
+      registerServiceWorker();
       const cached = readCache();
       if (cached) {
         render(cached.current, cached.forecast, cached.savedAt, true);
@@ -611,6 +636,8 @@
       load(false);
     }
 
+    function openDrawer() { el.drawer.classList.add("open"); el.menuOverlay.classList.add("open"); el.drawer.setAttribute("aria-hidden", "false"); }
+    function closeDrawer() { el.drawer.classList.remove("open"); el.menuOverlay.classList.remove("open"); el.drawer.setAttribute("aria-hidden", "true"); }
     function key() { return localStorage.getItem(KEY_STORE) || ""; }
 
     function saveKey() {
@@ -659,7 +686,6 @@
     }
 
     function render(current, forecast, savedAt, cached) {
-      lastForecast = forecast.list || [];
       lastZone = current.timezone || forecast.city?.timezone || 0;
       const weather = current.weather?.[0] || {};
       const main = current.main || {};
@@ -675,16 +701,13 @@
 
       applyPalette(weather.main, lastZone);
       el.brandIcon.className = icon;
-      el.heroIcon.className = icon;
-      el.panelIcon.className = icon;
       el.place.textContent = `${city}, ${country}`;
-      el.cityBig.textContent = city;
       el.datePill.textContent = dateLabel(lastZone);
       el.conditionWord.textContent = desc;
       el.tempMain.textContent = `${temp}°`;
       el.summaryText.textContent = `Now it feels like ${feels}°. Wind is ${wind} km/h, humidity is ${main.humidity ?? "--"}%, and today's rain chance is ${Math.round(pop * 100)}%.`;
       el.updated.textContent = cached ? `Cached ${age(savedAt)}` : `Updated ${time(current.dt, lastZone)}`;
-      el.wind.textContent = `${wind} km/h`;
+      el.wind.textContent = `${wind}km/h`;
       el.humidity.textContent = `${main.humidity ?? "--"}%`;
       el.visibility.textContent = visibility;
       el.feels.textContent = `${feels}°`;
@@ -692,7 +715,6 @@
       el.pressure.textContent = `${main.pressure ?? "--"} hPa`;
       renderDays(forecast, lastZone);
       renderHours(forecast, lastZone);
-      draw(lastForecast, lastZone);
     }
 
     function applyPalette(main = "", zone = 0) {
@@ -701,15 +723,16 @@
       const night = hour < 6 || hour >= 20;
       document.body.classList.toggle("night", night);
       document.body.dataset.weather = condition;
-      let palette = { weather: "#FFE84A", weather2: "#FFF4A8", accent: "#42C6FF" };
-      if (night) palette = { weather: "#171039", weather2: "#050505", accent: "#FF64D4" };
-      if (condition.includes("rain") || condition.includes("drizzle")) palette = night ? { weather: "#0B1535", weather2: "#050505", accent: "#42C6FF" } : { weather: "#42C6FF", weather2: "#BFEFFF", accent: "#FFE84A" };
-      if (condition.includes("cloud")) palette = night ? { weather: "#171039", weather2: "#2E2A4F", accent: "#C6FF8B" } : { weather: "#E7E2D4", weather2: "#FFFDF8", accent: "#42C6FF" };
-      if (condition.includes("snow")) palette = { weather: "#F4FBFF", weather2: "#DDEEFF", accent: "#42C6FF" };
-      if (condition.includes("thunder")) palette = { weather: "#050505", weather2: "#241C4D", accent: "#FFE84A" };
+      let palette = { weather: "#FFE84A", weather2: "#FFF4A8", accent: "#42C6FF", theme: "#FFE84A" };
+      if (night) palette = { weather: "#171039", weather2: "#050505", accent: "#FF64D4", theme: "#171039" };
+      if (condition.includes("rain") || condition.includes("drizzle")) palette = night ? { weather: "#0B1535", weather2: "#050505", accent: "#42C6FF", theme: "#0B1535" } : { weather: "#42C6FF", weather2: "#BFEFFF", accent: "#FFE84A", theme: "#42C6FF" };
+      if (condition.includes("cloud")) palette = night ? { weather: "#171039", weather2: "#2E2A4F", accent: "#C6FF8B", theme: "#171039" } : { weather: "#E7E2D4", weather2: "#FFFDF8", accent: "#42C6FF", theme: "#E7E2D4" };
+      if (condition.includes("snow")) palette = { weather: "#F4FBFF", weather2: "#DDEEFF", accent: "#42C6FF", theme: "#F4FBFF" };
+      if (condition.includes("thunder")) palette = { weather: "#050505", weather2: "#241C4D", accent: "#FFE84A", theme: "#050505" };
       document.documentElement.style.setProperty("--weather", palette.weather);
       document.documentElement.style.setProperty("--weather-2", palette.weather2);
       document.documentElement.style.setProperty("--accent", palette.accent);
+      document.querySelector('meta[name="theme-color"]').setAttribute("content", palette.theme);
     }
 
     function renderDays(forecast, zone) {
@@ -727,38 +750,6 @@
         const weather = item.weather?.[0] || {};
         return `<div class="hour-card"><span>${hour(item.dt, zone)}</span><i class="${iconFor(weather.main, localHour(zone))}"></i><strong>${Math.round(item.main.temp)}°</strong></div>`;
       }).join("");
-    }
-
-    function draw(items, zone) {
-      const canvas = el.chart;
-      const ctx = canvas.getContext("2d");
-      const points = (items || []).slice(0, 12);
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-      canvas.height = Math.max(1, Math.floor(rect.height * dpr));
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      ctx.clearRect(0, 0, rect.width, rect.height);
-      if (!points.length) return;
-      const temps = points.map(x => x.main.temp);
-      const min = Math.floor(Math.min(...temps)) - 1;
-      const max = Math.ceil(Math.max(...temps)) + 1;
-      const pad = 24;
-      const w = rect.width - pad * 2;
-      const h = rect.height - pad * 2;
-      const xy = points.map((item, i) => ({ x: pad + w / Math.max(1, points.length - 1) * i, y: pad + h - ((item.main.temp - min) / Math.max(1, max - min)) * h, temp: item.main.temp }));
-      ctx.strokeStyle = "rgba(5,5,5,.18)";
-      ctx.lineWidth = 1;
-      for (let i = 0; i < 4; i++) { const y = pad + h / 3 * i; ctx.beginPath(); ctx.moveTo(pad, y); ctx.lineTo(rect.width - pad, y); ctx.stroke(); }
-      ctx.beginPath();
-      xy.forEach((pt, i) => { if (i === 0) ctx.moveTo(pt.x, pt.y); else { const prev = xy[i - 1]; const cx = (prev.x + pt.x) / 2; ctx.bezierCurveTo(cx, prev.y, cx, pt.y, pt.x, pt.y); } });
-      ctx.strokeStyle = "#050505";
-      ctx.lineWidth = 4;
-      ctx.stroke();
-      ctx.font = "700 12px Inter, system-ui";
-      ctx.fillStyle = "#050505";
-      ctx.textAlign = "center";
-      xy.forEach((pt, i) => { ctx.beginPath(); ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2); ctx.fill(); if (i % 2 === 0) ctx.fillText(`${Math.round(pt.temp)}°`, pt.x, pt.y - 13); });
     }
 
     function byDay(list, zone) {
@@ -802,7 +793,7 @@
     function dayLabel(t, zone) { const d = new Date((t + zone) * 1000); const today = new Date((Date.now() / 1000 + zone) * 1000).toISOString().slice(0, 10); return d.toISOString().slice(0, 10) === today ? "Today" : d.toLocaleDateString("en-CA", { weekday: "short", timeZone: "UTC" }); }
     function status(x) { el.status.textContent = x; }
     function busy(v) { el.refresh.disabled = v; el.refresh.style.opacity = v ? ".66" : ""; }
-    function debounce(fn, delay) { let t; return (...args) => { clearTimeout(t); t = setTimeout(() => fn(...args), delay); }; }
+    function registerServiceWorker() { if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {}); }
   </script>
 </body>
 </html>
