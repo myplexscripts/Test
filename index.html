@@ -65,8 +65,7 @@
       inset: -18vh -14vw;
       z-index: -1;
       pointer-events: none;
-      background:
-        linear-gradient(135deg, var(--sky) 0%, var(--sun) 48%, var(--clouds) 100%);
+      background: linear-gradient(135deg, var(--sky) 0%, var(--sun) 48%, var(--clouds) 100%);
       background-size: 135% 145%;
       background-position: 50% calc(50% + var(--bg-y));
       transform: translate3d(0, calc(var(--bg-y) * -0.22), 0) scale(1.04);
@@ -128,7 +127,7 @@
       margin: 0;
       font-family: Sora, Inter, sans-serif;
       font-size: clamp(1.15rem, 2vw, 1.55rem);
-      letter-spacing: -0.05em;
+      letter-spacing: -0.025em;
       line-height: 1;
       white-space: nowrap;
       overflow: hidden;
@@ -175,7 +174,7 @@
       font-size: clamp(2.8rem, 7vw, 6.4rem);
       line-height: 0.9;
       font-weight: 800;
-      letter-spacing: -0.08em;
+      letter-spacing: -0.035em;
       opacity: 0.08;
       pointer-events: none;
     }
@@ -210,7 +209,7 @@
       font-family: Sora, Inter, sans-serif;
       font-size: clamp(1.35rem, 4vw, 2.4rem);
       line-height: 1;
-      letter-spacing: -0.05em;
+      letter-spacing: -0.02em;
       font-weight: 750;
       text-transform: capitalize;
     }
@@ -222,14 +221,14 @@
       font-family: Sora, Inter, sans-serif;
       font-size: clamp(7.6rem, 24vw, 18.4rem);
       line-height: 0.72;
-      letter-spacing: -0.15em;
+      letter-spacing: -0.105em;
       font-weight: 800;
       white-space: nowrap;
-      transform: translateX(-0.06em);
+      transform: translateX(-0.04em);
       transition: transform 280ms ease, opacity 280ms ease;
     }
 
-    .temperature.refreshing { opacity: 0.72; transform: translateX(-0.06em) scale(0.985); }
+    .temperature.refreshing { opacity: 0.72; transform: translateX(-0.04em) scale(0.985); }
 
     .summary {
       position: relative;
@@ -239,10 +238,10 @@
       min-width: 0;
     }
 
-    .summary h2, .section-head h2, .group-title h3 {
+    .summary h2, .section-head h2, .group-title h3, .graph-title h1, .graph-section h2 {
       margin: 0;
       font-family: Sora, Inter, sans-serif;
-      letter-spacing: -0.06em;
+      letter-spacing: -0.025em;
       line-height: 1;
     }
 
@@ -280,7 +279,6 @@
     }
 
     body.night .metrics-bar, body.night .sticky-stats { color: var(--accent); }
-
     .metrics-bar:hover { transform: translateY(-2px); }
 
     .metrics-grid {
@@ -299,7 +297,7 @@
       font-family: Sora, Inter, sans-serif;
       font-size: clamp(0.92rem, 2.2vw, 1.34rem);
       line-height: 1;
-      letter-spacing: -0.06em;
+      letter-spacing: -0.02em;
       overflow-wrap: anywhere;
     }
 
@@ -346,7 +344,7 @@
     .section-head h2, .forecast-head h2 { margin: 0; font-size: clamp(1.45rem, 3.2vw, 2.3rem); }
     .group-title h3 { font-size: clamp(1.1rem, 2.5vw, 1.45rem); }
 
-    .more-button {
+    .more-button, .back-button {
       display: inline-flex;
       align-items: center;
       gap: 8px;
@@ -361,8 +359,13 @@
       transition: transform 180ms ease, background 180ms ease;
     }
 
-    .more-button:hover, .more-button:focus-visible { transform: translateY(-2px); background: rgba(255, 255, 255, 0.1); outline: none; }
-    .more-button i { font-size: 1.2rem; }
+    .more-button:hover, .more-button:focus-visible, .back-button:hover, .back-button:focus-visible {
+      transform: translateY(-2px);
+      background: rgba(255, 255, 255, 0.1);
+      outline: none;
+    }
+
+    .more-button i, .back-button i { font-size: 1.2rem; }
 
     .rail {
       width: 100%;
@@ -382,7 +385,7 @@
 
     .rail::-webkit-scrollbar { display: none; }
 
-    .day-card, .hour-card, .reading-card {
+    .day-card, .hour-card {
       flex: 0 0 clamp(92px, 26vw, 132px);
       scroll-snap-align: start;
       border: 3px solid currentColor;
@@ -400,28 +403,26 @@
       transition: transform 180ms ease, background 180ms ease;
     }
 
-    .day-card:hover, .hour-card:hover, .reading-card:hover { transform: translateY(-3px); background: rgba(255, 255, 255, 0.14); }
-    .hour-card, .reading-card { flex-basis: clamp(116px, 35vw, 154px); }
+    .day-card:hover, .hour-card:hover { transform: translateY(-3px); background: rgba(255, 255, 255, 0.14); }
+    .hour-card { flex-basis: clamp(116px, 35vw, 154px); }
 
-    .day-card strong, .hour-card strong, .reading-card strong {
+    .day-card strong, .hour-card strong {
       display: block;
       font-family: Sora, Inter, sans-serif;
       font-size: clamp(1.13rem, 2.5vw, 1.45rem);
-      letter-spacing: -0.06em;
+      letter-spacing: -0.02em;
       line-height: 1;
       overflow-wrap: anywhere;
     }
 
-    .day-card i, .hour-card i, .reading-card i { display: block; font-size: clamp(1.35rem, 3vw, 1.9rem); }
+    .day-card i, .hour-card i { display: block; font-size: clamp(1.65rem, 3.5vw, 2.3rem); }
 
-    .day-card span, .hour-card span, .reading-card span, .reading-card small {
+    .day-card span, .hour-card span {
       font-size: 0.78rem;
       line-height: 1.2;
       color: color-mix(in srgb, currentColor 74%, transparent);
       font-weight: 850;
     }
-
-    .reading-card { min-height: 146px; align-content: center; }
 
     .detail-groups {
       display: grid;
@@ -468,11 +469,11 @@
       font-family: Sora, Inter, sans-serif;
       font-size: clamp(0.98rem, 2.3vw, 1.16rem);
       line-height: 1.1;
-      letter-spacing: -0.05em;
+      letter-spacing: -0.015em;
       overflow-wrap: anywhere;
     }
 
-    .menu-overlay, .graph-overlay {
+    .menu-overlay {
       position: fixed;
       inset: 0;
       z-index: 30;
@@ -482,7 +483,7 @@
       transition: opacity 180ms ease;
     }
 
-    .menu-overlay.open, .graph-overlay.open { opacity: 1; pointer-events: auto; }
+    .menu-overlay.open { opacity: 1; pointer-events: auto; }
 
     .drawer {
       position: fixed;
@@ -502,9 +503,9 @@
 
     .drawer.open { transform: translateX(0); }
     .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .drawer h2 { margin: 0; font-family: Sora, Inter, sans-serif; font-size: 1.45rem; letter-spacing: -0.05em; }
+    .drawer h2 { margin: 0; font-family: Sora, Inter, sans-serif; font-size: 1.45rem; letter-spacing: -0.025em; }
 
-    .drawer-close, .graph-close {
+    .drawer-close {
       width: 44px;
       height: 44px;
       border-radius: 50%;
@@ -515,8 +516,8 @@
       transition: transform 180ms ease, background 180ms ease;
     }
 
-    .drawer-close:hover, .graph-close:hover { transform: rotate(6deg) scale(1.03); background: rgba(255, 255, 255, 0.16); }
-    .drawer-close i, .graph-close i { font-size: 1.5rem; }
+    .drawer-close:hover { transform: rotate(6deg) scale(1.03); background: rgba(255, 255, 255, 0.16); }
+    .drawer-close i { font-size: 1.5rem; }
     .drawer-actions { display: grid; gap: 12px; margin-top: 10px; }
 
     .drawer-action {
@@ -537,38 +538,92 @@
     .drawer-action i { color: var(--accent); font-size: 1.55rem; }
     .drawer p { margin: auto 0 0; color: rgba(255, 255, 255, 0.68); line-height: 1.45; font-size: 0.9rem; font-weight: 650; }
 
-    .graph-modal {
+    .graph-screen {
       position: fixed;
-      z-index: 32;
-      left: 50%;
-      top: 50%;
-      width: min(760px, calc(100% - 26px));
-      max-height: min(86svh, 720px);
-      transform: translate(-50%, -45%) scale(0.96);
-      opacity: 0;
-      pointer-events: none;
-      transition: transform 200ms ease, opacity 200ms ease;
-      border-radius: 30px;
-      background: var(--black);
-      color: var(--white);
-      padding: clamp(18px, 4vw, 28px);
-      box-shadow: 0 34px 90px rgba(0, 0, 0, 0.45);
+      inset: 0;
+      z-index: 40;
+      background: linear-gradient(135deg, var(--sky) 0%, var(--sun) 48%, var(--clouds) 100%);
+      color: var(--ink);
+      transform: translateX(104%);
+      transition: transform 260ms ease;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding: calc(18px + var(--safe-top)) clamp(14px, 5vw, 42px) calc(38px + var(--safe-bottom));
     }
 
-    .graph-modal.open { transform: translate(-50%, -50%) scale(1); opacity: 1; pointer-events: auto; }
+    body.night .graph-screen { color: var(--white); }
+    .graph-screen.open { transform: translateX(0); }
 
-    .graph-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
-    .graph-head h2 { margin: 0; font-family: Sora, Inter, sans-serif; font-size: clamp(1.45rem, 5vw, 2.2rem); line-height: 1; letter-spacing: -0.06em; }
-    .graph-head p { margin: 8px 0 0; color: rgba(255, 255, 255, 0.68); font-size: 0.9rem; line-height: 1.4; font-weight: 700; }
+    .graph-shell { width: min(var(--max), 100%); margin: 0 auto; }
+
+    .graph-top {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 18px;
+      margin-bottom: clamp(20px, 5vw, 42px);
+    }
+
+    .graph-title h1 {
+      font-size: clamp(2.4rem, 9vw, 6.5rem);
+      line-height: 0.88;
+      max-width: 900px;
+    }
+
+    .graph-title p {
+      margin: 12px 0 0;
+      color: color-mix(in srgb, currentColor 72%, transparent);
+      font-size: clamp(0.98rem, 2vw, 1.15rem);
+      line-height: 1.45;
+      font-weight: 760;
+      max-width: 680px;
+    }
+
+    .graph-canvas-wrap {
+      width: 100%;
+      border: 3px solid currentColor;
+      border-radius: 30px;
+      background: var(--black);
+      padding: clamp(14px, 3vw, 22px);
+      box-shadow: var(--shadow);
+    }
+
+    body.night .graph-canvas-wrap { background: rgba(5, 5, 5, 0.72); }
 
     #graphCanvas {
       width: 100%;
-      height: min(54svh, 420px);
+      height: clamp(260px, 46vh, 520px);
       display: block;
-      border-radius: 24px;
+      border-radius: 22px;
       background: var(--sun);
       color: var(--black);
     }
+
+    .graph-section { margin-top: clamp(24px, 5vw, 44px); }
+    .graph-section h2 { font-size: clamp(1.6rem, 4vw, 2.8rem); margin-bottom: 16px; }
+
+    .graph-day-grid {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .graph-day-card {
+      border: 2px solid currentColor;
+      border-radius: 22px;
+      padding: 15px 12px;
+      min-height: 158px;
+      background: rgba(255, 255, 255, 0.1);
+      display: grid;
+      gap: 9px;
+      align-content: center;
+      text-align: center;
+      font-weight: 850;
+    }
+
+    .graph-day-card i { font-size: 2.1rem; }
+    .graph-day-card strong { font-family: Sora, Inter, sans-serif; font-size: 1.45rem; letter-spacing: -0.02em; }
+    .graph-day-card span { font-size: 0.78rem; color: color-mix(in srgb, currentColor 76%, transparent); }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(12px); }
@@ -585,6 +640,7 @@
       .weather-main { min-height: auto; }
       .side { gap: 28px; }
       .detail-groups { grid-template-columns: 1fr; }
+      .graph-day-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
     }
 
     @media (max-width: 760px) {
@@ -596,7 +652,7 @@
       .brand-subtitle { font-size: 0.78rem; }
       .weather-main::before { left: -1rem; font-size: 3.2rem; }
       .date-pill { margin-top: 8px; }
-      .temperature { font-size: clamp(7rem, 41vw, 12.2rem); letter-spacing: -0.16em; }
+      .temperature { font-size: clamp(7rem, 41vw, 12.2rem); letter-spacing: -0.11em; }
       .summary { margin-top: 32px; }
       .metrics-bar { border-radius: 24px; padding: 16px 8px; }
       .metrics-grid { gap: 6px; }
@@ -608,8 +664,11 @@
       .detail { min-height: 94px; padding: 11px; border-radius: 18px; }
       .rail { gap: 10px; }
       .day-card { flex-basis: clamp(84px, 25vw, 104px); min-height: 118px; border-width: 2px; border-radius: 20px; }
-      .hour-card, .reading-card { flex-basis: clamp(110px, 34vw, 134px); border-width: 2px; border-radius: 20px; }
-      .more-button { padding: 0.6rem 0.84rem; }
+      .hour-card { flex-basis: clamp(110px, 34vw, 134px); border-width: 2px; border-radius: 20px; }
+      .more-button, .back-button { padding: 0.6rem 0.84rem; }
+      .graph-top { flex-direction: column-reverse; }
+      .graph-day-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      #graphCanvas { height: clamp(260px, 42vh, 420px); }
     }
 
     @media (max-width: 390px) {
@@ -633,7 +692,6 @@
   <div class="bg-gradient" aria-hidden="true"></div>
   <div class="sticky-stats" id="stickyStats" aria-hidden="true"><div class="metrics-grid" id="stickyGrid"></div></div>
   <div class="menu-overlay" id="menuOverlay"></div>
-  <div class="graph-overlay" id="graphOverlay"></div>
 
   <aside class="drawer" id="drawer" aria-hidden="true" aria-label="Weather controls">
     <div class="drawer-head">
@@ -648,15 +706,21 @@
     <p>Add this page to your home screen after opening it in Safari or Chrome. It includes app display settings, a manifest, and offline shell caching.</p>
   </aside>
 
-  <section class="graph-modal" id="graphModal" aria-hidden="true" aria-label="Weather graph">
-    <div class="graph-head">
-      <div>
-        <h2 id="graphTitle">Weather graph</h2>
-        <p id="graphNote">Tap More on a forecast section to see the trend.</p>
+  <section class="graph-screen" id="graphScreen" aria-hidden="true" aria-label="Weather graph screen">
+    <div class="graph-shell">
+      <div class="graph-top">
+        <div class="graph-title">
+          <h1 id="graphTitle">Weather graph</h1>
+          <p id="graphNote">A wider graph view with the weekly outlook underneath.</p>
+        </div>
+        <button class="back-button" id="closeGraph"><i class="ph ph-arrow-left"></i>Back</button>
       </div>
-      <button class="graph-close" id="closeGraph" aria-label="Close graph"><i class="ph ph-x"></i></button>
+      <div class="graph-canvas-wrap"><canvas id="graphCanvas" role="img"></canvas></div>
+      <section class="graph-section">
+        <h2>7 day view</h2>
+        <div class="graph-day-grid" id="graphDayGrid"></div>
+      </section>
     </div>
-    <canvas id="graphCanvas" role="img"></canvas>
   </section>
 
   <main class="shell" aria-live="polite">
@@ -668,7 +732,7 @@
           <p class="brand-subtitle" id="place">London, Ontario</p>
         </div>
       </div>
-      <div class="brand-icon" aria-hidden="true"><i id="brandIcon" class="ph-fill ph-sun"></i></div>
+      <div class="brand-icon" aria-hidden="true"><i id="brandIcon" class="ph-duotone ph-sun"></i></div>
     </header>
 
     <section class="hero">
@@ -711,11 +775,6 @@
       <div class="detail-groups" id="detailsGrid"></div>
     </section>
 
-    <section class="info-section" aria-label="Upcoming readings">
-      <div class="section-head"><h2>Next readings</h2><i class="ph ph-chart-line-up"></i></div>
-      <div class="rail" id="readingRail"></div>
-    </section>
-
     <p class="status" id="status">Starting dashboard...</p>
   </main>
 
@@ -724,10 +783,10 @@
     const API = "https://api.openweathermap.org/data/2.5";
     const ONECALL = "https://api.openweathermap.org/data/3.0/onecall";
     const KEY_STORE = "home_weather_key";
-    const CACHE_STORE = "home_weather_cache_v11";
+    const CACHE_STORE = "home_weather_cache_v12";
     const $ = (id) => document.getElementById(id);
     const el = {
-      openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), quickFeels: $("quickFeels"), quickRain: $("quickRain"), wind: $("wind"), visibility: $("visibility"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), readingRail: $("readingRail"), detailsGrid: $("detailsGrid"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh"), hourlyMore: $("hourlyMore"), weeklyMore: $("weeklyMore"), graphOverlay: $("graphOverlay"), graphModal: $("graphModal"), graphTitle: $("graphTitle"), graphNote: $("graphNote"), graphCanvas: $("graphCanvas"), closeGraph: $("closeGraph"), metricsBar: $("metricsBar"), metricsGrid: $("metricsGrid"), stickyStats: $("stickyStats"), stickyGrid: $("stickyGrid")
+      openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), quickFeels: $("quickFeels"), quickRain: $("quickRain"), wind: $("wind"), visibility: $("visibility"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), detailsGrid: $("detailsGrid"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh"), hourlyMore: $("hourlyMore"), weeklyMore: $("weeklyMore"), graphScreen: $("graphScreen"), graphTitle: $("graphTitle"), graphNote: $("graphNote"), graphCanvas: $("graphCanvas"), graphDayGrid: $("graphDayGrid"), closeGraph: $("closeGraph"), metricsBar: $("metricsBar"), metricsGrid: $("metricsGrid"), stickyStats: $("stickyStats"), stickyGrid: $("stickyGrid")
     };
     let lastZone = 0;
     let hourlyData = [];
@@ -742,7 +801,6 @@
       el.closeMenu.onclick = closeDrawer;
       el.menuOverlay.onclick = closeDrawer;
       el.closeGraph.onclick = closeGraph;
-      el.graphOverlay.onclick = closeGraph;
       el.hourlyMore.onclick = () => openGraph("hourly");
       el.weeklyMore.onclick = () => openGraph("weekly");
       document.addEventListener("keydown", (event) => { if (event.key === "Escape") { closeDrawer(); closeGraph(); } });
@@ -750,7 +808,7 @@
       el.clearCache.onclick = () => { localStorage.removeItem(CACHE_STORE); closeDrawer(); status("Cache cleared. Refreshing..."); load(true); };
       el.refresh.onclick = () => { closeDrawer(); load(true); };
       window.addEventListener("scroll", onScroll, { passive: true });
-      window.addEventListener("resize", () => { updateSticky(); if (el.graphModal.classList.contains("open")) drawGraph(graphMode); });
+      window.addEventListener("resize", () => { updateSticky(); if (el.graphScreen.classList.contains("open")) drawGraph(graphMode); });
       registerServiceWorker();
       const cached = readCache();
       if (cached) {
@@ -829,7 +887,7 @@
       const pop = todayPop(forecast.list || [], lastZone, onecall);
       const desc = weather.description || weather.main || "current conditions";
       const visibility = current.visibility ? `${Math.min(10, current.visibility / 1000).toFixed(current.visibility >= 10000 ? 0 : 1)} km` : "--";
-      const icon = iconFor(weather.main, localHour(lastZone), true);
+      const icon = weatherIcon(weather.main, localHour(lastZone));
 
       hourlyData = buildHourly(forecast, onecall, lastZone);
       dailyData = buildDaily(forecast, onecall, lastZone);
@@ -848,10 +906,10 @@
       renderHours();
       renderDays();
       renderDetails(current, forecast, onecall, savedAt, cached);
-      renderReadings();
+      updateGraphDays();
       updateStickyContent();
       updateSticky();
-      if (el.graphModal.classList.contains("open")) drawGraph(graphMode);
+      if (el.graphScreen.classList.contains("open")) drawGraph(graphMode);
     }
 
     function buildSummary({ feels, windKmh, windGust, humidity, pop, high, low, visibility, weather }) {
@@ -865,15 +923,11 @@
     }
 
     function renderHours() {
-      el.hourRow.innerHTML = hourlyData.slice(0, 12).map(item => `<div class="hour-card"><span>${item.label}</span><i class="${iconFor(item.main, item.hour)}"></i><strong>${Math.round(item.temp)}°</strong><span>${Math.round(item.pop * 100)}% rain</span></div>`).join("");
+      el.hourRow.innerHTML = hourlyData.slice(0, 12).map(item => `<div class="hour-card"><span>${item.label}</span><i class="${weatherIcon(item.main, item.hour)}"></i><strong>${Math.round(item.temp)}°</strong><span>${Math.round(item.pop * 100)}% rain</span></div>`).join("");
     }
 
     function renderDays() {
-      el.dailyRow.innerHTML = dailyData.slice(0, 7).map(day => `<div class="day-card"><strong>${Math.round(day.max)}°</strong><i class="${iconFor(day.main, 12)}"></i><span>${day.label}</span><span>${Math.round(day.min)}° low</span></div>`).join("");
-    }
-
-    function renderReadings() {
-      el.readingRail.innerHTML = hourlyData.slice(0, 12).map(item => `<div class="reading-card"><span>${item.label}</span><i class="${iconFor(item.main, item.hour)}"></i><strong>${Math.round(item.temp)}°</strong><small>Feels ${Math.round(item.feels)}° · ${item.wind} km/h · ${item.humidity}%</small></div>`).join("");
+      el.dailyRow.innerHTML = dailyData.slice(0, 7).map(day => `<div class="day-card"><strong>${Math.round(day.max)}°</strong><i class="${weatherIcon(day.main, 12)}"></i><span>${day.label}</span><span>${Math.round(day.min)}° low</span></div>`).join("");
     }
 
     function renderDetails(current, forecast, onecall, savedAt, cached) {
@@ -894,12 +948,11 @@
       const showPressureLevels = main.sea_level != null || main.grnd_level != null;
       const groups = [];
 
-      groups.push({ title: "Temperature", icon: "ph-thermometer-simple", items: [["ph-thermometer-simple", "Feels like", deg(main.feels_like)], ["ph-thermometer-hot", "Actual", deg(main.temp)], ["ph-arrow-up", "High", deg(main.temp_max)], ["ph-arrow-down", "Low", deg(main.temp_min)]] });
+      groups.push({ title: "Temperature", icon: "ph-thermometer-simple", items: [["ph-thermometer-hot", "Actual", deg(main.temp)], ["ph-arrow-up", "High", deg(main.temp_max)], ["ph-arrow-down", "Low", deg(main.temp_min)]] });
 
       if (showRain || showSnow) {
         const precipItems = [];
         if (showRain) {
-          precipItems.push(["ph-percent", "Rain chance", `${Math.round(rainChance * 100)}%`]);
           if (rainNow > 0 || isKind(weather.main, ["rain", "drizzle", "thunderstorm"])) precipItems.push(["ph-cloud-rain", "Rain now", rainNow > 0 ? `${rainNow} mm` : "Trace"]);
           if (rainForecast > 0) precipItems.push(["ph-cloud-rain", "Next 36h rain", `${rainForecast.toFixed(1)} mm`]);
         }
@@ -907,12 +960,16 @@
           precipItems.push(["ph-snowflake", "Snow now", snowNow > 0 ? `${snowNow} mm` : "Trace"]);
           if (snowForecast > 0) precipItems.push(["ph-snowflake", "Next 36h snow", `${snowForecast.toFixed(1)} mm`]);
         }
-        groups.push({ title: showSnow ? "Snow and rain" : "Rain", icon: showSnow ? "ph-snowflake" : "ph-cloud-rain", items: precipItems });
+        if (precipItems.length) groups.push({ title: showSnow ? "Snow and rain" : "Rain", icon: showSnow ? "ph-snowflake" : "ph-cloud-rain", items: precipItems });
       }
 
-      groups.push({ title: "Wind", icon: "ph-wind", items: [["ph-wind", "Speed", wind.speed != null ? `${Math.round(wind.speed * 3.6)} km/h` : "--"], ["ph-wind", "Gust", wind.gust != null ? `${Math.round(wind.gust * 3.6)} km/h` : "None listed"], ["ph-compass", "Direction", wind.deg != null ? `${wind.deg}° ${direction(wind.deg)}` : "--"]] });
-      groups.push({ title: "Air and visibility", icon: "ph-cloud", items: [["ph-drop", "Humidity", main.humidity != null ? `${main.humidity}%` : "--"], ["ph-eye", "Visibility", current.visibility ? `${(current.visibility / 1000).toFixed(1)} km` : "--"], ["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "--"], ["ph-gauge", "Pressure", main.pressure != null ? `${main.pressure} hPa` : "--"]] });
-      groups.push({ title: "Sun and time", icon: "ph-sun-horizon", items: [["ph-sun-horizon", "Sunrise", time(sys.sunrise, lastZone)], ["ph-moon", "Sunset", time(sys.sunset, lastZone)], ["ph-clock", "Timezone", timezoneLabel(lastZone)], ["ph-clock-countdown", "Data time", time(current.dt, lastZone)]] });
+      const windItems = [];
+      if (wind.gust != null) windItems.push(["ph-wind", "Gust", `${Math.round(wind.gust * 3.6)} km/h`]);
+      windItems.push(["ph-compass", "Direction", wind.deg != null ? `${wind.deg}° ${direction(wind.deg)}` : "--"]);
+      groups.push({ title: "Wind", icon: "ph-wind", items: windItems });
+
+      groups.push({ title: "Air", icon: "ph-cloud", items: [["ph-drop", "Humidity", main.humidity != null ? `${main.humidity}%` : "--"], ["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "--"], ["ph-gauge", "Pressure", main.pressure != null ? `${main.pressure} hPa` : "--"]] });
+      groups.push({ title: "Sun and time", icon: "ph-sun-horizon", items: [["ph-sun-horizon", "Sunrise", time(sys.sunrise, lastZone)], ["ph-moon", "Sunset", time(sys.sunset, lastZone)], ["ph-clock-countdown", "Data time", time(current.dt, lastZone)]] });
 
       if (showPressureLevels) {
         const levelItems = [];
@@ -928,16 +985,21 @@
 
     function openGraph(mode) {
       graphMode = mode;
-      el.graphOverlay.classList.add("open");
-      el.graphModal.classList.add("open");
-      el.graphModal.setAttribute("aria-hidden", "false");
+      el.graphScreen.classList.add("open");
+      el.graphScreen.setAttribute("aria-hidden", "false");
+      document.body.style.overflow = "hidden";
       drawGraph(mode, true);
+      updateGraphDays();
     }
 
     function closeGraph() {
-      el.graphOverlay.classList.remove("open");
-      el.graphModal.classList.remove("open");
-      el.graphModal.setAttribute("aria-hidden", "true");
+      el.graphScreen.classList.remove("open");
+      el.graphScreen.setAttribute("aria-hidden", "true");
+      document.body.style.overflow = "";
+    }
+
+    function updateGraphDays() {
+      el.graphDayGrid.innerHTML = dailyData.slice(0, 7).map(day => `<article class="graph-day-card"><span>${day.label}</span><i class="${weatherIcon(day.main, 12)}"></i><strong>${Math.round(day.max)}°</strong><span>${Math.round(day.min)}° low · ${Math.round((day.pop || 0) * 100)}% rain</span></article>`).join("");
     }
 
     function drawGraph(mode, animate = false) {
@@ -950,9 +1012,9 @@
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
       const isWeekly = mode === "weekly";
-      const rows = isWeekly ? dailyData.slice(0, 7).map(d => ({ label: d.label, value: d.max, low: d.min, pop: d.pop })) : hourlyData.slice(0, 12).map(h => ({ label: h.label, value: h.temp, low: h.feels, pop: h.pop }));
-      el.graphTitle.textContent = isWeekly ? "7 day temperature trend" : "Hourly temperature trend";
-      el.graphNote.textContent = isWeekly ? "Highs and lows across the weekly forecast." : "Temperature and feels-like trend across the next readings.";
+      const rows = isWeekly ? dailyData.slice(0, 7).map(d => ({ label: d.label, value: d.max, low: d.min })) : hourlyData.slice(0, 12).map(h => ({ label: h.label, value: h.temp, low: h.feels }));
+      el.graphTitle.textContent = isWeekly ? "7 day trend" : "Hourly trend";
+      el.graphNote.textContent = isWeekly ? "Highs and lows across the weekly forecast, with the 7 day view below." : "Temperature and feels-like trend, with the 7 day outlook below.";
       canvas.setAttribute("aria-label", el.graphTitle.textContent);
       if (!rows.length) return;
 
@@ -968,7 +1030,7 @@
 
     function drawGraphFrame(ctx, rect, rows, progress) {
       ctx.clearRect(0, 0, rect.width, rect.height);
-      const pad = 30;
+      const pad = Math.max(28, Math.min(44, rect.width * 0.06));
       const chartW = rect.width - pad * 2;
       const chartH = rect.height - pad * 2;
       const values = rows.flatMap(r => [r.value, r.low]).filter(Number.isFinite);
@@ -993,7 +1055,7 @@
       ctx.fillStyle = "#050505";
       partial.forEach((p, i) => {
         ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
-        if (i % (points.length > 8 ? 2 : 1) === 0) { ctx.fillText(`${Math.round(p.value)}°`, p.x, p.y - 12); ctx.fillText(p.label, p.x, rect.height - 10); }
+        if (i % (points.length > 8 ? 2 : 1) === 0) { ctx.fillText(`${Math.round(p.value)}°`, p.x, p.y - 12); ctx.fillText(p.label, p.x, rect.height - 12); }
       });
     }
 
@@ -1065,7 +1127,7 @@
     function updateSticky() {
       if (!el.metricsBar) return;
       const rect = el.metricsBar.getBoundingClientRect();
-      const shouldShow = rect.bottom < 0;
+      const shouldShow = rect.bottom < 0 && !el.graphScreen.classList.contains("open");
       el.stickyStats.classList.toggle("show", shouldShow);
       el.stickyStats.setAttribute("aria-hidden", shouldShow ? "false" : "true");
     }
@@ -1093,10 +1155,9 @@
     }
 
     function isKind(main, names) { const value = String(main || "").toLowerCase(); return names.some(name => value.includes(name)); }
-    function iconFor(main = "", hour = 12, fill = false) { const prefix = fill ? "ph-fill" : "ph"; const condition = String(main).toLowerCase(); if (condition.includes("thunder")) return `${prefix} ph-cloud-lightning`; if (condition.includes("rain") || condition.includes("drizzle")) return `${prefix} ph-cloud-rain`; if (condition.includes("snow")) return `${prefix} ph-cloud-snow`; if (condition.includes("cloud")) return `${prefix} ph-cloud`; if (hour < 6 || hour >= 20) return `${prefix} ph-moon-stars`; return `${prefix} ph-sun`; }
+    function weatherIcon(main = "", hour = 12) { const condition = String(main).toLowerCase(); if (condition.includes("thunder")) return "ph-duotone ph-cloud-lightning"; if (condition.includes("rain") || condition.includes("drizzle")) return "ph-duotone ph-cloud-rain"; if (condition.includes("snow")) return "ph-duotone ph-cloud-snow"; if (condition.includes("cloud")) return "ph-duotone ph-cloud"; if (hour < 6 || hour >= 20) return "ph-duotone ph-moon-stars"; return "ph-duotone ph-sun"; }
     function direction(deg) { const dirs = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"]; return dirs[Math.round(deg / 45) % 8]; }
     function deg(value) { return value != null ? `${Math.round(value)}°` : "--"; }
-    function timezoneLabel(seconds) { const hours = seconds / 3600; return `UTC${hours >= 0 ? "+" : ""}${hours}`; }
     function readCache() { try { const x = JSON.parse(localStorage.getItem(CACHE_STORE) || "null"); if (x?.current && x?.forecast) return x; } catch {} return null; }
     function age(savedAt) { const m = Math.max(0, Math.round((Date.now() - savedAt) / 60000)); if (m < 1) return "just now"; if (m < 60) return `${m} min ago`; return `${Math.round(m / 60)} hr ago`; }
     function easeOut(t) { return 1 - Math.pow(1 - t, 3); }
