@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#FFE84A">
+  <meta name="theme-color" content="#42C6FF">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Weather">
@@ -24,21 +24,21 @@
     :root {
       color-scheme: light;
       --ink: #050505;
-      --muted: rgba(5, 5, 5, 0.64);
+      --muted: rgba(5, 5, 5, 0.62);
       --sky: #42c6ff;
       --sun: #ffe84a;
       --clouds: #fff4a8;
-      --accent: #42c6ff;
+      --accent: #ff7a30;
+      --panel: #fff1a6;
+      --panel-2: #fff8d6;
+      --icon: #ff7a30;
+      --icon-bg: #fff7c7;
       --black: #050505;
       --white: #fffdf8;
-      --shadow: 0 28px 80px rgba(0, 0, 0, 0.22);
       --max: 1240px;
       --safe-top: env(safe-area-inset-top, 0px);
       --safe-bottom: env(safe-area-inset-bottom, 0px);
       --bg-y: 0px;
-      --panel: color-mix(in srgb, var(--clouds) 46%, rgba(255, 255, 255, 0.08));
-      --panel-soft: color-mix(in srgb, var(--clouds) 22%, rgba(255, 255, 255, 0.06));
-      --accent-soft: color-mix(in srgb, var(--accent) 22%, transparent);
     }
 
     * { box-sizing: border-box; }
@@ -51,17 +51,14 @@
       font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       font-size: 16px;
       background: var(--sky);
-      transition: color 500ms ease;
+      transition: color 400ms ease;
       -webkit-font-smoothing: antialiased;
       text-rendering: geometricPrecision;
     }
 
     body.night {
       color: var(--white);
-      --muted: rgba(255, 255, 255, 0.7);
-      --panel: color-mix(in srgb, var(--clouds) 20%, rgba(255, 255, 255, 0.08));
-      --panel-soft: rgba(255, 255, 255, 0.07);
-      --accent-soft: color-mix(in srgb, var(--accent) 26%, transparent);
+      --muted: rgba(255, 255, 255, 0.68);
     }
 
     .bg-gradient {
@@ -69,7 +66,7 @@
       inset: -18vh -14vw;
       z-index: -1;
       pointer-events: none;
-      background: linear-gradient(135deg, var(--sky) 0%, var(--sun) 48%, var(--clouds) 100%);
+      background: linear-gradient(135deg, var(--sky) 0%, var(--sun) 50%, var(--clouds) 100%);
       background-size: 135% 145%;
       background-position: 50% calc(50% + var(--bg-y));
       transform: translate3d(0, calc(var(--bg-y) * -0.22), 0) scale(1.04);
@@ -84,17 +81,18 @@
       top: 0;
       left: 0;
       right: 0;
-      height: calc(86px + var(--safe-top));
+      height: calc(72px + var(--safe-top));
       pointer-events: none;
       opacity: 0;
-      background: linear-gradient(to bottom, var(--sky) 0%, color-mix(in srgb, var(--sky) 84%, transparent) 58%, transparent 100%);
+      background: var(--sky);
       transition: opacity 180ms ease;
     }
 
-    .status-fade.show { opacity: 0.96; }
+    .status-fade.show { opacity: 0.9; }
 
     button { font: inherit; border: 0; cursor: pointer; color: inherit; }
     i { font-size: 1.25rem; line-height: 1; }
+    .ph-duotone { color: var(--icon); }
 
     .shell {
       width: min(var(--max), calc(100% - clamp(20px, 5vw, 72px)));
@@ -126,27 +124,21 @@
     .menu-button i { font-size: 2.25rem; }
 
     .brand-icon {
-      border: 3px solid color-mix(in srgb, currentColor 78%, var(--sun));
-      background: var(--black);
-      color: var(--sun);
-      box-shadow: 6px 6px 0 color-mix(in srgb, currentColor 70%, var(--accent));
-      transition: transform 180ms ease, box-shadow 180ms ease, background 300ms ease, color 300ms ease;
+      border: 3px solid var(--black);
+      background: var(--icon-bg);
+      color: var(--icon);
+      box-shadow: 6px 6px 0 var(--black);
+      transition: background 300ms ease, color 300ms ease, transform 180ms ease;
     }
 
-    body.night .brand-icon {
-      background: var(--white);
-      color: var(--black);
-      box-shadow: 6px 6px 0 rgba(255, 255, 255, 0.16);
-    }
-
-    .brand-icon i { font-size: 1.7rem; }
+    .brand-icon i { font-size: 1.8rem; color: var(--icon); }
     .brand { min-width: 0; text-align: center; }
 
     .brand-title {
       margin: 0;
       font-family: Sora, Inter, sans-serif;
       font-size: clamp(1.15rem, 2vw, 1.55rem);
-      letter-spacing: 0.006em;
+      letter-spacing: 0.012em;
       line-height: 1;
       white-space: nowrap;
       overflow: hidden;
@@ -183,21 +175,6 @@
       animation: fadeUp 680ms ease both 80ms;
     }
 
-    .weather-main::before {
-      content: "Weather Forecast Weather Forecast";
-      position: absolute;
-      inset: auto auto 1rem -2rem;
-      width: max-content;
-      max-width: none;
-      font-family: Sora, Inter, sans-serif;
-      font-size: clamp(2.8rem, 7vw, 6.4rem);
-      line-height: 0.9;
-      font-weight: 800;
-      letter-spacing: 0.01em;
-      opacity: 0.08;
-      pointer-events: none;
-    }
-
     .date-pill {
       width: fit-content;
       max-width: 100%;
@@ -210,7 +187,6 @@
       line-height: 1;
       font-weight: 850;
       white-space: nowrap;
-      box-shadow: 0 10px 30px color-mix(in srgb, var(--accent) 20%, transparent);
     }
 
     body.night .date-pill { background: var(--white); color: var(--black); }
@@ -228,7 +204,7 @@
       font-family: Sora, Inter, sans-serif;
       font-size: clamp(1.35rem, 4vw, 2.4rem);
       line-height: 1;
-      letter-spacing: 0.004em;
+      letter-spacing: 0.012em;
       font-weight: 750;
       text-transform: capitalize;
     }
@@ -239,11 +215,10 @@
       max-width: 100%;
       font-family: Sora, Inter, sans-serif;
       font-size: clamp(7.6rem, 24vw, 18.4rem);
-      line-height: 0.74;
-      letter-spacing: 0.012em;
+      line-height: 0.76;
+      letter-spacing: 0.028em;
       font-weight: 800;
       white-space: nowrap;
-      text-shadow: 0 18px 60px color-mix(in srgb, var(--accent) 18%, transparent);
       transition: transform 280ms ease, opacity 280ms ease;
     }
 
@@ -260,7 +235,7 @@
     .summary h2, .section-head h2, .group-title h3, .graph-title h1, .graph-section h2 {
       margin: 0;
       font-family: Sora, Inter, sans-serif;
-      letter-spacing: 0.004em;
+      letter-spacing: 0.012em;
       line-height: 1;
     }
 
@@ -289,18 +264,16 @@
       width: 100%;
       max-width: 100%;
       border-radius: 28px;
-      background:
-        radial-gradient(circle at 16% 8%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 44%),
-        linear-gradient(135deg, #050505 0%, color-mix(in srgb, #050505 82%, var(--sky)) 100%);
-      color: var(--sun);
+      background: var(--black);
+      color: var(--white);
       padding: clamp(16px, 3vw, 22px);
-      box-shadow: var(--shadow), 0 0 0 1px color-mix(in srgb, var(--sun) 18%, transparent), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+      border: 3px solid var(--black);
       overflow: hidden;
-      transition: transform 200ms ease, box-shadow 200ms ease, color 300ms ease;
+      transition: transform 200ms ease, color 300ms ease;
     }
 
-    body.night .metrics-bar, body.night .sticky-stats { color: var(--accent); }
     .metrics-bar:hover { transform: translateY(-2px); }
+    .metrics-bar .ph-duotone, .sticky-stats .ph-duotone { color: var(--sun); }
 
     .metrics-grid {
       display: grid;
@@ -318,14 +291,14 @@
       font-family: Sora, Inter, sans-serif;
       font-size: clamp(0.92rem, 2.2vw, 1.34rem);
       line-height: 1;
-      letter-spacing: 0.004em;
+      letter-spacing: 0.012em;
       overflow-wrap: anywhere;
     }
 
     .metric span {
       display: block;
       margin-top: 7px;
-      color: color-mix(in srgb, currentColor 70%, white 8%);
+      color: color-mix(in srgb, currentColor 72%, transparent);
       font-size: 0.78rem;
       line-height: 1.2;
       font-weight: 850;
@@ -369,9 +342,9 @@
       display: inline-flex;
       align-items: center;
       gap: 8px;
-      border: 2px solid currentColor;
+      border: 2px solid var(--black);
       border-radius: 999px;
-      background: color-mix(in srgb, var(--clouds) 18%, transparent);
+      background: var(--panel);
       padding: 0.66rem 1rem;
       font-size: 0.82rem;
       line-height: 1;
@@ -382,7 +355,7 @@
 
     .more-button:hover, .more-button:focus-visible, .back-button:hover, .back-button:focus-visible {
       transform: translateY(-2px);
-      background: color-mix(in srgb, var(--sun) 24%, transparent);
+      background: var(--panel-2);
       outline: none;
     }
 
@@ -409,7 +382,7 @@
     .day-card, .hour-card {
       flex: 0 0 clamp(92px, 26vw, 132px);
       scroll-snap-align: start;
-      border: 3px solid color-mix(in srgb, currentColor 78%, var(--accent));
+      border: 3px solid var(--black);
       border-radius: 24px;
       min-height: 130px;
       padding: 14px 10px;
@@ -417,33 +390,30 @@
       place-items: center;
       text-align: center;
       gap: 8px;
-      background:
-        radial-gradient(circle at 18% 0%, color-mix(in srgb, var(--sun) 24%, transparent), transparent 48%),
-        linear-gradient(145deg, color-mix(in srgb, var(--clouds) 38%, transparent), color-mix(in srgb, var(--accent) 13%, transparent));
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 12px 34px color-mix(in srgb, var(--sky) 14%, transparent);
+      background: var(--panel);
       font-weight: 850;
       min-width: 0;
       transition: transform 180ms ease, background 180ms ease;
     }
 
-    .day-card:hover, .hour-card:hover { transform: translateY(-3px); }
+    .day-card:hover, .hour-card:hover { transform: translateY(-3px); background: var(--panel-2); }
     .hour-card { flex-basis: clamp(116px, 35vw, 154px); }
 
     .day-card strong, .hour-card strong {
       display: block;
       font-family: Sora, Inter, sans-serif;
       font-size: clamp(1.13rem, 2.5vw, 1.45rem);
-      letter-spacing: 0.004em;
+      letter-spacing: 0.012em;
       line-height: 1;
       overflow-wrap: anywhere;
     }
 
-    .day-card i, .hour-card i { display: block; font-size: clamp(1.65rem, 3.5vw, 2.3rem); color: color-mix(in srgb, currentColor 84%, var(--accent)); }
+    .day-card i, .hour-card i { display: block; font-size: clamp(1.65rem, 3.5vw, 2.3rem); }
 
     .day-card span, .hour-card span {
       font-size: 0.78rem;
       line-height: 1.2;
-      color: color-mix(in srgb, currentColor 74%, transparent);
+      color: var(--muted);
       font-weight: 850;
     }
 
@@ -455,30 +425,15 @@
     }
 
     .data-group {
-      position: relative;
-      overflow: hidden;
-      border: 2px solid color-mix(in srgb, currentColor 84%, var(--accent));
+      border: 3px solid var(--black);
       border-radius: 28px;
-      padding: 16px;
-      background:
-        radial-gradient(circle at 88% 6%, color-mix(in srgb, var(--sun) 22%, transparent), transparent 32%),
-        linear-gradient(145deg, var(--panel), color-mix(in srgb, var(--accent) 10%, var(--panel-soft)));
-      backdrop-filter: blur(14px);
-      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 16px 44px color-mix(in srgb, var(--sky) 14%, transparent);
+      padding: 22px;
+      background: var(--panel);
       min-width: 0;
       transition: transform 180ms ease, background 180ms ease;
     }
 
-    .data-group::before {
-      content: "";
-      position: absolute;
-      inset: 0 auto 0 0;
-      width: 8px;
-      background: linear-gradient(to bottom, var(--sun), var(--accent));
-      opacity: 0.82;
-    }
-
-    .data-group:hover { transform: translateY(-2px); }
+    .data-group:hover { transform: translateY(-2px); background: var(--panel-2); }
 
     .detail-grid {
       display: grid;
@@ -488,15 +443,15 @@
     }
 
     .detail {
-      border: 1px solid color-mix(in srgb, currentColor 24%, var(--accent));
+      border: 2px solid color-mix(in srgb, var(--black) 26%, transparent);
       border-radius: 20px;
       padding: 13px;
       min-height: 100px;
-      background: color-mix(in srgb, var(--clouds) 18%, rgba(255, 255, 255, 0.08));
+      background: var(--panel-2);
       min-width: 0;
     }
 
-    .detail i { display: block; font-size: 1.45rem; margin-bottom: 10px; color: color-mix(in srgb, currentColor 84%, var(--accent)); }
+    .detail i { display: block; font-size: 1.45rem; margin-bottom: 10px; }
     .detail span { display: block; font-size: 0.78rem; color: var(--muted); line-height: 1.2; font-weight: 850; }
 
     .detail strong {
@@ -505,7 +460,7 @@
       font-family: Sora, Inter, sans-serif;
       font-size: clamp(0.98rem, 2.3vw, 1.16rem);
       line-height: 1.1;
-      letter-spacing: 0.003em;
+      letter-spacing: 0.012em;
       overflow-wrap: anywhere;
     }
 
@@ -531,7 +486,6 @@
       color: var(--white);
       transform: translateX(-104%);
       transition: transform 220ms ease;
-      box-shadow: 22px 0 70px rgba(0, 0, 0, 0.32);
       display: flex;
       flex-direction: column;
       gap: 18px;
@@ -539,7 +493,7 @@
 
     .drawer.open { transform: translateX(0); }
     .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .drawer h2 { margin: 0; font-family: Sora, Inter, sans-serif; font-size: 1.45rem; letter-spacing: 0.004em; }
+    .drawer h2 { margin: 0; font-family: Sora, Inter, sans-serif; font-size: 1.45rem; letter-spacing: 0.012em; }
 
     .drawer-close {
       width: 44px;
@@ -571,14 +525,14 @@
     }
 
     .drawer-action:hover { transform: translateX(3px); background: rgba(255, 255, 255, 0.16); }
-    .drawer-action i { color: var(--accent); font-size: 1.55rem; }
+    .drawer-action i { color: var(--sun); font-size: 1.55rem; }
     .drawer p { margin: auto 0 0; color: rgba(255, 255, 255, 0.68); line-height: 1.45; font-size: 0.9rem; font-weight: 650; }
 
     .graph-screen {
       position: fixed;
       inset: 0;
       z-index: 40;
-      background: linear-gradient(135deg, var(--sky) 0%, var(--sun) 48%, var(--clouds) 100%);
+      background: var(--sky);
       color: var(--ink);
       transform: translateX(104%);
       transition: transform 260ms ease;
@@ -602,7 +556,7 @@
     .graph-title h1 {
       font-size: clamp(2.4rem, 9vw, 6.5rem);
       line-height: 0.9;
-      letter-spacing: 0.008em;
+      letter-spacing: 0.016em;
       max-width: 900px;
     }
 
@@ -617,23 +571,20 @@
 
     .graph-canvas-wrap {
       width: 100%;
-      border: 3px solid currentColor;
+      border: 3px solid var(--black);
       border-radius: 30px;
-      background:
-        radial-gradient(circle at 14% 4%, color-mix(in srgb, var(--accent) 28%, transparent), transparent 36%),
-        var(--black);
+      background: var(--black);
       padding: clamp(14px, 3vw, 22px);
-      box-shadow: var(--shadow);
     }
 
-    body.night .graph-canvas-wrap { background: rgba(5, 5, 5, 0.72); }
+    body.night .graph-canvas-wrap { border-color: var(--white); }
 
     #graphCanvas {
       width: 100%;
       height: clamp(270px, 46vh, 540px);
       display: block;
       border-radius: 22px;
-      background: var(--sun);
+      background: var(--panel);
       color: var(--black);
     }
 
@@ -647,11 +598,11 @@
     }
 
     .graph-day-card {
-      border: 2px solid color-mix(in srgb, currentColor 82%, var(--accent));
+      border: 3px solid var(--black);
       border-radius: 22px;
       padding: 15px 12px;
       min-height: 158px;
-      background: linear-gradient(145deg, color-mix(in srgb, var(--clouds) 32%, transparent), color-mix(in srgb, var(--sun) 16%, transparent));
+      background: var(--panel);
       display: grid;
       gap: 9px;
       align-content: center;
@@ -659,9 +610,9 @@
       font-weight: 850;
     }
 
-    .graph-day-card i { font-size: 2.1rem; color: color-mix(in srgb, currentColor 84%, var(--accent)); }
-    .graph-day-card strong { font-family: Sora, Inter, sans-serif; font-size: 1.45rem; letter-spacing: 0.004em; }
-    .graph-day-card span { font-size: 0.78rem; color: color-mix(in srgb, currentColor 76%, transparent); }
+    .graph-day-card i { font-size: 2.1rem; }
+    .graph-day-card strong { font-family: Sora, Inter, sans-serif; font-size: 1.45rem; letter-spacing: 0.012em; }
+    .graph-day-card span { font-size: 0.78rem; color: var(--muted); }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(12px); }
@@ -685,19 +636,18 @@
       .shell { width: min(100% - 22px, var(--max)); padding-top: calc(12px + var(--safe-top)); }
       .topbar { grid-template-columns: 48px minmax(0, 1fr) 48px; margin-bottom: 20px; gap: 10px; }
       .menu-button, .brand-icon { width: 48px; height: 48px; min-width: 48px; }
-      .brand-icon { box-shadow: 5px 5px 0 color-mix(in srgb, currentColor 70%, var(--accent)); }
+      .brand-icon { box-shadow: 5px 5px 0 var(--black); }
       .brand-title { font-size: 1.08rem; }
       .brand-subtitle { font-size: 0.78rem; }
-      .weather-main::before { left: -1rem; font-size: 3.2rem; }
       .date-pill { margin-top: 8px; }
-      .temperature { font-size: clamp(7rem, 40vw, 12.2rem); letter-spacing: 0.01em; }
+      .temperature { font-size: clamp(7rem, 40vw, 12.2rem); letter-spacing: 0.026em; }
       .summary { margin-top: 32px; }
       .metrics-bar { border-radius: 24px; padding: 16px 8px; }
       .metrics-grid { gap: 6px; }
       .metric i { font-size: 1.7rem; margin-bottom: 10px; }
       .metric strong { font-size: clamp(0.82rem, 3.8vw, 1rem); }
       .metric span { font-size: 0.75rem; }
-      .data-group { padding: 13px; border-radius: 24px; }
+      .data-group { padding: 18px; border-radius: 24px; }
       .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
       .detail { min-height: 94px; padding: 11px; border-radius: 18px; }
       .rail { gap: 10px; }
@@ -715,7 +665,7 @@
       .menu-button, .brand-icon { width: 44px; height: 44px; min-width: 44px; border-radius: 16px; }
       .menu-button i { font-size: 2rem; }
       .brand-icon i { font-size: 1.45rem; }
-      .temperature { font-size: clamp(6.5rem, 39vw, 9.6rem); letter-spacing: 0.006em; }
+      .temperature { font-size: clamp(6.5rem, 39vw, 9.6rem); letter-spacing: 0.022em; }
       .detail-grid { gap: 8px; }
       .detail strong { font-size: 0.96rem; }
     }
@@ -766,10 +716,8 @@
     <header class="topbar">
       <button class="menu-button" id="openMenu" aria-label="Open menu"><i class="ph ph-list"></i></button>
       <div class="brand">
-        <div>
-          <p class="brand-title">Home Weather</p>
-          <p class="brand-subtitle" id="place">London, Ontario</p>
-        </div>
+        <p class="brand-title">Home Weather</p>
+        <p class="brand-subtitle" id="place">London, Ontario</p>
       </div>
       <div class="brand-icon" aria-hidden="true"><i id="brandIcon" class="ph-duotone ph-sun"></i></div>
     </header>
@@ -822,7 +770,7 @@
     const API = "https://api.openweathermap.org/data/2.5";
     const ONECALL = "https://api.openweathermap.org/data/3.0/onecall";
     const KEY_STORE = "home_weather_key";
-    const CACHE_STORE = "home_weather_cache_v13";
+    const CACHE_STORE = "home_weather_cache_v14";
     const $ = (id) => document.getElementById(id);
     const el = {
       openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), statusFade: $("statusFade"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), quickFeels: $("quickFeels"), quickRain: $("quickRain"), wind: $("wind"), visibility: $("visibility"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), detailsGrid: $("detailsGrid"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh"), hourlyMore: $("hourlyMore"), weeklyMore: $("weeklyMore"), graphScreen: $("graphScreen"), graphTitle: $("graphTitle"), graphNote: $("graphNote"), graphCanvas: $("graphCanvas"), graphDayGrid: $("graphDayGrid"), closeGraph: $("closeGraph"), metricsBar: $("metricsBar"), metricsGrid: $("metricsGrid"), stickyStats: $("stickyStats"), stickyGrid: $("stickyGrid")
@@ -1051,14 +999,12 @@
       canvas.width = Math.max(1, Math.floor(rect.width * dpr));
       canvas.height = Math.max(1, Math.floor(rect.height * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
       const isWeekly = mode === "weekly";
       const rows = isWeekly ? dailyData.slice(0, 7).map(d => ({ label: d.label, value: d.max, low: d.min })) : hourlyData.slice(0, 12).map(h => ({ label: h.label, value: h.temp, low: h.feels }));
       el.graphTitle.textContent = isWeekly ? "7 day trend" : "Hourly trend";
       el.graphNote.textContent = isWeekly ? "Highs and lows across the weekly forecast, with the 7 day view below." : "Temperature and feels-like trend, with the 7 day outlook below.";
       canvas.setAttribute("aria-label", el.graphTitle.textContent);
       if (!rows.length) return;
-
       const start = performance.now();
       const duration = animate && !matchMedia("(prefers-reduced-motion: reduce)").matches ? 460 : 0;
       const frame = (now) => {
@@ -1077,7 +1023,7 @@
       const values = rows.flatMap(r => [r.value, r.low]).filter(Number.isFinite);
       const min = Math.floor(Math.min(...values)) - 1;
       const max = Math.ceil(Math.max(...values)) + 1;
-      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--sun") || "#ffe84a";
+      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--panel") || "#fff1a6";
       ctx.fillRect(0, 0, rect.width, rect.height);
       ctx.strokeStyle = "rgba(5,5,5,.18)";
       ctx.lineWidth = 1;
@@ -1151,17 +1097,21 @@
       const condition = String(main).toLowerCase();
       const night = hour < 6 || hour >= 20;
       document.body.classList.toggle("night", night);
-      let palette = { sky: "#42C6FF", sun: "#FFE84A", clouds: "#FFF4A8", accent: "#42C6FF", theme: "#FFE84A" };
-      if (night) palette = { sky: "#090918", sun: "#171039", clouds: "#050505", accent: "#FF64D4", theme: "#171039" };
-      if (condition.includes("rain") || condition.includes("drizzle")) palette = night ? { sky: "#0B1535", sun: "#102A48", clouds: "#050505", accent: "#42C6FF", theme: "#0B1535" } : { sky: "#42C6FF", sun: "#A9E7FF", clouds: "#E8F8FF", accent: "#FFE84A", theme: "#42C6FF" };
-      if (condition.includes("cloud")) palette = night ? { sky: "#171039", sun: "#2E2A4F", clouds: "#3A365A", accent: "#C6FF8B", theme: "#171039" } : { sky: "#AFC7D6", sun: "#E7E2D4", clouds: "#FFFDF8", accent: "#42C6FF", theme: "#E7E2D4" };
-      if (condition.includes("snow")) palette = { sky: "#DDEEFF", sun: "#F4FBFF", clouds: "#FFFFFF", accent: "#42C6FF", theme: "#F4FBFF" };
-      if (condition.includes("thunder")) palette = { sky: "#050505", sun: "#241C4D", clouds: "#36304F", accent: "#FFE84A", theme: "#050505" };
-      document.documentElement.style.setProperty("--sky", palette.sky);
-      document.documentElement.style.setProperty("--sun", palette.sun);
-      document.documentElement.style.setProperty("--clouds", palette.clouds);
-      document.documentElement.style.setProperty("--accent", palette.accent);
-      document.querySelector('meta[name="theme-color"]').setAttribute("content", palette.theme);
+      let p = { sky: "#42C6FF", sun: "#FFE84A", clouds: "#FFF4A8", accent: "#FF7A30", panel: "#FFF1A6", panel2: "#FFF8D6", icon: "#FF7A30", iconBg: "#FFF7C7", theme: "#42C6FF" };
+      if (night) p = { sky: "#090918", sun: "#171039", clouds: "#050505", accent: "#FF64D4", panel: "#201A3C", panel2: "#2D2650", icon: "#FF64D4", iconBg: "#FFFDF8", theme: "#090918" };
+      if (condition.includes("rain") || condition.includes("drizzle")) p = night ? { sky: "#0B1535", sun: "#102A48", clouds: "#050505", accent: "#42C6FF", panel: "#17294B", panel2: "#1F365F", icon: "#42C6FF", iconBg: "#E8F8FF", theme: "#0B1535" } : { sky: "#42C6FF", sun: "#A9E7FF", clouds: "#E8F8FF", accent: "#006B9A", panel: "#C9F0FF", panel2: "#E8F8FF", icon: "#006B9A", iconBg: "#E8F8FF", theme: "#42C6FF" };
+      if (condition.includes("cloud")) p = night ? { sky: "#171039", sun: "#2E2A4F", clouds: "#3A365A", accent: "#C6FF8B", panel: "#282541", panel2: "#343052", icon: "#C6FF8B", iconBg: "#FFFDF8", theme: "#171039" } : { sky: "#AFC7D6", sun: "#E7E2D4", clouds: "#FFFDF8", accent: "#2F8FB3", panel: "#D8EAF0", panel2: "#EAF4F8", icon: "#2F8FB3", iconBg: "#FFF7CE", theme: "#AFC7D6" };
+      if (condition.includes("snow")) p = { sky: "#DDEEFF", sun: "#F4FBFF", clouds: "#FFFFFF", accent: "#2A86C8", panel: "#F4FBFF", panel2: "#FFFFFF", icon: "#2A86C8", iconBg: "#FFFFFF", theme: "#DDEEFF" };
+      if (condition.includes("thunder")) p = { sky: "#050505", sun: "#241C4D", clouds: "#36304F", accent: "#FFE84A", panel: "#241C4D", panel2: "#36304F", icon: "#FFE84A", iconBg: "#050505", theme: "#050505" };
+      document.documentElement.style.setProperty("--sky", p.sky);
+      document.documentElement.style.setProperty("--sun", p.sun);
+      document.documentElement.style.setProperty("--clouds", p.clouds);
+      document.documentElement.style.setProperty("--accent", p.accent);
+      document.documentElement.style.setProperty("--panel", p.panel);
+      document.documentElement.style.setProperty("--panel-2", p.panel2);
+      document.documentElement.style.setProperty("--icon", p.icon);
+      document.documentElement.style.setProperty("--icon-bg", p.iconBg);
+      document.querySelector('meta[name="theme-color"]').setAttribute("content", p.theme);
     }
 
     function updateStickyContent() { el.stickyGrid.innerHTML = el.metricsGrid.innerHTML; }
