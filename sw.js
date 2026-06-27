@@ -1,4 +1,4 @@
-const CACHE_NAME = "home-weather-shell-v11";
+const CACHE_NAME = "home-weather-shell-v12";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -6,7 +6,7 @@ const SHELL_FILES = [
   "./icon.svg"
 ];
 
-const PATCH_ID = "weather-ios-chrome-radii-v2";
+const PATCH_ID = "weather-vibrant-palette-radii-v3";
 
 const PATCH_STYLE = `
 <style id="${PATCH_ID}">
@@ -97,9 +97,60 @@ const PATCH_STYLE = `
   }
 </style>`;
 
+const PATCH_SCRIPT = `
+<script id="${PATCH_ID}-script">
+(() => {
+  const palettes = {
+    clearDay: ["#39C7FF", "#FFE34A", "#FFF39A", "#FF7A1A", "#FFE66B", "#FFF7B8", "#FF6A00", "#FFF2A8", "#39C7FF"],
+    cloudyDay: ["#76D7FF", "#FFD84D", "#F8FBFF", "#2DB7E8", "#BEEBFF", "#EAF8FF", "#1688C7", "#FFF0A6", "#76D7FF"],
+    rainDay: ["#22B8FF", "#77E7FF", "#DFFBFF", "#0077FF", "#A7ECFF", "#E0FAFF", "#006DFF", "#DDF8FF", "#22B8FF"],
+    snow: ["#9FDBFF", "#EAF8FF", "#FFFFFF", "#2F8FFF", "#DDF3FF", "#FFFFFF", "#1D7EEA", "#FFFFFF", "#9FDBFF"],
+    thunder: ["#2B235D", "#FFE24A", "#5B4AA8", "#FFCA28", "#473A82", "#6251B8", "#FFE24A", "#151226", "#2B235D"],
+    night: ["#151B54", "#7C5CFF", "#241A5E", "#FF5EDB", "#2C276D", "#3A337F", "#FF5EDB", "#F8F3FF", "#151B54"]
+  };
+
+  function setPalette(kind) {
+    const p = palettes[kind] || palettes.clearDay;
+    const root = document.documentElement;
+    ["--sky", "--sun", "--clouds", "--accent", "--panel", "--panel-2", "--icon", "--icon-bg"].forEach((name, index) => root.style.setProperty(name, p[index]));
+    const theme = document.querySelector('meta[name="theme-color"]');
+    if (theme) theme.setAttribute("content", p[8]);
+  }
+
+  function kindFromWeather(main, zone) {
+    const text = String(main || "").toLowerCase();
+    const localHour = new Date((Date.now() / 1000 + Number(zone || 0)) * 1000).getUTCHours();
+    if (localHour < 6 || localHour >= 20) return "night";
+    if (text.includes("thunder")) return "thunder";
+    if (text.includes("snow")) return "snow";
+    if (text.includes("rain") || text.includes("drizzle")) return "rainDay";
+    if (text.includes("cloud")) return "cloudyDay";
+    return "clearDay";
+  }
+
+  function applyFromCache() {
+    try {
+      const cached = JSON.parse(localStorage.getItem("home_weather_cache_v14") || localStorage.getItem("home_weather_cache_v13") || "null");
+      const main = cached && cached.current && cached.current.weather && cached.current.weather[0] && cached.current.weather[0].main;
+      const zone = cached && (cached.current.timezone || (cached.forecast && cached.forecast.city && cached.forecast.city.timezone));
+      setPalette(kindFromWeather(main, zone));
+    } catch (_) {}
+  }
+
+  const original = window.applyPalette;
+  window.applyPalette = function(main, zone) {
+    if (typeof original === "function") original(main, zone);
+    setPalette(kindFromWeather(main, zone));
+  };
+
+  applyFromCache();
+  setTimeout(applyFromCache, 300);
+})();
+</script>`;
+
 function patchHtml(html) {
   if (!html || html.includes(PATCH_ID)) return html;
-  return html.replace("</head>", `${PATCH_STYLE}\n</head>`);
+  return html.replace("</head>", `${PATCH_STYLE}\n</head>`).replace("</body>", `${PATCH_SCRIPT}\n</body>`);
 }
 
 function htmlResponse(html, response) {
