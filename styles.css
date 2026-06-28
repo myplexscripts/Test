@@ -516,6 +516,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 /* ---------- Radar ---------- */
 .radar-preview {
   position: relative;
+  isolation: isolate; /* contain Leaflet's high z-index panes to this box */
   display: block;
   width: 100%;
   height: 190px;
@@ -692,8 +693,12 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   display: flex;
   flex-direction: column;
   gap: var(--s-6);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
   will-change: transform;
 }
+.drawer::-webkit-scrollbar { display: none; }
 .drawer.is-open { transform: translateX(0); }
 .drawer-head { display: flex; align-items: center; justify-content: space-between; }
 .drawer-head h2 { font-family: Rubik, Inter, sans-serif; font-size: 1.5rem; font-weight: 700; }
@@ -701,6 +706,38 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .drawer .icon-btn:active { background: rgba(255, 255, 255, 0.12); }
 
 .drawer-group { display: flex; flex-direction: column; gap: var(--s-3); }
+.drawer-label { font-weight: 700; font-size: var(--t-sm); }
+
+/* Theme picker */
+.theme-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-2); }
+.theme-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: var(--s-2) 0;
+  border-radius: var(--r-sm);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--on-surface);
+  opacity: 0.55;
+  transition: opacity var(--dur-fast), background var(--dur-fast), transform var(--dur-fast) var(--ease-spring);
+}
+.theme-swatch:active { transform: scale(0.94); background: rgba(255, 255, 255, 0.08); }
+.theme-swatch.is-active { opacity: 1; }
+.theme-swatch .sw {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  transition: box-shadow var(--dur-fast);
+}
+.theme-swatch.is-active .sw {
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--on-surface);
+}
+.sw-auto { background: conic-gradient(from 200deg, #ffd83d, #42c6ff, #ff64d4, #121845, #ffd83d); }
+
 .seg-row {
   display: flex;
   align-items: center;

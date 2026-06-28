@@ -30,7 +30,7 @@ const el = {
   ptr: $("ptr"), scrim: $("scrim"),
   drawer: $("drawer"), drawerClose: $("drawerClose"),
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
-  unitSeg: $("unitSeg"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"),
+  unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"),
   placeName: $("placeName"), datePill: $("datePill"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mVisibility: $("mVisibility"),
@@ -53,6 +53,8 @@ const state = {
   hourly: [],
   daily: [],
   detail: { metric: "temp", range: "hourly" },
+  theme: "auto",
+  autoKind: "clear",
   center: { ...HOME },
   tz: 0,
   placeName: "",
@@ -120,6 +122,8 @@ function wireEvents() {
       refresh(true);
     };
   });
+
+  el.themeGrid.querySelectorAll("[data-theme]").forEach((b) => b.onclick = () => setTheme(b.dataset.theme));
 
   el.hourlyMore.onclick = () => openDetail("temp", "hourly");
   el.dailyMore.onclick = () => openDetail("temp", "daily");
@@ -192,7 +196,8 @@ function render(data) {
   state.hourly = buildHourly(forecast, tz);
   state.daily = buildDaily(forecast, tz);
 
-  applyPalette(paletteKind(w.main, isNight));
+  state.autoKind = paletteKind(w.main, isNight);
+  applyPalette(themeKind());
 
   el.heroIcon.className = `hero-icon ${iconClass(w.main, isNight)}`;
   el.placeName.textContent = current.name ? `${current.name}${sys.country ? ", " + sys.country : ""}` : state.loc.label;
@@ -473,6 +478,18 @@ function applyPalette(kind) {
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;
   updateMapTheme();
+}
+
+function themeKind() {
+  return (state.theme && state.theme !== "auto") ? state.theme : (state.autoKind || "clear");
+}
+
+function setTheme(theme) {
+  state.theme = (theme === "auto" || PALETTES[theme]) ? theme : "auto";
+  saveState();
+  el.themeGrid.querySelectorAll("[data-theme]").forEach((b) =>
+    b.classList.toggle("is-active", b.dataset.theme === state.theme));
+  applyPalette(themeKind());
 }
 
 function iconClass(main, isNight) {
@@ -1015,12 +1032,12 @@ function fmtClock(dt, tz) {
 
 /* ---------- Persistence ---------- */
 function saveState() {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc })); } catch {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme })); } catch {}
 }
 function loadState() {
   try {
     const s = JSON.parse(localStorage.getItem(STATE_KEY) || "null");
-    if (s) { state.units = s.units || "metric"; state.loc = s.loc || { ...HOME }; }
+    if (s) { state.units = s.units || "metric"; state.loc = s.loc || { ...HOME }; state.theme = s.theme || "auto"; }
   } catch {}
 }
 function saveCache(data) {
@@ -1032,6 +1049,8 @@ function loadCache() {
 function syncControls() {
   el.unitSeg.querySelectorAll("[data-units]").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.units === state.units));
+  el.themeGrid.querySelectorAll("[data-theme]").forEach((b) =>
+    b.classList.toggle("is-active", b.dataset.theme === state.theme));
   markLoc(state.loc.label === HOME.label ? "home" : "loc");
 }
 
