@@ -19,8 +19,12 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://api.openweathermap.org">
+  <link rel="preconnect" href="https://tile.openweathermap.org">
+  <link rel="preconnect" href="https://unpkg.com">
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Rubik:wght@500;600;700;800&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@phosphor-icons/web" defer></script>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" defer></script>
 
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -100,6 +104,17 @@
       <div class="rail" id="dayRail"></div>
     </section>
 
+    <section class="block" aria-label="Radar">
+      <div class="block-head">
+        <h2>Radar</h2>
+        <button class="arrow-btn" id="radarMore" aria-label="Open radar"><i class="ph ph-arrow-right"></i></button>
+      </div>
+      <button class="radar-preview" id="radarPreview" aria-label="Open full radar map">
+        <div class="radar-map" id="radarPreviewMap"></div>
+        <span class="radar-cta"><i class="ph ph-map-trifold"></i>Tap to explore</span>
+      </button>
+    </section>
+
     <section class="block" aria-label="Today's details">
       <h2 class="block-title">Today</h2>
       <div class="sun-card" id="sunCard"></div>
@@ -121,6 +136,20 @@
     <p class="sheet-note" id="sheetNote">Temperature over the next hours.</p>
     <div class="graph-card"><canvas id="graph" role="img" aria-label="Temperature graph"></canvas></div>
     <div class="sheet-list" id="sheetList"></div>
+  </section>
+
+  <section class="sheet radar-sheet" id="radarSheet" aria-label="Radar map" aria-hidden="true">
+    <div class="sheet-head">
+      <button class="back-btn" id="radarBack"><i class="ph ph-arrow-left"></i><span>Back</span></button>
+      <div class="segmented small" id="layerSeg" role="group" aria-label="Map layer">
+        <button class="seg-item is-active" data-layer="precipitation_new">Rain</button>
+        <button class="seg-item" data-layer="clouds_new">Clouds</button>
+        <button class="seg-item" data-layer="temp_new">Temp</button>
+        <button class="seg-item" data-layer="wind_new">Wind</button>
+      </div>
+    </div>
+    <div class="radar-map-full" id="radarMap"></div>
+    <p class="radar-note" id="radarNote">Live precipitation around <span id="radarPlace">your area</span>.</p>
   </section>
 
   <script src="app.js" defer></script>

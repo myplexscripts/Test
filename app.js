@@ -36,6 +36,9 @@ const el = {
   mWind: $("mWind"), mHumidity: $("mHumidity"), mVisibility: $("mVisibility"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   sunCard: $("sunCard"), detailGrid: $("detailGrid"),
+  radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
+  radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
+  layerSeg: $("layerSeg"), radarPlace: $("radarPlace"),
   hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
   sheet: $("sheet"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"),
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList")
@@ -49,9 +52,15 @@ const state = {
   hourly: [],
   daily: [],
   tab: "hourly",
+  center: { ...HOME },
+  dark: false,
   drawerOpen: false,
-  sheetOpen: false
+  sheetOpen: false,
+  radarOpen: false
 };
+
+/* Radar / map (Leaflet) state */
+const radar = { map: null, base: null, overlay: null, marker: null, preview: null, previewBase: null, layer: "precipitation_new" };
 
 /* ---------- Boot ---------- */
 init();
@@ -94,12 +103,16 @@ function wireEvents() {
   el.hourlyMore.onclick = () => openSheet("hourly");
   el.dailyMore.onclick = () => openSheet("daily");
   el.sheetBack.onclick = closeSheet;
+  el.radarPreview.onclick = openRadar;
+  el.radarMore.onclick = openRadar;
+  el.radarBack.onclick = closeRadar;
+  el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.onclick = () => setLayer(b.dataset.layer));
   el.tabSeg.querySelectorAll("[data-tab]").forEach((b) => {
     b.onclick = () => setTab(b.dataset.tab);
   });
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { closeSheet(); closeDrawer(); }
+    if (e.key === "Escape") { closeSheet(); closeDrawer(); closeRadar(); }
   });
 
   window.addEventListener("scroll", onScroll, { passive: true });
@@ -170,6 +183,10 @@ function render(data) {
   renderDaily();
   renderSun(current);
   renderDetails(current);
+
+  state.center = { lat: current.coord?.lat ?? state.loc.lat, lon: current.coord?.lon ?? state.loc.lon };
+  if (el.radarPlace) el.radarPlace.textContent = current.name || state.loc.label;
+  syncMaps();
 
   if (state.sheetOpen) { drawGraph(); renderSheetList(); }
 }
@@ -334,6 +351,8 @@ function applyPalette(kind) {
   r.setProperty("--theme", p.bg);
   document.querySelector('meta[name="theme-color"]').setAttribute("content", p.bg);
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
+  state.dark = !!p.dark;
+  updateMapTheme();
 }
 
 function iconClass(main, isNight) {
@@ -490,6 +509,84 @@ function closeDrawer() {
   el.drawer.style.transform = "";
 }
 
+/* ---------- Radar / map ---------- */
+function haveLeaflet() { return typeof window.L !== "undefined"; }
+function baseTileUrl() {
+  return state.dark
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
+}
+function owmTileUrl(layer) {
+  return `https://tile.openweathermap.org/map/${layer}/{z}/{x}/{y}.png?appid=${API_KEY}`;
+}
+
+function initRadarPreview() {
+  if (!haveLeaflet() || radar.preview) return;
+  const c = state.center;
+  radar.preview = L.map(el.radarPreviewMap, {
+    zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false,
+    doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, tap: false
+  }).setView([c.lat, c.lon], 6);
+  radar.previewBase = L.tileLayer(baseTileUrl(), { subdomains: "abcd" }).addTo(radar.preview);
+  L.tileLayer(owmTileUrl("precipitation_new"), { opacity: 0.75 }).addTo(radar.preview);
+  setTimeout(() => radar.preview && radar.preview.invalidateSize(), 300);
+}
+
+function initRadarMap() {
+  if (!haveLeaflet()) { el.radarMap.innerHTML = '<div class="map-fallback">The map needs an internet connection.</div>'; return; }
+  const c = state.center;
+  if (radar.map) { radar.map.setView([c.lat, c.lon]); return; }
+  radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: true }).setView([c.lat, c.lon], 7);
+  radar.base = L.tileLayer(baseTileUrl(), {
+    subdomains: "abcd", maxZoom: 18, attribution: '&copy; OpenStreetMap &copy; CARTO'
+  }).addTo(radar.map);
+  radar.overlay = L.tileLayer(owmTileUrl(radar.layer), {
+    opacity: 0.72, maxZoom: 18, attribution: '&copy; OpenWeather'
+  }).addTo(radar.map);
+  radar.marker = L.circleMarker([c.lat, c.lon], {
+    radius: 7, weight: 3, color: "#ffffff",
+    fillColor: getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a",
+    fillOpacity: 1
+  }).addTo(radar.map);
+}
+
+function openRadar() {
+  state.radarOpen = true;
+  el.radarSheet.classList.add("is-open");
+  el.radarSheet.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  initRadarMap();
+  setTimeout(() => radar.map && radar.map.invalidateSize(), 320);
+}
+function closeRadar() {
+  if (!state.radarOpen) return;
+  state.radarOpen = false;
+  el.radarSheet.classList.remove("is-open");
+  el.radarSheet.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+
+function setLayer(layer) {
+  radar.layer = layer;
+  el.layerSeg.querySelectorAll("[data-layer]").forEach((b) =>
+    b.classList.toggle("is-active", b.dataset.layer === layer));
+  if (radar.overlay) radar.overlay.setUrl(owmTileUrl(layer));
+}
+
+function syncMaps() {
+  if (!haveLeaflet()) return;
+  const c = state.center;
+  if (radar.preview) radar.preview.setView([c.lat, c.lon]); else initRadarPreview();
+  if (radar.map) { radar.map.setView([c.lat, c.lon]); radar.marker && radar.marker.setLatLng([c.lat, c.lon]); }
+}
+
+function updateMapTheme() {
+  if (!haveLeaflet()) return;
+  const url = baseTileUrl();
+  if (radar.base) radar.base.setUrl(url);
+  if (radar.previewBase) radar.previewBase.setUrl(url);
+}
+
 /* ---------- Location ---------- */
 function useMyLocation() {
   if (!navigator.geolocation) { setStatus("Geolocation isn't available."); return; }
@@ -608,6 +705,7 @@ function initGestures() {
     const t = e.touches[0];
     sx = t.clientX; sy = t.clientY; dist = 0;
 
+    if (state.radarOpen) { mode = null; return; }
     if (state.drawerOpen) { mode = "drawer"; return; }
     if (state.sheetOpen) { mode = sx < EDGE ? "sheet" : null; return; }
     if (sx < EDGE) { mode = "edge"; return; }

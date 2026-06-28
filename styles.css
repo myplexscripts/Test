@@ -456,6 +456,78 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .sun-time i { font-size: 1.6rem; color: var(--ink); }
 .sun-time strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
 
+/* ---------- Radar ---------- */
+.radar-preview {
+  position: relative;
+  display: block;
+  width: 100%;
+  height: 190px;
+  padding: 0;
+  border: 2px solid var(--card-border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--card-bg);
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+.radar-preview:active { transform: scale(0.98); }
+.radar-map { position: absolute; inset: 0; }
+.radar-cta {
+  position: absolute;
+  left: var(--s-3);
+  bottom: var(--s-3);
+  z-index: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--on-surface);
+  font-size: var(--t-cap);
+  font-weight: 700;
+  pointer-events: none;
+}
+.radar-cta i { font-size: 1.1rem; color: var(--surface-accent); }
+
+.radar-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  overflow: hidden;
+}
+.radar-map-full {
+  flex: 1;
+  min-height: 0;
+  border: 2px solid var(--card-border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.radar-note { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
+.map-fallback {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: var(--s-6);
+  text-align: center;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* Leaflet theming to match the design system */
+.leaflet-container { background: var(--card-bg); font-family: Inter, system-ui, sans-serif; }
+.leaflet-bar a {
+  background: var(--surface);
+  color: var(--on-surface);
+  border-bottom-color: color-mix(in srgb, var(--on-surface) 18%, transparent);
+}
+.leaflet-bar a:hover { background: var(--surface); }
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  color: var(--ink-soft);
+  font-size: 10px;
+}
+.leaflet-control-attribution a { color: var(--ink-soft); }
+
 /* ---------- Footer ---------- */
 .foot {
   font-size: var(--t-cap);
@@ -649,6 +721,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .app > *:nth-child(6) { animation-delay: 200ms; }
 .app > *:nth-child(7) { animation-delay: 240ms; }
 .app > *:nth-child(8) { animation-delay: 280ms; }
+.app > *:nth-child(9) { animation-delay: 320ms; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 420px) {
