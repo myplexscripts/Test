@@ -69,12 +69,15 @@ const state = {
 const radar = {
   map: null, base: null, owm: null, marker: null, preview: null, previewBase: null,
   layers: [], front: 0, gen: 0,
-  mode: "radar", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, themeDark: null
+  mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, themeDark: null
 };
 const RAINVIEWER_API = "https://api.rainviewer.com/public/weather-maps.json";
 const RV_COLOR = 4;    // colour scheme: Weather Channel
 const RV_OPTS = "1_1"; // smooth + show snow
 const RV_SIZE = 256;
+// Environment & Climate Change Canada radar (GeoMet WMS, time-animated).
+const ECCC_WMS = "https://geo.weather.gc.ca/geomet";
+const ECCC_LAYER = "RADAR_1KM_RRAI"; // 1 km rain reflectivity
 const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed" };
 
 /* ---------- Boot ---------- */
@@ -908,7 +911,7 @@ function applyMode(mode) {
   el.radarTimeline.style.display = isRadar ? "" : "none";
   if (el.radarLegend) el.radarLegend.style.display = isRadar ? "" : "none";
   if (isRadar) {
-    loadRainviewer();
+    loadRadar();
   } else {
     radar.owm = L.tileLayer(owmTileUrl(mode), { opacity: 0.72, maxZoom: 12, maxNativeZoom: 9, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; OpenWeather" }).addTo(radar.map);
   }
@@ -919,47 +922,113 @@ function removeRadarLayers() {
   radar.layers = [];
 }
 
+function inCanada(lat, lon) {
+  return lat >= 41 && lat <= 84 && lon >= -141 && lon <= -52;
+}
+
+// RainViewer frames (global fallback): { t, path, kind }
 async function ensureFrames() {
-  if (radar.loaded) return radar.frames;
-  const j = await (await fetch(RAINVIEWER_API, { cache: "no-store" })).json();
-  radar.host = j.host;
-  const past = (j.radar?.past || []).map((f) => ({ ...f, kind: "past" }));
-  const soon = (j.radar?.nowcast || []).map((f) => ({ ...f, kind: "forecast" }));
-  radar.frames = [...past, ...soon];
-  radar.loaded = true;
+  if (!radar.loaded) {
+    const j = await (await fetch(RAINVIEWER_API, { cache: "no-store" })).json();
+    radar.host = j.host;
+    const past = (j.radar?.past || []).map((f) => ({ t: f.time, path: f.path, kind: "past" }));
+    const soon = (j.radar?.nowcast || []).map((f) => ({ t: f.time, path: f.path, kind: "forecast" }));
+    radar.rvFrames = [...past, ...soon];
+    radar.loaded = true;
+  }
+  radar.source = "rainviewer";
+  radar.frames = radar.rvFrames || [];
   const lastPast = radar.frames.map((f) => f.kind).lastIndexOf("past");
   radar.idx = lastPast >= 0 ? lastPast : Math.max(0, radar.frames.length - 1);
   return radar.frames;
 }
 
-// Two overlay layers, crossfaded — buttery without the memory blow-up that
-// crashed the preload-all version (only ever two RainViewer layers exist).
-async function loadRainviewer() {
+// Environment Canada frames (primary over Canada): read the WMS time
+// dimension from GetCapabilities and build a list of observed timestamps.
+async function ensureEccc() {
+  const now = Date.now();
+  if (radar.source === "eccc" && radar.frames.length && now - radar.ecccAt < 300000) return radar.frames;
+  const url = `${ECCC_WMS}?lang=en&service=WMS&version=1.3.0&request=GetCapabilities&LAYERS=${ECCC_LAYER}`;
+  const text = await (await fetch(url, { cache: "no-store" })).text();
+  const doc = new DOMParser().parseFromString(text, "text/xml");
+  let dimText = "";
+  const dims = doc.getElementsByTagName("Dimension");
+  for (let i = 0; i < dims.length; i++) {
+    if ((dims[i].getAttribute("name") || "").toLowerCase() === "time") { dimText = (dims[i].textContent || "").trim(); break; }
+  }
+  const frames = ecccFrames(dimText);
+  if (!frames.length) throw new Error("ECCC: no time frames");
+  radar.frames = frames;
+  radar.source = "eccc";
+  radar.ecccAt = now;
+  radar.idx = frames.length - 1; // latest observed
+  return frames;
+}
+
+function ecccFrames(dimText) {
+  if (!dimText) return [];
+  const iso = (ms) => new Date(ms).toISOString().replace(/\.\d+Z$/, "Z");
+  if (dimText.includes("/")) {
+    const [start, end, period] = dimText.split("/");
+    const stepMin = Number((period && period.match(/PT(\d+)M/) || [])[1]) || 6;
+    const t0 = Date.parse(start), t1 = Date.parse(end);
+    if (!Number.isFinite(t0) || !Number.isFinite(t1)) return [];
+    const out = [];
+    for (let t = t0; t <= t1 + 1000; t += stepMin * 60000) out.push({ t: Math.floor(t / 1000), iso: iso(t), kind: "past" });
+    return out.slice(-13);
+  }
+  return dimText.split(",").map((s) => s.trim()).filter(Boolean).slice(-13)
+    .map((s) => ({ t: Math.floor(Date.parse(s) / 1000), iso: iso(Date.parse(s)), kind: "past" }))
+    .filter((f) => Number.isFinite(f.t));
+}
+
+// Two crossfaded overlay layers. Source picked per location: Environment
+// Canada when the map is over Canada, RainViewer everywhere else (and as a
+// fallback if ECCC can't be reached).
+async function loadRadar() {
   if (!haveLeaflet() || !radar.map) return;
   try {
-    const frames = await ensureFrames();
+    const c = state.center;
+    let frames = null;
+    if (inCanada(c.lat, c.lon)) frames = await ensureEccc().catch(() => null);
+    if (!frames || !frames.length) frames = await ensureFrames();
     if (!frames.length || !radar.map || radar.mode !== "radar") { el.radarTimeline.style.display = "none"; return; }
     el.radarTimeline.style.display = "";
     el.radarScrub.max = String(frames.length - 1);
     if (!radar.layers.length) {
-      radar.layers = [makeRvLayer(frames[radar.idx]), makeRvLayer(frames[radar.idx])];
+      radar.layers = [makeRadarLayer(), makeRadarLayer()];
       radar.front = 0;
     }
     showFrame(radar.idx, true);   // immediate first paint
     startRadarPlay();
+    updateRadarNote();
   } catch {
     el.radarTimeline.style.display = "none";
   }
 }
 
-function makeRvLayer(f) {
-  const layer = L.tileLayer(rvUrl(f), {
-    opacity: 0, maxZoom: 12, maxNativeZoom: 10, tileSize: RV_SIZE,
-    updateWhenZooming: false, keepBuffer: 0, attribution: "&copy; RainViewer"
-  }).addTo(radar.map);
+function makeRadarLayer() {
+  let layer;
+  if (radar.source === "eccc") {
+    layer = L.tileLayer.wms(ECCC_WMS, {
+      layers: ECCC_LAYER, format: "image/png", transparent: true, version: "1.3.0",
+      opacity: 0, maxZoom: 12, updateWhenZooming: false, keepBuffer: 0,
+      attribution: "&copy; Environment and Climate Change Canada"
+    }).addTo(radar.map);
+  } else {
+    layer = L.tileLayer(rvUrl(radar.frames[radar.idx]), {
+      opacity: 0, maxZoom: 12, maxNativeZoom: 10, tileSize: RV_SIZE,
+      updateWhenZooming: false, keepBuffer: 0, attribution: "&copy; RainViewer"
+    }).addTo(radar.map);
+  }
   const c = layer.getContainer && layer.getContainer();
   if (c) c.style.transition = "opacity 450ms ease";
   return layer;
+}
+
+function applyFrame(layer, f) {
+  if (radar.source === "eccc") layer.setParams({ time: f.iso });
+  else layer.setUrl(rvUrl(f));
 }
 
 function showFrame(i, immediate, onShown) {
@@ -971,7 +1040,7 @@ function showFrame(i, immediate, onShown) {
   const frontLayer = radar.layers[radar.front];
   const backLayer = radar.layers[1 - radar.front];
   if (immediate || !backLayer) {
-    frontLayer.setUrl(rvUrl(f));
+    applyFrame(frontLayer, f);
     frontLayer.setOpacity(0.85);
     if (backLayer) backLayer.setOpacity(0);
     if (onShown) onShown();
@@ -987,18 +1056,18 @@ function showFrame(i, immediate, onShown) {
     radar.front = 1 - radar.front;
     if (onShown) onShown();
   };
-  backLayer.setUrl(rvUrl(f));
+  applyFrame(backLayer, f);
   if (backLayer.once) backLayer.once("load", reveal);
   setTimeout(reveal, 700); // fallback so playback never stalls
 }
 
 function relTime(f) {
-  const diffMin = Math.round((f.time - Date.now() / 1000) / 60);
+  const diffMin = Math.round((f.t - Date.now() / 1000) / 60);
   let rel;
   if (Math.abs(diffMin) <= 3) rel = "Now";
   else if (diffMin < 0) rel = Math.abs(diffMin) >= 60 ? `−${Math.round(Math.abs(diffMin) / 60)}h` : `−${Math.abs(diffMin)}m`;
   else rel = `+${diffMin}m`;
-  const clock = fmtClock(f.time, state.tz || 0);
+  const clock = fmtClock(f.t, state.tz || 0);
   return f.kind === "forecast" ? `${rel} · ${clock} forecast` : `${rel} · ${clock}`;
 }
 
@@ -1025,7 +1094,9 @@ function toggleRadarPlay() { radar.playing ? stopRadarPlay() : startRadarPlay();
 
 function updateRadarNote() {
   const place = state.placeName || "your area";
-  el.radarNote.textContent = `${LAYER_NAMES[radar.mode] || "Weather"} near ${place}.`;
+  let name = LAYER_NAMES[radar.mode] || "Weather";
+  if (radar.mode === "radar") name = radar.source === "eccc" ? "Environment Canada radar" : "Live precipitation radar";
+  el.radarNote.textContent = `${name} near ${place}.`;
 }
 
 function syncMaps() {
