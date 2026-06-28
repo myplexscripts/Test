@@ -78,7 +78,11 @@ html, body {
   min-height: 100%;
   width: 100%;
   overflow-x: hidden;
+  scrollbar-width: none;        /* hide scrollbars (Firefox) */
+  -ms-overflow-style: none;     /* hide scrollbars (legacy Edge) */
 }
+html::-webkit-scrollbar, body::-webkit-scrollbar, .sheet::-webkit-scrollbar { display: none; }
+.sheet { scrollbar-width: none; -ms-overflow-style: none; }
 
 html {
   background: var(--bg);
@@ -131,19 +135,23 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 /* Status-bar blend: solid sky color at the very top fading to transparent.
    No blur — pure gradient, matched to --bg so it disappears into the page. */
 /* Status-bar gradient: solid through the safe-area inset, then feathers out.
-   One sits on every --bg screen (main page + each sheet). Mobile only. */
+   One sits on every --bg screen (main page + each sheet). Mobile only.
+   Hidden at rest (opacity 0); JS raises opacity in step with scroll so it
+   appears gradually and masks the top behind the status bar as you scroll. */
 .status-fade {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: calc(var(--safe-t) + 30px);
+  height: calc(var(--safe-t) + 48px);
   z-index: 6;
   pointer-events: none;
+  opacity: 0;
+  will-change: opacity;
   background: linear-gradient(
     to bottom,
     var(--bg) 0%,
-    var(--bg) calc(var(--safe-t) + 2px),
+    var(--bg) calc(var(--safe-t)),
     transparent 100%
   );
   transition: background var(--dur-slow) var(--ease-out);

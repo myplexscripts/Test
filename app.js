@@ -27,7 +27,8 @@ const PALETTES = {
 /* ---------- DOM ---------- */
 const $ = (id) => document.getElementById(id);
 const el = {
-  statusFade: $("statusFade"), ptr: $("ptr"), scrim: $("scrim"),
+  statusFade: $("statusFade"), sheetFade: document.querySelector("#sheet > .status-fade"),
+  ptr: $("ptr"), scrim: $("scrim"),
   drawer: $("drawer"), drawerClose: $("drawerClose"),
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
   unitSeg: $("unitSeg"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"),
@@ -130,6 +131,10 @@ function wireEvents() {
   });
 
   window.addEventListener("resize", () => { if (state.sheetOpen) drawGraph(); });
+
+  // Scroll-driven status-bar fade: invisible at the top, ramps in as you scroll.
+  attachFade(window, () => window.scrollY || 0, el.statusFade);
+  attachFade(el.sheet, () => el.sheet.scrollTop, el.sheetFade);
 
   initGestures();
 }
@@ -473,6 +478,7 @@ function openSheet(tab) {
   el.sheet.setAttribute("aria-hidden", "false");
   el.sheet.style.transform = "";
   document.body.style.overflow = "hidden";
+  if (el.sheetFade) el.sheetFade.style.opacity = "0";
   drawGraph();
   renderSheetList();
 }
@@ -803,6 +809,19 @@ function markLoc(which) {
 }
 
 /* ---------- Chrome ---------- */
+function attachFade(target, getTop, node) {
+  if (!node) return;
+  let ticking = false;
+  target.addEventListener("scroll", () => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      node.style.opacity = String(Math.min(1, (getTop() || 0) / 64));
+      ticking = false;
+    });
+  }, { passive: true });
+}
+
 function setBusy(b) {
   el.temp.classList.toggle("is-loading", b && !state.data);
   el.ptr.classList.toggle("is-spinning", b);
