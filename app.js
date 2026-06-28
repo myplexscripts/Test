@@ -35,7 +35,7 @@ const el = {
   heroIcon: $("heroIcon"), temp: $("temp"), summary: $("summary"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mVisibility: $("mVisibility"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
-  sunCard: $("sunCard"), detailGrid: $("detailGrid"),
+  sunCard: $("sunCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
@@ -129,7 +129,6 @@ function wireEvents() {
     if (e.key === "Escape") { closeSheet(); closeDrawer(); closeRadar(); }
   });
 
-  window.addEventListener("scroll", onScroll, { passive: true });
   window.addEventListener("resize", () => { if (state.sheetOpen) drawGraph(); });
 
   initGestures();
@@ -195,8 +194,9 @@ function render(data) {
 
   renderHourly();
   renderDaily();
+  renderWind(current);
   renderSun(current);
-  renderDetails(current);
+  renderDetails(current, forecast);
 
   state.center = { lat: current.coord?.lat ?? state.loc.lat, lon: current.coord?.lon ?? state.loc.lon };
   state.tz = tz;
@@ -251,22 +251,71 @@ function renderSun(current) {
     </div>`;
 }
 
-function renderDetails(current) {
+/* Wind compass dial (Apple-style data viz, flat aesthetic) */
+function renderWind(current) {
+  const w = current.wind || {};
+  const deg = w.deg;
+  const parts = windParts(w.speed || 0);
+  const gust = w.gust != null ? windText(w.gust) : "—";
+  const dirTxt = deg != null ? `${Math.round(deg)}° ${direction(deg)}` : "—";
+  const rot = deg != null ? (deg + 180) % 360 : 0; // arrow points the way the wind blows
+  el.windCard.innerHTML = `
+    <div class="wind-stats">
+      <div class="wind-row"><span>Wind</span><strong>${windText(w.speed || 0)}</strong></div>
+      <div class="wind-row"><span>Gusts</span><strong>${gust}</strong></div>
+      <div class="wind-row"><span>Direction</span><strong>${dirTxt}</strong></div>
+    </div>
+    <div class="wind-compass">${compassSVG(rot, parts.v, parts.u)}</div>`;
+}
+
+function compassSVG(rot, value, unit) {
+  let ticks = "";
+  for (let i = 0; i < 72; i++) {
+    const major = i % 9 === 0;
+    const a = (i * 5) * Math.PI / 180;
+    const r1 = 47, r2 = major ? 38 : 43;
+    const x1 = (60 + r1 * Math.sin(a)).toFixed(1), y1 = (60 - r1 * Math.cos(a)).toFixed(1);
+    const x2 = (60 + r2 * Math.sin(a)).toFixed(1), y2 = (60 - r2 * Math.cos(a)).toFixed(1);
+    ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${major ? 2 : 1}"/>`;
+  }
+  return `<svg viewBox="0 0 120 120" class="compass-svg" aria-hidden="true">
+    <g class="compass-ticks" stroke="var(--ink)" opacity="0.45">${ticks}</g>
+    <text x="60" y="15" class="compass-card">N</text>
+    <text x="106" y="60" class="compass-card">E</text>
+    <text x="60" y="106" class="compass-card">S</text>
+    <text x="14" y="60" class="compass-card">W</text>
+    <g transform="rotate(${rot} 60 60)"><path class="compass-arrow" d="M60 28 L66 45 L60 40 L54 45 Z"/></g>
+    <text x="60" y="59" class="compass-value">${value}</text>
+    <text x="60" y="73" class="compass-unit">${unit}</text>
+  </svg>`;
+}
+
+function renderDetails(current, forecast) {
   const m = current.main || {};
-  const wind = current.wind || {};
   const clouds = current.clouds || {};
   const today = state.daily[0];
+  const tz = state.tz || current.timezone || 0;
   const items = [];
-  items.push(["ph-thermometer-simple", "Feels like", `${Math.round(m.feels_like ?? m.temp ?? 0)}°`, ""]);
-  if (today) items.push(["ph-arrows-vertical", "High / Low", `${Math.round(today.max)}° / ${Math.round(today.min)}°`, "today"]);
-  items.push(["ph-wind", "Wind", windText(wind.speed || 0), wind.deg != null ? direction(wind.deg) : ""]);
-  if (wind.gust != null) items.push(["ph-wind", "Gusts", windText(wind.gust), "peak"]);
-  items.push(["ph-drop", "Humidity", m.humidity != null ? `${m.humidity}%` : "—", ""]);
-  items.push(["ph-gauge", "Pressure", m.pressure != null ? `${m.pressure} hPa` : "—", ""]);
-  items.push(["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "—", ""]);
-  items.push(["ph-eye", "Visibility", visibilityText(current.visibility), ""]);
-  const precip = precipItem(current, today);
-  if (precip) items.push(precip);
+
+  const feels = Math.round(m.feels_like ?? m.temp ?? 0);
+  const actual = Math.round(m.temp ?? feels);
+  const fd = feels - actual;
+  const fSub = Math.abs(fd) < 1 ? "Similar to the actual temperature." : fd < 0 ? `${Math.abs(fd)}° colder than actual.` : `${fd}° warmer than actual.`;
+  items.push(["ph-thermometer-simple", "Feels like", `${feels}°`, fSub]);
+
+  if (today) items.push(["ph-arrows-vertical", "High / Low", `${Math.round(today.max)}° / ${Math.round(today.min)}°`, "Today"]);
+
+  if (m.humidity != null) {
+    const dp = dewPointDisplay(m.temp, m.humidity);
+    items.push(["ph-drop", "Humidity", `${m.humidity}%`, dp != null ? `Dew point ${dp}°` : ""]);
+  } else {
+    items.push(["ph-drop", "Humidity", "—", ""]);
+  }
+
+  items.push(precipDetail(current, forecast, tz));
+  items.push(["ph-eye", "Visibility", visibilityText(current.visibility), visDescriptor(current.visibility)]);
+  items.push(["ph-gauge", "Pressure", m.pressure != null ? `${m.pressure}` : "—", m.pressure != null ? "hPa" : ""]);
+  items.push(["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "—", cloudDescriptor(clouds.all)]);
 
   el.detailGrid.innerHTML = items.map(([icon, label, value, sub]) => `
     <div class="detail">
@@ -277,18 +326,53 @@ function renderDetails(current) {
     </div>`).join("");
 }
 
-function precipItem(current, today) {
+function precipDetail(current, forecast, tz) {
   const snow = current.snow?.["1h"] ?? current.snow?.["3h"];
   const rain = current.rain?.["1h"] ?? current.rain?.["3h"];
-  if (snow != null) return ["ph-cloud-snow", "Snow", `${snow} mm`, "last hour"];
-  if (rain != null) return ["ph-cloud-rain", "Rain", `${rain} mm`, "last hour"];
-  if (today) return ["ph-umbrella", "Precip chance", `${Math.round((today.pop || 0) * 100)}%`, "today"];
+  if (snow != null) return ["ph-cloud-snow", "Snow", `${snow} mm`, "Last hour"];
+  if (rain != null) return ["ph-cloud-rain", "Precipitation", `${rain} mm`, "Last hour"];
+  const next = nextPrecip(forecast, tz);
+  return ["ph-umbrella", "Precipitation", "0 mm", next ? `Next: ${next.amt} mm ${next.when}` : "None expected soon"];
+}
+
+function nextPrecip(forecast, tz) {
+  for (const it of (forecast?.list || [])) {
+    const amt = (it.rain?.["3h"] || 0) + (it.snow?.["3h"] || 0);
+    if (amt > 0) return { amt: Math.round(amt * 10) / 10, when: `${dayLabel(it.dt, tz)} ${fmtHour(it.dt, tz)}` };
+  }
   return null;
 }
 
+function dewPointDisplay(temp, rh) {
+  if (temp == null || rh == null) return null;
+  const c = state.units === "imperial" ? (temp - 32) * 5 / 9 : temp;
+  const a = 17.625, b = 243.04;
+  const al = Math.log(rh / 100) + (a * c) / (b + c);
+  const d = (b * al) / (a - al);
+  return Math.round(state.units === "imperial" ? d * 9 / 5 + 32 : d);
+}
+function visDescriptor(v) {
+  if (v == null) return "";
+  if (v >= 10000) return "Perfectly clear.";
+  if (v >= 6000) return "Clear view.";
+  if (v >= 2000) return "A little hazy.";
+  return "Low visibility.";
+}
+function cloudDescriptor(c) {
+  if (c == null) return "";
+  if (c < 10) return "Clear sky.";
+  if (c < 40) return "Mostly clear.";
+  if (c < 70) return "Partly cloudy.";
+  if (c < 90) return "Mostly cloudy.";
+  return "Overcast.";
+}
+
+function windParts(speed) {
+  return state.units === "imperial" ? { v: Math.round(speed), u: "mph" } : { v: Math.round(speed * 3.6), u: "km/h" };
+}
 function direction(deg) {
-  const d = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
-  return `${d[Math.round(deg / 45) % 8]} · ${Math.round(deg)}°`;
+  const d = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+  return d[Math.round(deg / 22.5) % 16];
 }
 
 /* ---------- Builders ---------- */
@@ -391,7 +475,6 @@ function openSheet(tab) {
   document.body.style.overflow = "hidden";
   drawGraph();
   renderSheetList();
-  onScroll();
 }
 
 function closeSheet() {
@@ -400,7 +483,6 @@ function closeSheet() {
   el.sheet.setAttribute("aria-hidden", "true");
   el.sheet.style.transform = "";
   document.body.style.overflow = "";
-  onScroll();
 }
 
 function setTab(tab) {
@@ -535,7 +617,7 @@ function owmTileUrl(layer) {
   return `https://tile.openweathermap.org/map/${layer}/{z}/{x}/{y}.png?appid=${API_KEY}`;
 }
 
-function initRadarPreview() {
+async function initRadarPreview() {
   if (!haveLeaflet() || radar.preview) return;
   const c = state.center;
   radar.preview = L.map(el.radarPreviewMap, {
@@ -543,7 +625,14 @@ function initRadarPreview() {
     doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, tap: false
   }).setView([c.lat, c.lon], 6);
   radar.previewBase = L.tileLayer(baseTileUrl(), { subdomains: "abcd" }).addTo(radar.preview);
-  L.tileLayer(owmTileUrl("precipitation_new"), { opacity: 0.75 }).addTo(radar.preview);
+  // Show the actual latest radar frame so the preview mirrors the radar screen.
+  try {
+    const frames = await ensureFrames();
+    if (frames.length) {
+      const f = frames[radar.idx];
+      L.tileLayer(`${radar.host}${f.path}/${RV_SIZE}/{z}/{x}/{y}/${RV_COLOR}/${RV_OPTS}.png`, { opacity: 0.8 }).addTo(radar.preview);
+    }
+  } catch {}
   setTimeout(() => radar.preview && radar.preview.invalidateSize(), 300);
 }
 
@@ -597,22 +686,28 @@ function applyMode(mode) {
   }
 }
 
+async function ensureFrames() {
+  if (radar.loaded) return radar.frames;
+  const j = await (await fetch(RAINVIEWER_API, { cache: "no-store" })).json();
+  radar.host = j.host;
+  const past = (j.radar?.past || []).map((f) => ({ ...f, kind: "past" }));
+  const soon = (j.radar?.nowcast || []).map((f) => ({ ...f, kind: "forecast" }));
+  radar.frames = [...past, ...soon];
+  radar.loaded = true;
+  const lastPast = radar.frames.map((f) => f.kind).lastIndexOf("past");
+  radar.idx = lastPast >= 0 ? lastPast : Math.max(0, radar.frames.length - 1);
+  return radar.frames;
+}
+
 async function loadRainviewer() {
   if (!haveLeaflet() || !radar.map) return;
   try {
-    if (!radar.loaded) {
-      const j = await (await fetch(RAINVIEWER_API, { cache: "no-store" })).json();
-      radar.host = j.host;
-      const past = (j.radar?.past || []).map((f) => ({ ...f, kind: "past" }));
-      const soon = (j.radar?.nowcast || []).map((f) => ({ ...f, kind: "forecast" }));
-      radar.frames = [...past, ...soon];
-      radar.loaded = true;
-      const lastPast = radar.frames.map((f) => f.kind).lastIndexOf("past");
-      radar.idx = lastPast >= 0 ? lastPast : Math.max(0, radar.frames.length - 1);
-    }
-    if (!radar.frames.length) { el.radarTimeline.style.display = "none"; return; }
-    radar.frameLayers = new Array(radar.frames.length).fill(null);
-    el.radarScrub.max = String(radar.frames.length - 1);
+    const frames = await ensureFrames();
+    if (!frames.length) { el.radarTimeline.style.display = "none"; return; }
+    el.radarTimeline.style.display = "";
+    radar.frameLayers = new Array(frames.length).fill(null);
+    el.radarScrub.max = String(frames.length - 1);
+    for (let i = 0; i < frames.length; i++) frameLayer(i); // preload all frames for smooth playback
     showFrame(radar.idx);
     startRadarPlay();
   } catch {
@@ -625,6 +720,8 @@ function frameLayer(i) {
   const f = radar.frames[i];
   const url = `${radar.host}${f.path}/${RV_SIZE}/{z}/{x}/{y}/${RV_COLOR}/${RV_OPTS}.png`;
   const layer = L.tileLayer(url, { opacity: 0, maxZoom: 18, tileSize: RV_SIZE, attribution: "&copy; RainViewer" }).addTo(radar.map);
+  const cont = layer.getContainer && layer.getContainer();
+  if (cont) cont.style.transition = "opacity 240ms linear"; // crossfade between frames
   radar.frameLayers[i] = layer;
   return layer;
 }
@@ -632,23 +729,27 @@ function frameLayer(i) {
 function showFrame(i) {
   if (!radar.frames.length) return;
   radar.idx = (i + radar.frames.length) % radar.frames.length;
-  radar.frameLayers.forEach((l) => l && l.setOpacity(0));
-  frameLayer(radar.idx).setOpacity(0.8);
+  radar.frameLayers.forEach((l, idx) => { if (l) l.setOpacity(idx === radar.idx ? 0.85 : 0); });
+  frameLayer(radar.idx).setOpacity(0.85);
   el.radarScrub.value = String(radar.idx);
   const f = radar.frames[radar.idx];
-  const fc = f.kind === "forecast";
-  el.radarTime.textContent = `${fmtClock(f.time, state.tz || 0)}${fc ? " ·fcst" : ""}`;
+  el.radarTime.textContent = `${fmtClock(f.time, state.tz || 0)}${f.kind === "forecast" ? " ·fcst" : ""}`;
 }
 
 function startRadarPlay() {
   stopRadarPlay();
   radar.playing = true;
   el.radarPlay.innerHTML = '<i class="ph ph-pause"></i>';
-  radar.timer = setInterval(() => showFrame(radar.idx + 1), 650);
+  const step = () => {
+    showFrame(radar.idx + 1);
+    const atEnd = radar.idx === radar.frames.length - 1;
+    radar.timer = setTimeout(step, atEnd ? 1400 : 480); // brief hold on the latest frame
+  };
+  radar.timer = setTimeout(step, 480);
 }
 function stopRadarPlay() {
   radar.playing = false;
-  if (radar.timer) { clearInterval(radar.timer); radar.timer = null; }
+  if (radar.timer) { clearTimeout(radar.timer); radar.timer = null; }
   if (el.radarPlay) el.radarPlay.innerHTML = '<i class="ph ph-play"></i>';
 }
 function toggleRadarPlay() { radar.playing ? stopRadarPlay() : startRadarPlay(); }
@@ -702,11 +803,6 @@ function markLoc(which) {
 }
 
 /* ---------- Chrome ---------- */
-function onScroll() {
-  const y = window.scrollY || 0;
-  el.statusFade.classList.toggle("is-visible", y > 8 && !state.sheetOpen);
-}
-
 function setBusy(b) {
   el.temp.classList.toggle("is-loading", b && !state.data);
   el.ptr.classList.toggle("is-spinning", b);
