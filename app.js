@@ -69,16 +69,24 @@ const state = {
 const radar = {
   map: null, base: null, owm: null, marker: null, preview: null, previewBase: null,
   layers: [], front: 0, gen: 0,
-  mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, themeDark: null
+  mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, ecccLayerName: "", themeDark: null
 };
 const RAINVIEWER_API = "https://api.rainviewer.com/public/weather-maps.json";
-const RV_COLOR = 4;    // colour scheme: Weather Channel
+const RV_COLOR = 7;    // colour scheme: Dark Sky (Apple-like blue→purple→red→yellow)
 const RV_OPTS = "1_1"; // smooth + show snow
 const RV_SIZE = 256;
 // Environment & Climate Change Canada radar (GeoMet WMS, time-animated).
-const ECCC_WMS = "https://geo.weather.gc.ca/geomet";
-const ECCC_LAYER = "RADAR_1KM_RRAI"; // 1 km rain reflectivity
+const ECCC_WMS          = "https://geo.weather.gc.ca/geomet";
+const ECCC_LAYER_RAIN_1KM  = "RADAR_1KM_RRAI";       // 1 km individual station rain (reference)
+const ECCC_LAYER_SNOW_1KM  = "RADAR_1KM_RSNO";       // 1 km individual station snow
+const ECCC_LAYER_RAIN_COMP = "RADAR_COMPOSITE_RRAI"; // national composite rain (default)
+const ECCC_LAYER_SNOW_COMP = "RADAR_COMPOSITE_RSNO"; // national composite snow
 const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed" };
+
+function ecccLayer() {
+  const main = (state.data?.current?.weather?.[0]?.main || "").toLowerCase();
+  return main === "snow" ? ECCC_LAYER_SNOW_COMP : ECCC_LAYER_RAIN_COMP;
+}
 
 /* ---------- Boot ---------- */
 init();
@@ -829,10 +837,9 @@ function closeDrawer() {
 
 /* ---------- Radar / map ---------- */
 function haveLeaflet() { return typeof window.L !== "undefined"; }
-function baseTileUrl() {
-  return state.dark
-    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
+// Radar maps always use the dark basemap so precipitation colours pop.
+function radarTileUrl() {
+  return "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
 }
 function owmTileUrl(layer) {
   return `https://tile.openweathermap.org/map/${layer}/{z}/{x}/{y}.png?appid=${API_KEY}`;
@@ -849,12 +856,29 @@ async function initRadarPreview() {
       zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false,
       doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, tap: false
     }).setView([c.lat, c.lon], 6);
-    radar.previewBase = L.tileLayer(baseTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(radar.preview);
+    radar.previewBase = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(radar.preview);
     requestAnimationFrame(() => radar.preview && radar.preview.invalidateSize());
-    // Overlay the latest radar frame so the preview mirrors the radar screen.
-    const frames = await ensureFrames();
-    if (radar.preview && frames.length) {
-      L.tileLayer(rvUrl(frames[radar.idx]), { opacity: 0.8, tileSize: RV_SIZE }).addTo(radar.preview);
+    // Overlay the latest radar frame: ECCC for Canadian locations, RainViewer elsewhere.
+    if (inCanada(c.lat, c.lon)) {
+      const frames = await ensureEccc().catch(() => null);
+      if (radar.preview && frames && frames.length) {
+        const f = frames[frames.length - 1];
+        L.tileLayer.wms(ECCC_WMS, {
+          layers: ecccLayer(), format: "image/png", transparent: true, version: "1.3.0",
+          crs: L.CRS.EPSG3857, opacity: 0.8, maxZoom: 12,
+          attribution: "&copy; Environment and Climate Change Canada (ECCC GeoMet)"
+        }).addTo(radar.preview).setParams({ time: f.iso });
+      } else {
+        const rvFrames = await ensureFrames();
+        if (radar.preview && rvFrames.length) {
+          L.tileLayer(rvUrl(rvFrames[radar.idx]), { opacity: 0.8, tileSize: RV_SIZE }).addTo(radar.preview);
+        }
+      }
+    } else {
+      const frames = await ensureFrames();
+      if (radar.preview && frames.length) {
+        L.tileLayer(rvUrl(frames[radar.idx]), { opacity: 0.8, tileSize: RV_SIZE }).addTo(radar.preview);
+      }
     }
     setTimeout(() => radar.preview && radar.preview.invalidateSize(), 400);
   } catch {}
@@ -866,12 +890,12 @@ function initRadarMap() {
   if (radar.map) { radar.map.setView([c.lat, c.lon]); return; }
   try {
     radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: true, preferCanvas: true, minZoom: 3, maxZoom: 12 }).setView([c.lat, c.lon], 7);
-    radar.base = L.tileLayer(baseTileUrl(), {
+    radar.base = L.tileLayer(radarTileUrl(), {
       subdomains: "abcd", maxZoom: 19, updateWhenZooming: false, keepBuffer: 1, attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(radar.map);
     radar.marker = L.circleMarker([c.lat, c.lon], {
       radius: 7, weight: 3, color: "#ffffff",
-      fillColor: getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a",
+      fillColor: getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#ffd83d",
       fillOpacity: 1
     }).addTo(radar.map);
   } catch {
@@ -947,8 +971,9 @@ async function ensureFrames() {
 // dimension from GetCapabilities and build a list of observed timestamps.
 async function ensureEccc() {
   const now = Date.now();
-  if (radar.source === "eccc" && radar.frames.length && now - radar.ecccAt < 300000) return radar.frames;
-  const url = `${ECCC_WMS}?lang=en&service=WMS&version=1.3.0&request=GetCapabilities&LAYERS=${ECCC_LAYER}`;
+  const layer = ecccLayer();
+  if (radar.source === "eccc" && radar.ecccLayerName === layer && radar.frames.length && now - radar.ecccAt < 300000) return radar.frames;
+  const url = `${ECCC_WMS}?lang=en&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities&LAYER=${layer}`;
   const text = await (await fetch(url, { cache: "no-store" })).text();
   const doc = new DOMParser().parseFromString(text, "text/xml");
   let dimText = "";
@@ -960,6 +985,7 @@ async function ensureEccc() {
   if (!frames.length) throw new Error("ECCC: no time frames");
   radar.frames = frames;
   radar.source = "eccc";
+  radar.ecccLayerName = layer;
   radar.ecccAt = now;
   radar.idx = frames.length - 1; // latest observed
   return frames;
@@ -1011,9 +1037,10 @@ function makeRadarLayer() {
   let layer;
   if (radar.source === "eccc") {
     layer = L.tileLayer.wms(ECCC_WMS, {
-      layers: ECCC_LAYER, format: "image/png", transparent: true, version: "1.3.0",
+      layers: ecccLayer(), format: "image/png", transparent: true, version: "1.3.0",
+      crs: L.CRS.EPSG3857,
       opacity: 0, maxZoom: 12, updateWhenZooming: false, keepBuffer: 0,
-      attribution: "&copy; Environment and Climate Change Canada"
+      attribution: "&copy; Environment and Climate Change Canada (ECCC GeoMet)"
     }).addTo(radar.map);
   } else {
     layer = L.tileLayer(rvUrl(radar.frames[radar.idx]), {
@@ -1022,7 +1049,14 @@ function makeRadarLayer() {
     }).addTo(radar.map);
   }
   const c = layer.getContainer && layer.getContainer();
-  if (c) c.style.transition = "opacity 450ms ease";
+  if (c) {
+    c.style.transition = "opacity 550ms ease-in-out";
+    if (radar.source === "eccc") {
+      // Shift ECCC's green/yellow palette toward the blue-purple-red range
+      // so it reads like the Dark Sky heat-map colour scale.
+      c.style.filter = "hue-rotate(140deg) saturate(2) brightness(1.1)";
+    }
+  }
   return layer;
 }
 
@@ -1041,8 +1075,11 @@ function showFrame(i, immediate, onShown) {
   const backLayer = radar.layers[1 - radar.front];
   if (immediate || !backLayer) {
     applyFrame(frontLayer, f);
-    frontLayer.setOpacity(0.85);
+    frontLayer.setOpacity(0.9);
     if (backLayer) backLayer.setOpacity(0);
+    // Pre-warm next frame
+    const ni = (radar.idx + 1) % radar.frames.length;
+    if (backLayer && radar.frames[ni]) applyFrame(backLayer, radar.frames[ni]);
     if (onShown) onShown();
     return;
   }
@@ -1051,14 +1088,17 @@ function showFrame(i, immediate, onShown) {
   const reveal = () => {
     if (done || gen !== radar.gen) return;
     done = true;
-    backLayer.setOpacity(0.85);
+    backLayer.setOpacity(0.9);
     frontLayer.setOpacity(0);
     radar.front = 1 - radar.front;
+    // Pre-warm next frame into now-idle layer so tiles load during the hold gap.
+    const nextIdx = (radar.idx + 1) % radar.frames.length;
+    if (radar.frames[nextIdx]) applyFrame(frontLayer, radar.frames[nextIdx]);
     if (onShown) onShown();
   };
   applyFrame(backLayer, f);
   if (backLayer.once) backLayer.once("load", reveal);
-  setTimeout(reveal, 700); // fallback so playback never stalls
+  setTimeout(reveal, 400); // fallback — tiles are pre-warmed so 400ms is ample
 }
 
 function relTime(f) {
@@ -1081,7 +1121,7 @@ function startRadarPlay() {
   const advance = () => {
     if (!radar.playing) return;
     const atEnd = radar.idx === radar.frames.length - 1;
-    showFrame(radar.idx + 1, false, () => { if (radar.playing) radar.timer = setTimeout(advance, atEnd ? 1500 : 250); });
+    showFrame(radar.idx + 1, false, () => { if (radar.playing) radar.timer = setTimeout(advance, atEnd ? 1200 : 300); });
   };
   radar.timer = setTimeout(advance, 250);
 }
@@ -1095,7 +1135,15 @@ function toggleRadarPlay() { radar.playing ? stopRadarPlay() : startRadarPlay();
 function updateRadarNote() {
   const place = state.placeName || "your area";
   let name = LAYER_NAMES[radar.mode] || "Weather";
-  if (radar.mode === "radar") name = radar.source === "eccc" ? "Environment Canada radar" : "Live precipitation radar";
+  if (radar.mode === "radar") {
+    if (radar.source === "eccc") {
+      name = ecccLayer() === ECCC_LAYER_SNOW_COMP
+        ? "Snow radar · Environment Canada"
+        : "Composite rain radar · Environment Canada";
+    } else {
+      name = "Live precipitation radar";
+    }
+  }
   el.radarNote.textContent = `${name} near ${place}.`;
 }
 
@@ -1109,12 +1157,11 @@ function syncMaps() {
 
 function updateMapTheme() {
   if (!haveLeaflet()) return;
-  const dark = !!state.dark;
-  if (radar.themeDark === dark) return; // avoid redundant tile reloads
-  radar.themeDark = dark;
-  const url = baseTileUrl();
-  if (radar.base) radar.base.setUrl(url);
-  if (radar.previewBase) radar.previewBase.setUrl(url);
+  // Radar maps stay on the dark basemap regardless of app theme so the
+  // precipitation colours always pop; just refresh the marker tint.
+  if (radar.marker) {
+    radar.marker.setStyle({ fillColor: getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#ffd83d" });
+  }
 }
 
 /* ---------- Location ---------- */

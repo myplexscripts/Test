@@ -529,23 +529,6 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .radar-preview:active { transform: scale(0.98); }
 .radar-map { position: absolute; inset: 0; }
-.radar-cta {
-  position: absolute;
-  left: var(--s-3);
-  bottom: var(--s-3);
-  z-index: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 0.5rem 0.85rem;
-  border-radius: var(--r-pill);
-  background: var(--surface);
-  color: var(--on-surface);
-  font-size: var(--t-cap);
-  font-weight: 700;
-  pointer-events: none;
-}
-.radar-cta i { font-size: 1.1rem; color: var(--surface-accent); }
 
 .radar-sheet {
   display: flex;
@@ -852,7 +835,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .sheet-list { display: flex; flex-direction: column; gap: var(--s-2); }
 .row {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  /* fixed icon + value columns so icons and numbers line up vertically across rows */
+  grid-template-columns: 1fr 2.4rem minmax(3.75rem, auto);
   align-items: center;
   gap: var(--s-4);
   padding: var(--s-3) var(--s-4);
@@ -861,15 +845,18 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   border: 2px solid var(--card-border);
 }
 .row .row-label { font-weight: 700; }
-.row .row-icon { font-size: 1.7rem; color: var(--ink); }
-.row .row-temp { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
+.row .row-icon { font-size: 1.7rem; color: var(--ink); justify-self: center; }
+.row .row-temp {
+  font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem;
+  justify-self: end; text-align: right; font-variant-numeric: tabular-nums;
+}
 .row .row-sub { font-size: var(--t-cap); color: var(--ink-soft); font-weight: 600; }
 
 /* Tappable day rows open the day breakdown */
 button.row { width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; }
-.row-tap { grid-template-columns: 1fr auto auto auto; transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast); }
+.row-tap { grid-template-columns: 1fr 2.4rem minmax(3.75rem, auto) 1.5rem; transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast); }
 .row-tap:active { transform: scale(0.99); background: var(--card-bg-hi); }
-.row-go { font-size: 1rem; color: var(--ink-faint); }
+.row-go { font-size: 1rem; color: var(--ink-faint); justify-self: end; }
 
 /* Static (non-interactive) detail tiles, e.g. the day breakdown stats */
 .detail.static:active { transform: none; background: var(--card-bg); }
