@@ -142,14 +142,19 @@
     <div class="sheet-head">
       <button class="back-btn" id="radarBack"><i class="ph ph-arrow-left"></i><span>Back</span></button>
       <div class="segmented small" id="layerSeg" role="group" aria-label="Map layer">
-        <button class="seg-item is-active" data-layer="precipitation_new">Rain</button>
+        <button class="seg-item is-active" data-layer="radar">Rain</button>
         <button class="seg-item" data-layer="clouds_new">Clouds</button>
         <button class="seg-item" data-layer="temp_new">Temp</button>
         <button class="seg-item" data-layer="wind_new">Wind</button>
       </div>
     </div>
     <div class="radar-map-full" id="radarMap"></div>
-    <p class="radar-note" id="radarNote">Live precipitation around <span id="radarPlace">your area</span>.</p>
+    <div class="radar-timeline" id="radarTimeline">
+      <button class="radar-play" id="radarPlay" aria-label="Play or pause radar"><i class="ph ph-pause"></i></button>
+      <input class="radar-scrub" id="radarScrub" type="range" min="0" max="0" value="0" step="1" aria-label="Radar time">
+      <span class="radar-time" id="radarTime">—</span>
+    </div>
+    <p class="radar-note" id="radarNote">Live precipitation radar.</p>
   </section>
 
   <script src="app.js" defer></script>

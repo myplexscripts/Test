@@ -38,7 +38,8 @@ const el = {
   sunCard: $("sunCard"), detailGrid: $("detailGrid"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
-  layerSeg: $("layerSeg"), radarPlace: $("radarPlace"),
+  layerSeg: $("layerSeg"), radarNote: $("radarNote"),
+  radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"),
   hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
   sheet: $("sheet"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"),
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList")
@@ -53,14 +54,25 @@ const state = {
   daily: [],
   tab: "hourly",
   center: { ...HOME },
+  tz: 0,
+  placeName: "",
   dark: false,
   drawerOpen: false,
   sheetOpen: false,
   radarOpen: false
 };
 
-/* Radar / map (Leaflet) state */
-const radar = { map: null, base: null, overlay: null, marker: null, preview: null, previewBase: null, layer: "precipitation_new" };
+/* Radar / map (Leaflet) state.
+   mode "radar" = animated RainViewer; others = OpenWeather static layers. */
+const radar = {
+  map: null, base: null, owm: null, marker: null, preview: null, previewBase: null,
+  mode: "radar", frames: [], frameLayers: [], idx: 0, playing: false, timer: null, host: "", loaded: false
+};
+const RAINVIEWER_API = "https://api.rainviewer.com/public/weather-maps.json";
+const RV_COLOR = 4;    // colour scheme: Weather Channel
+const RV_OPTS = "1_1"; // smooth + show snow
+const RV_SIZE = 256;
+const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed" };
 
 /* ---------- Boot ---------- */
 init();
@@ -106,7 +118,9 @@ function wireEvents() {
   el.radarPreview.onclick = openRadar;
   el.radarMore.onclick = openRadar;
   el.radarBack.onclick = closeRadar;
-  el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.onclick = () => setLayer(b.dataset.layer));
+  el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.onclick = () => applyMode(b.dataset.layer));
+  el.radarPlay.onclick = toggleRadarPlay;
+  el.radarScrub.oninput = () => { stopRadarPlay(); showFrame(Number(el.radarScrub.value)); };
   el.tabSeg.querySelectorAll("[data-tab]").forEach((b) => {
     b.onclick = () => setTab(b.dataset.tab);
   });
@@ -185,7 +199,8 @@ function render(data) {
   renderDetails(current);
 
   state.center = { lat: current.coord?.lat ?? state.loc.lat, lon: current.coord?.lon ?? state.loc.lon };
-  if (el.radarPlace) el.radarPlace.textContent = current.name || state.loc.label;
+  state.tz = tz;
+  state.placeName = current.name || state.loc.label;
   syncMaps();
 
   if (state.sheetOpen) { drawGraph(); renderSheetList(); }
@@ -533,15 +548,12 @@ function initRadarPreview() {
 }
 
 function initRadarMap() {
-  if (!haveLeaflet()) { el.radarMap.innerHTML = '<div class="map-fallback">The map needs an internet connection.</div>'; return; }
+  if (!haveLeaflet()) { el.radarMap.innerHTML = '<div class="map-fallback">The map needs an internet connection.</div>'; el.radarTimeline.style.display = "none"; return; }
   const c = state.center;
   if (radar.map) { radar.map.setView([c.lat, c.lon]); return; }
   radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: true }).setView([c.lat, c.lon], 7);
   radar.base = L.tileLayer(baseTileUrl(), {
     subdomains: "abcd", maxZoom: 18, attribution: '&copy; OpenStreetMap &copy; CARTO'
-  }).addTo(radar.map);
-  radar.overlay = L.tileLayer(owmTileUrl(radar.layer), {
-    opacity: 0.72, maxZoom: 18, attribution: '&copy; OpenWeather'
   }).addTo(radar.map);
   radar.marker = L.circleMarker([c.lat, c.lon], {
     radius: 7, weight: 3, color: "#ffffff",
@@ -556,21 +568,100 @@ function openRadar() {
   el.radarSheet.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
   initRadarMap();
+  applyMode(radar.mode);
   setTimeout(() => radar.map && radar.map.invalidateSize(), 320);
 }
 function closeRadar() {
   if (!state.radarOpen) return;
   state.radarOpen = false;
+  stopRadarPlay();
   el.radarSheet.classList.remove("is-open");
   el.radarSheet.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
 }
 
-function setLayer(layer) {
-  radar.layer = layer;
+function applyMode(mode) {
+  radar.mode = mode;
   el.layerSeg.querySelectorAll("[data-layer]").forEach((b) =>
-    b.classList.toggle("is-active", b.dataset.layer === layer));
-  if (radar.overlay) radar.overlay.setUrl(owmTileUrl(layer));
+    b.classList.toggle("is-active", b.dataset.layer === mode));
+  updateRadarNote();
+  if (!haveLeaflet() || !radar.map) return;
+  clearFrames();
+  if (radar.owm) { radar.map.removeLayer(radar.owm); radar.owm = null; }
+  if (mode === "radar") {
+    el.radarTimeline.style.display = "";
+    loadRainviewer();
+  } else {
+    el.radarTimeline.style.display = "none";
+    radar.owm = L.tileLayer(owmTileUrl(mode), { opacity: 0.72, maxZoom: 18, attribution: "&copy; OpenWeather" }).addTo(radar.map);
+  }
+}
+
+async function loadRainviewer() {
+  if (!haveLeaflet() || !radar.map) return;
+  try {
+    if (!radar.loaded) {
+      const j = await (await fetch(RAINVIEWER_API, { cache: "no-store" })).json();
+      radar.host = j.host;
+      const past = (j.radar?.past || []).map((f) => ({ ...f, kind: "past" }));
+      const soon = (j.radar?.nowcast || []).map((f) => ({ ...f, kind: "forecast" }));
+      radar.frames = [...past, ...soon];
+      radar.loaded = true;
+      const lastPast = radar.frames.map((f) => f.kind).lastIndexOf("past");
+      radar.idx = lastPast >= 0 ? lastPast : Math.max(0, radar.frames.length - 1);
+    }
+    if (!radar.frames.length) { el.radarTimeline.style.display = "none"; return; }
+    radar.frameLayers = new Array(radar.frames.length).fill(null);
+    el.radarScrub.max = String(radar.frames.length - 1);
+    showFrame(radar.idx);
+    startRadarPlay();
+  } catch {
+    el.radarTimeline.style.display = "none";
+  }
+}
+
+function frameLayer(i) {
+  if (radar.frameLayers[i]) return radar.frameLayers[i];
+  const f = radar.frames[i];
+  const url = `${radar.host}${f.path}/${RV_SIZE}/{z}/{x}/{y}/${RV_COLOR}/${RV_OPTS}.png`;
+  const layer = L.tileLayer(url, { opacity: 0, maxZoom: 18, tileSize: RV_SIZE, attribution: "&copy; RainViewer" }).addTo(radar.map);
+  radar.frameLayers[i] = layer;
+  return layer;
+}
+
+function showFrame(i) {
+  if (!radar.frames.length) return;
+  radar.idx = (i + radar.frames.length) % radar.frames.length;
+  radar.frameLayers.forEach((l) => l && l.setOpacity(0));
+  frameLayer(radar.idx).setOpacity(0.8);
+  el.radarScrub.value = String(radar.idx);
+  const f = radar.frames[radar.idx];
+  const fc = f.kind === "forecast";
+  el.radarTime.textContent = `${fmtClock(f.time, state.tz || 0)}${fc ? " ·fcst" : ""}`;
+}
+
+function startRadarPlay() {
+  stopRadarPlay();
+  radar.playing = true;
+  el.radarPlay.innerHTML = '<i class="ph ph-pause"></i>';
+  radar.timer = setInterval(() => showFrame(radar.idx + 1), 650);
+}
+function stopRadarPlay() {
+  radar.playing = false;
+  if (radar.timer) { clearInterval(radar.timer); radar.timer = null; }
+  if (el.radarPlay) el.radarPlay.innerHTML = '<i class="ph ph-play"></i>';
+}
+function toggleRadarPlay() { radar.playing ? stopRadarPlay() : startRadarPlay(); }
+
+function clearFrames() {
+  stopRadarPlay();
+  radar.frameLayers.forEach((l) => l && radar.map.removeLayer(l));
+  radar.frameLayers = [];
+}
+
+function updateRadarNote() {
+  const place = state.placeName || "your area";
+  el.radarNote.textContent = `${LAYER_NAMES[radar.mode] || "Weather"} near ${place}.`;
 }
 
 function syncMaps() {
@@ -578,6 +669,7 @@ function syncMaps() {
   const c = state.center;
   if (radar.preview) radar.preview.setView([c.lat, c.lon]); else initRadarPreview();
   if (radar.map) { radar.map.setView([c.lat, c.lon]); radar.marker && radar.marker.setLatLng([c.lat, c.lon]); }
+  if (el.radarNote) updateRadarNote();
 }
 
 function updateMapTheme() {

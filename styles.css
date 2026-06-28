@@ -503,6 +503,57 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   overflow: hidden;
 }
 .radar-note { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
+
+.radar-timeline { display: flex; align-items: center; gap: var(--s-3); }
+.radar-play {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--on-surface);
+  display: grid;
+  place-items: center;
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+.radar-play:active { transform: scale(0.9); }
+.radar-play i { font-size: 1.3rem; color: var(--surface-accent); }
+.radar-scrub {
+  flex: 1;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--card-border);
+  outline: none;
+}
+.radar-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 3px solid var(--bg);
+  cursor: pointer;
+}
+.radar-scrub::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 3px solid var(--bg);
+  cursor: pointer;
+}
+.radar-time {
+  flex: 0 0 auto;
+  min-width: 92px;
+  text-align: right;
+  font-weight: 700;
+  font-size: var(--t-cap);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
 .map-fallback {
   display: grid;
   place-items: center;
