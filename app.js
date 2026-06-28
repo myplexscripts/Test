@@ -32,7 +32,7 @@ const el = {
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
   unitSeg: $("unitSeg"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"),
   placeName: $("placeName"), datePill: $("datePill"), condition: $("condition"),
-  heroIcon: $("heroIcon"), temp: $("temp"), summary: $("summary"),
+  heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mVisibility: $("mVisibility"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   sunCard: $("sunCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
@@ -89,7 +89,7 @@ function init() {
   const appEl = document.getElementById("app");
   if (appEl && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
     appEl.classList.add("intro");
-    setTimeout(() => appEl.classList.remove("intro"), 2400);
+    setTimeout(() => appEl.classList.remove("intro"), 2800);
   }
 
   const cache = loadCache();
@@ -198,7 +198,7 @@ function render(data) {
   el.placeName.textContent = current.name ? `${current.name}${sys.country ? ", " + sys.country : ""}` : state.loc.label;
   el.datePill.textContent = fmtDate(tz);
   el.condition.textContent = w.description || w.main || "Weather";
-  el.temp.textContent = `${Math.round(m.temp ?? 0)}°`;
+  el.tempNum.textContent = `${Math.round(m.temp ?? 0)}`;
   el.temp.classList.remove("is-loading");
   el.summary.textContent = buildSummary(current, state.daily);
 
@@ -221,24 +221,30 @@ function render(data) {
 }
 
 function renderHourly() {
-  el.hourRail.innerHTML = state.hourly.map((h) => `
+  const html = state.hourly.map((h) => `
     <button class="card hour-card" data-open="hourly">
       <span>${h.label}</span>
       <i class="${iconClass(h.main, h.hour < 6 || h.hour >= 20)}"></i>
       <strong>${Math.round(h.temp)}°</strong>
       <span>${Math.round(h.pop * 100)}%</span>
     </button>`).join("");
+  if (el.hourRail.__sig === html) return; // skip identical re-render (keeps entrance once)
+  el.hourRail.__sig = html;
+  el.hourRail.innerHTML = html;
   el.hourRail.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => openDetail("temp", "hourly"));
 }
 
 function renderDaily() {
-  el.dayRail.innerHTML = state.daily.map((d) => `
+  const html = state.daily.map((d) => `
     <button class="card day-card" data-open="daily">
       <span>${d.label}</span>
       <i class="${iconClass(d.main, false)}"></i>
       <strong class="hi">${Math.round(d.max)}°</strong>
       <span class="lo">${Math.round(d.min)}°</span>
     </button>`).join("");
+  if (el.dayRail.__sig === html) return;
+  el.dayRail.__sig = html;
+  el.dayRail.innerHTML = html;
   el.dayRail.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => openDetail("temp", "daily"));
 }
 

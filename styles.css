@@ -829,41 +829,53 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .row .row-sub { font-size: var(--t-cap); color: var(--ink-soft); font-weight: 600; }
 
 /* ---------- Entrance animation ---------- */
-@keyframes rise {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-.app > * { animation: rise var(--dur-slow) var(--ease-out) both; }
-.app > *:nth-child(1) { animation-delay: 0ms; }
-.app > *:nth-child(2) { animation-delay: 40ms; }
-.app > *:nth-child(3) { animation-delay: 80ms; }
-.app > *:nth-child(4) { animation-delay: 120ms; }
-.app > *:nth-child(5) { animation-delay: 160ms; }
-.app > *:nth-child(6) { animation-delay: 200ms; }
-.app > *:nth-child(7) { animation-delay: 240ms; }
-.app > *:nth-child(8) { animation-delay: 280ms; }
-.app > *:nth-child(9) { animation-delay: 320ms; }
+/* ---------- Entrance choreography (plays once on first load) ----------
+   Top-to-bottom: header → date → condition → icon → temperature (pop) →
+   degree symbol (slides out from behind the number) → summary → the
+   conditions bar and each condition one by one → forecast cards L→R.
+   `backwards` fill hides each element during its delay, then it returns to
+   its natural style — so nothing loops and state stays correct afterwards. */
+@keyframes eFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes ePop  { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes eDeg  { from { opacity: 0; transform: translateX(-0.5em); } to { opacity: 1; transform: none; } }
+@keyframes eFadeOnly { from { opacity: 0; } to { opacity: 1; } }
 
-/* Hero: the big temperature scales up and fades in (the signature move),
-   with the condition icon settling in just before it. */
-@keyframes heroPop {
-  from { opacity: 0; transform: scale(0.9); }
-  to { opacity: 1; transform: scale(1); }
-}
-.display { animation: heroPop 620ms var(--ease-spring) both 140ms; }
-.hero-icon { animation: heroPop 560ms var(--ease-spring) both 80ms; }
+.topbar    { animation: eFade 0.55s var(--ease-out) backwards 0ms; }
+.pill      { animation: eFade 0.5s var(--ease-out) backwards 130ms; }
+.condition { animation: eFade 0.5s var(--ease-out) backwards 220ms; }
+.hero-icon { animation: ePop 0.55s var(--ease-spring) backwards 300ms; }
+.temp-num  { animation: ePop 0.6s var(--ease-spring) backwards 380ms; }
+.temp-deg  { animation: eDeg 0.5s var(--ease-spring) backwards 680ms; }
+.summary .block-title { animation: eFade 0.5s var(--ease-out) backwards 760ms; }
+.summary-text         { animation: eFade 0.5s var(--ease-out) backwards 840ms; }
 
-/* Forecast cards reveal one-by-one on first load only (the `intro` class is
-   removed after the entrance, so background refreshes don't re-animate). */
-.app.intro .rail .card { animation: rise var(--dur) var(--ease-out) both; }
-.app.intro .rail .card:nth-child(1) { animation-delay: 300ms; }
-.app.intro .rail .card:nth-child(2) { animation-delay: 360ms; }
-.app.intro .rail .card:nth-child(3) { animation-delay: 420ms; }
-.app.intro .rail .card:nth-child(4) { animation-delay: 480ms; }
-.app.intro .rail .card:nth-child(5) { animation-delay: 540ms; }
-.app.intro .rail .card:nth-child(6) { animation-delay: 600ms; }
-.app.intro .rail .card:nth-child(7) { animation-delay: 660ms; }
-.app.intro .rail .card:nth-child(n+8) { animation-delay: 720ms; }
+.metrics { animation: eFadeOnly 0.5s var(--ease-out) backwards 920ms; }
+.metrics .metric:nth-child(1) { animation: eFade 0.45s var(--ease-out) backwards 1010ms; }
+.metrics .metric:nth-child(2) { animation: eFade 0.45s var(--ease-out) backwards 1085ms; }
+.metrics .metric:nth-child(3) { animation: eFade 0.45s var(--ease-out) backwards 1160ms; }
+
+[aria-label="Hourly forecast"] .block-head,
+[aria-label="Daily forecast"] .block-head { animation: eFade 0.5s var(--ease-out) backwards 1250ms; }
+
+/* Forecast cards pop in L→R, on first load only (the `intro` class is removed
+   after the entrance, so background refreshes never re-animate them). */
+.app.intro .rail .card { animation: ePop 0.5s var(--ease-spring) backwards; }
+.app.intro .rail .card:nth-child(1) { animation-delay: 1310ms; }
+.app.intro .rail .card:nth-child(2) { animation-delay: 1370ms; }
+.app.intro .rail .card:nth-child(3) { animation-delay: 1430ms; }
+.app.intro .rail .card:nth-child(4) { animation-delay: 1490ms; }
+.app.intro .rail .card:nth-child(5) { animation-delay: 1550ms; }
+.app.intro .rail .card:nth-child(6) { animation-delay: 1610ms; }
+.app.intro .rail .card:nth-child(7) { animation-delay: 1670ms; }
+.app.intro .rail .card:nth-child(n+8) { animation-delay: 1730ms; }
+
+[aria-label="Radar"]          { animation: eFade 0.6s var(--ease-out) backwards 1500ms; }
+[aria-label="Today's details"]{ animation: eFade 0.6s var(--ease-out) backwards 1650ms; }
+.foot { animation: eFade 0.6s var(--ease-out) backwards 1800ms; }
+
+/* Degree symbol sits tucked behind the number, then slides out. */
+.temp-num { display: inline-block; position: relative; z-index: 2; }
+.temp-deg { display: inline-block; position: relative; z-index: 1; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 420px) {
