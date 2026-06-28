@@ -1,0 +1,591 @@
+/* =====================================================================
+   Home Weather — Design System
+   ---------------------------------------------------------------------
+   A flat, bold, single-color-per-condition weather app.
+   Color tokens (--bg, --ink, --surface...) are set at runtime by app.js.
+   Everything that needs to adapt to a light or dark background is derived
+   from --ink via color-mix, so the UI stays legible on any palette.
+   ===================================================================== */
+
+/* ---------- Design tokens ---------- */
+:root {
+  color-scheme: light;
+
+  /* Brand color tokens — defaults are the "sunny" palette.
+     app.js overwrites these per weather condition. */
+  --bg: #ffd83d;                 /* full-screen flat background        */
+  --ink: #0a0a0a;                /* text + icons sitting on --bg       */
+  --surface: #0a0a0a;            /* elevated black cards / pills       */
+  --on-surface: #fffdf8;         /* text on --surface                  */
+  --surface-accent: #ffd83d;     /* accent icons on --surface          */
+  --theme: #ffd83d;              /* status-bar / splash theme color    */
+
+  /* Derived, palette-agnostic tokens (auto light/dark via --ink) */
+  --ink-soft: color-mix(in srgb, var(--ink) 60%, transparent);
+  --ink-faint: color-mix(in srgb, var(--ink) 38%, transparent);
+  --hairline: color-mix(in srgb, var(--ink) 14%, transparent);
+  --card-bg: color-mix(in srgb, var(--ink) 5%, transparent);
+  --card-bg-hi: color-mix(in srgb, var(--ink) 9%, transparent);
+  --card-border: color-mix(in srgb, var(--ink) 16%, transparent);
+  --on-surface-soft: color-mix(in srgb, var(--on-surface) 64%, transparent);
+
+  /* Radius scale */
+  --r-xs: 10px;
+  --r-sm: 14px;
+  --r-md: 20px;
+  --r-lg: 28px;
+  --r-xl: 36px;
+  --r-pill: 999px;
+
+  /* Spacing scale (4pt grid) */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+  --s-12: 48px; --s-16: 64px;
+
+  /* Type scale */
+  --t-cap: 0.78rem;
+  --t-sm: 0.9rem;
+  --t-body: 1.05rem;
+  --t-title: clamp(1.35rem, 4vw, 1.75rem);
+  --t-headline: clamp(1.7rem, 6vw, 2.4rem);
+  --t-display: clamp(8rem, 30vw, 13rem);
+
+  /* Motion */
+  --ease-spring: cubic-bezier(0.22, 0.9, 0.3, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 160ms;
+  --dur: 280ms;
+  --dur-slow: 460ms;
+
+  /* Safe areas */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+
+  /* Layout */
+  --max: 760px;
+  --gutter: clamp(18px, 5vw, 28px);
+}
+
+/* ---------- Reset / base ---------- */
+* { box-sizing: border-box; }
+*::selection { background: var(--ink); color: var(--bg); }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  width: 100%;
+}
+
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
+  transition: color var(--dur-slow) var(--ease-out);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+h1, h2, h3, p { margin: 0; }
+i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
+
+.display, .display-sm,
+.condition, .block-title, .block-head h2,
+.metric strong, .card strong, .pill,
+.sheet-title, .seg-item, .place-name {
+  font-family: Rubik, Inter, sans-serif;
+}
+
+/* ---------- Backdrop layers ---------- */
+.bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--bg);
+  transition: background var(--dur-slow) var(--ease-out);
+}
+
+/* Status-bar blend: solid sky color at the very top fading to transparent.
+   No blur — pure gradient, matched to --bg so it disappears into the page. */
+.status-fade {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(96px + var(--safe-t));
+  z-index: 5;
+  pointer-events: none;
+  opacity: 0;
+  background: linear-gradient(to bottom, var(--bg) 0%, var(--bg) 42%, transparent 100%);
+  transition: opacity var(--dur) var(--ease-out), background var(--dur-slow) var(--ease-out);
+}
+.status-fade.is-visible { opacity: 1; }
+
+/* ---------- Pull to refresh ---------- */
+.ptr {
+  position: fixed;
+  top: calc(var(--safe-t) + 6px);
+  left: 50%;
+  z-index: 6;
+  width: 42px;
+  height: 42px;
+  margin-left: -21px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--on-surface);
+  opacity: 0;
+  transform: translateY(-20px) scale(0.6);
+  pointer-events: none;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+}
+.ptr i { font-size: 1.35rem; }
+.ptr.is-spinning i { animation: spin 800ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- App shell ---------- */
+.app {
+  position: relative;
+  width: min(var(--max), 100%);
+  margin: 0 auto;
+  padding:
+    calc(var(--safe-t) + var(--s-4))
+    calc(var(--gutter) + var(--safe-r))
+    calc(var(--safe-b) + var(--s-12))
+    calc(var(--gutter) + var(--safe-l));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  transition: transform var(--dur) var(--ease-spring);
+}
+
+/* ---------- Top bar ---------- */
+.topbar {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.icon-btn {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.icon-btn:active { transform: scale(0.88); background: var(--card-bg); }
+.icon-btn i { font-size: 2.4rem; }
+
+.icon-btn.badge {
+  border: 2.5px solid var(--ink);
+  background: var(--card-bg);
+}
+.icon-btn.badge i { font-size: 1.5rem; }
+
+.place { text-align: center; min-width: 0; }
+.place-label {
+  display: block;
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.place-name {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Hero ---------- */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--s-3);
+  padding-top: var(--s-4);
+}
+
+.pill {
+  align-self: center;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--on-surface);
+  padding: 0.7rem 1.2rem;
+  font-size: var(--t-sm);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.condition {
+  font-size: var(--t-title);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  text-transform: capitalize;
+  margin-top: var(--s-2);
+}
+
+.hero-icon {
+  font-size: clamp(5rem, 18vw, 9rem);
+  color: var(--ink);
+  margin: var(--s-2) 0 calc(var(--s-2) * -1);
+}
+
+.display {
+  font-size: var(--t-display);
+  font-weight: 800;
+  line-height: 0.82;
+  letter-spacing: -0.02em;
+  transition: opacity var(--dur) var(--ease-out);
+}
+.display.is-loading { opacity: 0.5; }
+
+/* ---------- Daily summary ---------- */
+.block-title {
+  font-size: var(--t-title);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.summary { display: flex; flex-direction: column; gap: var(--s-3); }
+.summary-text {
+  font-size: var(--t-body);
+  line-height: 1.5;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--ink) 84%, transparent);
+  max-width: 60ch;
+}
+
+/* ---------- Surface (the black metrics box) ---------- */
+.surface {
+  background: var(--surface);
+  color: var(--on-surface);
+  border-radius: var(--r-lg);
+  padding: clamp(var(--s-5), 4vw, var(--s-6));
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-3);
+  text-align: center;
+}
+.metric { display: flex; flex-direction: column; align-items: center; gap: var(--s-2); min-width: 0; }
+.metric i { font-size: 2.4rem; color: var(--surface-accent); }
+.metric strong { font-size: clamp(1.15rem, 4vw, 1.5rem); font-weight: 700; line-height: 1; }
+.metric span {
+  font-size: var(--t-cap);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--on-surface-soft);
+}
+
+/* ---------- Blocks (hourly / daily) ---------- */
+.block { display: flex; flex-direction: column; gap: var(--s-4); }
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.block-head h2 { font-size: var(--t-title); font-weight: 700; }
+
+.arrow-btn {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  color: var(--ink);
+  transition: transform var(--dur) var(--ease-spring), background var(--dur-fast);
+}
+.arrow-btn:active { transform: scale(0.85); background: var(--card-bg); }
+.arrow-btn i { font-size: 2rem; }
+
+/* Horizontal rails */
+.rail {
+  display: flex;
+  gap: var(--s-3);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  padding: 2px 2px var(--s-2);
+  margin: 0 -2px;
+}
+.rail::-webkit-scrollbar { display: none; }
+
+.card {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  text-align: center;
+  border: 2.5px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--r-md);
+  padding: var(--s-4) var(--s-3);
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.card:active { transform: scale(0.95); background: var(--card-bg-hi); }
+.card i { font-size: 2.2rem; color: var(--ink); }
+.card strong { font-size: 1.3rem; font-weight: 700; line-height: 1; }
+.card span { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); line-height: 1.2; }
+
+.hour-card { width: 104px; }
+.day-card { width: 116px; }
+.day-card .hi { font-size: 1.45rem; }
+.day-card .lo { color: var(--ink-soft); font-weight: 700; }
+
+/* ---------- Footer ---------- */
+.foot {
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-align: center;
+  min-height: 1.2em;
+}
+
+/* ---------- Scrim ---------- */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  background: rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur) var(--ease-out);
+}
+.scrim.is-open { opacity: 1; pointer-events: auto; }
+
+/* ---------- Drawer ---------- */
+.drawer {
+  position: fixed;
+  z-index: 31;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(360px, 86vw);
+  padding:
+    calc(var(--safe-t) + var(--s-6))
+    var(--s-6)
+    calc(var(--safe-b) + var(--s-6))
+    calc(var(--safe-l) + var(--s-6));
+  background: var(--surface);
+  color: var(--on-surface);
+  transform: translateX(-102%);
+  transition: transform var(--dur) var(--ease-spring);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  will-change: transform;
+}
+.drawer.is-open { transform: translateX(0); }
+.drawer-head { display: flex; align-items: center; justify-content: space-between; }
+.drawer-head h2 { font-family: Rubik, Inter, sans-serif; font-size: 1.5rem; font-weight: 700; }
+.drawer .icon-btn { color: var(--on-surface); }
+.drawer .icon-btn:active { background: rgba(255, 255, 255, 0.12); }
+
+.drawer-group { display: flex; flex-direction: column; gap: var(--s-3); }
+.seg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font-weight: 600;
+}
+
+.drawer-actions { display: flex; flex-direction: column; gap: var(--s-2); }
+.drawer-action {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 56px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--on-surface);
+  font-weight: 600;
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.drawer-action:active { transform: scale(0.97); background: rgba(255, 255, 255, 0.16); }
+.drawer-action i { font-size: 1.6rem; color: var(--surface-accent); }
+.drawer-action.is-active { background: rgba(255, 255, 255, 0.18); }
+.drawer-note {
+  margin-top: auto;
+  font-size: var(--t-sm);
+  line-height: 1.5;
+  color: var(--on-surface-soft);
+}
+
+/* ---------- Segmented control ---------- */
+.segmented {
+  display: inline-flex;
+  padding: 4px;
+  gap: 2px;
+  border-radius: var(--r-pill);
+  background: var(--card-bg-hi);
+}
+.drawer .segmented { background: rgba(255, 255, 255, 0.1); }
+.seg-item {
+  border-radius: var(--r-pill);
+  padding: 0.5rem 1.1rem;
+  font-size: var(--t-sm);
+  font-weight: 700;
+  color: inherit;
+  opacity: 0.6;
+  transition: background var(--dur-fast), opacity var(--dur-fast), color var(--dur-fast);
+}
+.seg-item.is-active {
+  opacity: 1;
+  background: var(--ink);
+  color: var(--bg);
+}
+.drawer .seg-item.is-active { background: var(--on-surface); color: var(--surface); }
+.segmented.small .seg-item { padding: 0.4rem 0.85rem; }
+
+/* ---------- Detail sheet (graph) ---------- */
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--bg);
+  color: var(--ink);
+  transform: translateX(100%);
+  transition: transform var(--dur-slow) var(--ease-spring);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding:
+    calc(var(--safe-t) + var(--s-4))
+    calc(var(--gutter) + var(--safe-r))
+    calc(var(--safe-b) + var(--s-10))
+    calc(var(--gutter) + var(--safe-l));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  will-change: transform;
+}
+.sheet.is-open { transform: translateX(0); }
+
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--s-2);
+  border-radius: var(--r-pill);
+  border: 2.5px solid var(--ink);
+  padding: 0.6rem 1rem;
+  font-weight: 700;
+  font-size: var(--t-sm);
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.back-btn:active { transform: scale(0.94); background: var(--card-bg); }
+.back-btn i { font-size: 1.3rem; }
+
+.sheet-title { font-size: var(--t-headline); font-weight: 800; letter-spacing: -0.01em; }
+.sheet-note { font-size: var(--t-body); line-height: 1.5; color: var(--ink-soft); max-width: 58ch; }
+
+.graph-card {
+  border: 2.5px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--r-xl);
+  padding: var(--s-4);
+}
+#graph {
+  display: block;
+  width: 100%;
+  height: clamp(240px, 42vh, 420px);
+  border-radius: calc(var(--r-xl) - var(--s-4)); /* concentric */
+}
+
+.sheet-list { display: flex; flex-direction: column; gap: var(--s-2); }
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--card-bg);
+  border: 2px solid var(--card-border);
+}
+.row .row-label { font-weight: 700; }
+.row .row-icon { font-size: 1.7rem; color: var(--ink); }
+.row .row-temp { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
+.row .row-sub { font-size: var(--t-cap); color: var(--ink-soft); font-weight: 600; }
+
+/* ---------- Entrance animation ---------- */
+@keyframes rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.app > * { animation: rise var(--dur-slow) var(--ease-out) both; }
+.app > *:nth-child(1) { animation-delay: 0ms; }
+.app > *:nth-child(2) { animation-delay: 40ms; }
+.app > *:nth-child(3) { animation-delay: 80ms; }
+.app > *:nth-child(4) { animation-delay: 120ms; }
+.app > *:nth-child(5) { animation-delay: 160ms; }
+.app > *:nth-child(6) { animation-delay: 200ms; }
+.app > *:nth-child(7) { animation-delay: 240ms; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 420px) {
+  :root { --gutter: 18px; }
+  .icon-btn i { font-size: 2.2rem; }
+  .metric i { font-size: 2.1rem; }
+  .hour-card { width: 92px; }
+  .day-card { width: 104px; }
+}
+
+@media (min-width: 680px) {
+  .hero-icon { font-size: 8rem; }
+  .display { font-size: clamp(9rem, 22vw, 12rem); }
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}
