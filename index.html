@@ -84,11 +84,13 @@
       height: calc(72px + var(--safe-top));
       pointer-events: none;
       opacity: 0;
-      background: var(--sky);
+      background: linear-gradient(to bottom, var(--sky) 0%, transparent 100%);
+      -webkit-backdrop-filter: saturate(1.5) blur(10px);
+      backdrop-filter: saturate(1.5) blur(10px);
       transition: opacity 180ms ease;
     }
 
-    .status-fade.show { opacity: 0.9; }
+    .status-fade.show { opacity: 1; }
 
     button { font: inherit; border: 0; cursor: pointer; color: inherit; }
     i { font-size: 1.25rem; line-height: 1; }
@@ -426,8 +428,8 @@
 
     .data-group {
       border: 3px solid var(--black);
-      border-radius: 28px;
-      padding: 22px;
+      border-radius: 30px;
+      padding: 20px;
       background: var(--panel);
       min-width: 0;
       transition: transform 180ms ease, background 180ms ease;
@@ -444,7 +446,7 @@
 
     .detail {
       border: 2px solid color-mix(in srgb, var(--black) 26%, transparent);
-      border-radius: 20px;
+      border-radius: 10px;
       padding: 13px;
       min-height: 100px;
       background: var(--panel-2);
@@ -532,7 +534,7 @@
       position: fixed;
       inset: 0;
       z-index: 40;
-      background: var(--sky);
+      background: linear-gradient(135deg, var(--sky) 0%, var(--sun) 50%, var(--clouds) 100%);
       color: var(--ink);
       transform: translateX(104%);
       transition: transform 260ms ease;
@@ -583,7 +585,7 @@
       width: 100%;
       height: clamp(270px, 46vh, 540px);
       display: block;
-      border-radius: 22px;
+      border-radius: 14px;
       background: var(--panel);
       color: var(--black);
     }
@@ -649,7 +651,7 @@
       .metric span { font-size: 0.75rem; }
       .data-group { padding: 18px; border-radius: 24px; }
       .detail-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
-      .detail { min-height: 94px; padding: 11px; border-radius: 18px; }
+      .detail { min-height: 94px; padding: 11px; border-radius: 8px; }
       .rail { gap: 10px; }
       .day-card { flex-basis: clamp(84px, 25vw, 104px); min-height: 118px; border-width: 2px; border-radius: 20px; }
       .hour-card { flex-basis: clamp(110px, 34vw, 134px); border-width: 2px; border-radius: 20px; }
