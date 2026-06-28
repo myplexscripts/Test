@@ -39,7 +39,7 @@ const el = {
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
-  radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"),
+  radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"), radarLegend: $("radarLegend"),
   hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
   sheet: $("sheet"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"),
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList")
@@ -65,7 +65,8 @@ const state = {
 /* Radar / map (Leaflet) state.
    mode "radar" = animated RainViewer; others = OpenWeather static layers. */
 const radar = {
-  map: null, base: null, owm: null, overlay: null, marker: null, preview: null, previewBase: null,
+  map: null, base: null, owm: null, marker: null, preview: null, previewBase: null,
+  layers: [], front: 0, gen: 0,
   mode: "radar", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, themeDark: null
 };
 const RAINVIEWER_API = "https://api.rainviewer.com/public/weather-maps.json";
@@ -120,7 +121,7 @@ function wireEvents() {
   el.radarBack.onclick = closeRadar;
   el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.onclick = () => applyMode(b.dataset.layer));
   el.radarPlay.onclick = toggleRadarPlay;
-  el.radarScrub.oninput = () => { stopRadarPlay(); showFrame(Number(el.radarScrub.value)); };
+  el.radarScrub.oninput = () => { stopRadarPlay(); showFrame(Number(el.radarScrub.value), true); };
   el.tabSeg.querySelectorAll("[data-tab]").forEach((b) => {
     b.onclick = () => setTab(b.dataset.tab);
   });
@@ -684,15 +685,21 @@ function applyMode(mode) {
   updateRadarNote();
   if (!haveLeaflet() || !radar.map) return;
   stopRadarPlay();
-  if (radar.overlay) { radar.map.removeLayer(radar.overlay); radar.overlay = null; }
+  removeRadarLayers();
   if (radar.owm) { radar.map.removeLayer(radar.owm); radar.owm = null; }
-  if (mode === "radar") {
-    el.radarTimeline.style.display = "";
+  const isRadar = mode === "radar";
+  el.radarTimeline.style.display = isRadar ? "" : "none";
+  if (el.radarLegend) el.radarLegend.style.display = isRadar ? "" : "none";
+  if (isRadar) {
     loadRainviewer();
   } else {
-    el.radarTimeline.style.display = "none";
     radar.owm = L.tileLayer(owmTileUrl(mode), { opacity: 0.72, maxZoom: 12, maxNativeZoom: 9, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; OpenWeather" }).addTo(radar.map);
   }
+}
+
+function removeRadarLayers() {
+  radar.layers.forEach((l) => l && radar.map.removeLayer(l));
+  radar.layers = [];
 }
 
 async function ensureFrames() {
@@ -708,8 +715,8 @@ async function ensureFrames() {
   return radar.frames;
 }
 
-// One overlay layer, animated by swapping its URL — keeps memory flat so
-// mobile Safari doesn't run out of memory (the previous preload-all crashed).
+// Two overlay layers, crossfaded — buttery without the memory blow-up that
+// crashed the preload-all version (only ever two RainViewer layers exist).
 async function loadRainviewer() {
   if (!haveLeaflet() || !radar.map) return;
   try {
@@ -717,38 +724,80 @@ async function loadRainviewer() {
     if (!frames.length || !radar.map || radar.mode !== "radar") { el.radarTimeline.style.display = "none"; return; }
     el.radarTimeline.style.display = "";
     el.radarScrub.max = String(frames.length - 1);
-    if (!radar.overlay) {
-      radar.overlay = L.tileLayer(rvUrl(frames[radar.idx]), {
-        opacity: 0.85, maxZoom: 12, maxNativeZoom: 10, tileSize: RV_SIZE, updateWhenZooming: false, keepBuffer: 0, attribution: "&copy; RainViewer"
-      }).addTo(radar.map);
+    if (!radar.layers.length) {
+      radar.layers = [makeRvLayer(frames[radar.idx]), makeRvLayer(frames[radar.idx])];
+      radar.front = 0;
     }
-    showFrame(radar.idx);
+    showFrame(radar.idx, true);   // immediate first paint
     startRadarPlay();
   } catch {
     el.radarTimeline.style.display = "none";
   }
 }
 
-function showFrame(i) {
-  if (!radar.frames.length || !radar.overlay) return;
-  radar.idx = (i + radar.frames.length) % radar.frames.length;
-  const f = radar.frames[radar.idx];
-  radar.overlay.setUrl(rvUrl(f));
-  el.radarScrub.value = String(radar.idx);
-  el.radarTime.textContent = `${fmtClock(f.time, state.tz || 0)}${f.kind === "forecast" ? " ·fcst" : ""}`;
+function makeRvLayer(f) {
+  const layer = L.tileLayer(rvUrl(f), {
+    opacity: 0, maxZoom: 12, maxNativeZoom: 10, tileSize: RV_SIZE,
+    updateWhenZooming: false, keepBuffer: 0, attribution: "&copy; RainViewer"
+  }).addTo(radar.map);
+  const c = layer.getContainer && layer.getContainer();
+  if (c) c.style.transition = "opacity 450ms ease";
+  return layer;
 }
 
+function showFrame(i, immediate, onShown) {
+  if (!radar.frames.length || !radar.layers.length) return;
+  radar.idx = (i + radar.frames.length) % radar.frames.length;
+  const f = radar.frames[radar.idx];
+  el.radarScrub.value = String(radar.idx);
+  el.radarTime.textContent = relTime(f);
+  const frontLayer = radar.layers[radar.front];
+  const backLayer = radar.layers[1 - radar.front];
+  if (immediate || !backLayer) {
+    frontLayer.setUrl(rvUrl(f));
+    frontLayer.setOpacity(0.85);
+    if (backLayer) backLayer.setOpacity(0);
+    if (onShown) onShown();
+    return;
+  }
+  const gen = ++radar.gen;
+  let done = false;
+  const reveal = () => {
+    if (done || gen !== radar.gen) return;
+    done = true;
+    backLayer.setOpacity(0.85);
+    frontLayer.setOpacity(0);
+    radar.front = 1 - radar.front;
+    if (onShown) onShown();
+  };
+  backLayer.setUrl(rvUrl(f));
+  if (backLayer.once) backLayer.once("load", reveal);
+  setTimeout(reveal, 700); // fallback so playback never stalls
+}
+
+function relTime(f) {
+  const diffMin = Math.round((f.time - Date.now() / 1000) / 60);
+  let rel;
+  if (Math.abs(diffMin) <= 3) rel = "Now";
+  else if (diffMin < 0) rel = Math.abs(diffMin) >= 60 ? `−${Math.round(Math.abs(diffMin) / 60)}h` : `−${Math.abs(diffMin)}m`;
+  else rel = `+${diffMin}m`;
+  const clock = fmtClock(f.time, state.tz || 0);
+  return f.kind === "forecast" ? `${rel} · ${clock} forecast` : `${rel} · ${clock}`;
+}
+
+// Playback chains each step to the previous reveal, so frames never outpace
+// their tiles loading (keeps the animation smooth instead of janky).
 function startRadarPlay() {
   stopRadarPlay();
   if (!radar.frames.length) return;
   radar.playing = true;
   el.radarPlay.innerHTML = '<i class="ph ph-pause"></i>';
-  const step = () => {
-    showFrame(radar.idx + 1);
+  const advance = () => {
+    if (!radar.playing) return;
     const atEnd = radar.idx === radar.frames.length - 1;
-    radar.timer = setTimeout(step, atEnd ? 1400 : 700); // brief hold on the latest frame
+    showFrame(radar.idx + 1, false, () => { if (radar.playing) radar.timer = setTimeout(advance, atEnd ? 1500 : 250); });
   };
-  radar.timer = setTimeout(step, 700);
+  radar.timer = setTimeout(advance, 250);
 }
 function stopRadarPlay() {
   radar.playing = false;

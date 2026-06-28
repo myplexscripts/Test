@@ -588,12 +588,27 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .radar-time {
   flex: 0 0 auto;
-  min-width: 92px;
+  min-width: 124px;
   text-align: right;
   font-weight: 700;
   font-size: var(--t-cap);
   font-variant-numeric: tabular-nums;
   color: var(--ink-soft);
+}
+
+.radar-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.legend-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(to right, #9be7a0, #4cc06a, #ffd23f, #ff8a3d, #ff4d4d, #b14de0);
 }
 .map-fallback {
   display: grid;
