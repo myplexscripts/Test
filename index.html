@@ -341,7 +341,7 @@
     .section-head h2, .forecast-head h2 { margin: 0; font-size: clamp(1.45rem, 3.2vw, 2.3rem); }
     .group-title h3 { font-size: clamp(1.1rem, 2.5vw, 1.45rem); }
 
-    .more-button, .back-button {
+    .back-button {
       display: inline-flex;
       align-items: center;
       gap: 8px;
@@ -356,13 +356,27 @@
       transition: transform 180ms ease, background 180ms ease;
     }
 
-    .more-button:hover, .more-button:focus-visible, .back-button:hover, .back-button:focus-visible {
+    .back-button:hover, .back-button:focus-visible {
       transform: translateY(-2px);
       background: var(--panel-2);
       outline: none;
     }
 
-    .more-button i, .back-button i { font-size: 1.4rem; }
+    .more-button {
+      width: 48px;
+      height: 48px;
+      min-width: 48px;
+      display: grid;
+      place-items: center;
+      background: transparent;
+      color: inherit;
+      border-radius: 999px;
+      transition: transform 180ms ease;
+    }
+
+    .more-button:hover, .more-button:focus-visible { transform: translateX(3px); outline: none; }
+    .more-button i { font-size: 2.2rem; line-height: 1; }
+    .back-button i { font-size: 1.4rem; }
 
     .rail {
       width: 100%;
@@ -662,7 +676,9 @@
       .rail { gap: 10px; }
       .day-card { flex-basis: clamp(84px, 25vw, 104px); min-height: 118px; border-width: 2px; border-radius: 20px; }
       .hour-card { flex-basis: clamp(110px, 34vw, 134px); border-width: 2px; border-radius: 20px; }
-      .more-button, .back-button { padding: 0.6rem 0.84rem; }
+      .back-button { padding: 0.6rem 0.84rem; }
+      .more-button { width: 44px; height: 44px; min-width: 44px; }
+      .more-button i { font-size: 2rem; }
       .graph-top { flex-direction: column-reverse; }
       .graph-day-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
       #graphCanvas { height: clamp(270px, 42vh, 440px); }
@@ -759,9 +775,9 @@
         </section>
 
         <section class="forecast" aria-label="Forecast">
-          <div class="forecast-head"><h2>Hourly</h2><button class="more-button" id="hourlyMore">More<i class="ph ph-chart-line-up"></i></button></div>
+          <div class="forecast-head"><h2>Hourly</h2><button class="more-button" id="hourlyMore" aria-label="Open hourly graph"><i class="ph ph-arrow-right"></i></button></div>
           <div class="rail" id="hourRow"></div>
-          <div class="section-head"><h2>Weekly forecast</h2><button class="more-button" id="weeklyMore">More<i class="ph ph-chart-line-up"></i></button></div>
+          <div class="section-head"><h2>Weekly forecast</h2><button class="more-button" id="weeklyMore" aria-label="Open weekly graph"><i class="ph ph-arrow-right"></i></button></div>
           <div class="rail" id="dailyRow"></div>
         </section>
       </aside>
@@ -1118,12 +1134,21 @@
       const condition = String(main).toLowerCase();
       const night = hour < 6 || hour >= 20;
       document.body.classList.toggle("night", night);
-      let p = { sky: "#42C6FF", sun: "#FFE84A", clouds: "#FFF4A8", accent: "#FF7A30", panel: "#FFF1A6", panel2: "#FFF8D6", icon: "#FF7A30", iconBg: "#FFF7C7", theme: "#42C6FF" };
-      if (night) p = { sky: "#090918", sun: "#171039", clouds: "#050505", accent: "#FF64D4", panel: "#201A3C", panel2: "#2D2650", icon: "#FF64D4", iconBg: "#FFFDF8", theme: "#090918" };
-      if (condition.includes("rain") || condition.includes("drizzle")) p = night ? { sky: "#0B1535", sun: "#102A48", clouds: "#050505", accent: "#42C6FF", panel: "#17294B", panel2: "#1F365F", icon: "#42C6FF", iconBg: "#E8F8FF", theme: "#0B1535" } : { sky: "#42C6FF", sun: "#A9E7FF", clouds: "#E8F8FF", accent: "#006B9A", panel: "#C9F0FF", panel2: "#E8F8FF", icon: "#006B9A", iconBg: "#E8F8FF", theme: "#42C6FF" };
-      if (condition.includes("cloud")) p = night ? { sky: "#171039", sun: "#2E2A4F", clouds: "#3A365A", accent: "#C6FF8B", panel: "#282541", panel2: "#343052", icon: "#C6FF8B", iconBg: "#FFFDF8", theme: "#171039" } : { sky: "#AFC7D6", sun: "#E7E2D4", clouds: "#FFFDF8", accent: "#2F8FB3", panel: "#D8EAF0", panel2: "#EAF4F8", icon: "#2F8FB3", iconBg: "#FFF7CE", theme: "#AFC7D6" };
-      if (condition.includes("snow")) p = { sky: "#DDEEFF", sun: "#F4FBFF", clouds: "#FFFFFF", accent: "#2A86C8", panel: "#F4FBFF", panel2: "#FFFFFF", icon: "#2A86C8", iconBg: "#FFFFFF", theme: "#DDEEFF" };
-      if (condition.includes("thunder")) p = { sky: "#050505", sun: "#241C4D", clouds: "#36304F", accent: "#FFE84A", panel: "#241C4D", panel2: "#36304F", icon: "#FFE84A", iconBg: "#050505", theme: "#050505" };
+      const palettes = {
+        clearDay: { sky: "#39C7FF", sun: "#FFE34A", clouds: "#FFF39A", accent: "#FF7A1A", panel: "#FFE66B", panel2: "#FFF7B8", icon: "#FF6A00", iconBg: "#FFF2A8", theme: "#39C7FF" },
+        cloudyDay: { sky: "#76D7FF", sun: "#FFD84D", clouds: "#F8FBFF", accent: "#2DB7E8", panel: "#BEEBFF", panel2: "#EAF8FF", icon: "#1688C7", iconBg: "#FFF0A6", theme: "#76D7FF" },
+        rainDay: { sky: "#22B8FF", sun: "#77E7FF", clouds: "#DFFBFF", accent: "#0077FF", panel: "#A7ECFF", panel2: "#E0FAFF", icon: "#006DFF", iconBg: "#DDF8FF", theme: "#22B8FF" },
+        snow: { sky: "#9FDBFF", sun: "#EAF8FF", clouds: "#FFFFFF", accent: "#2F8FFF", panel: "#DDF3FF", panel2: "#FFFFFF", icon: "#1D7EEA", iconBg: "#FFFFFF", theme: "#9FDBFF" },
+        thunder: { sky: "#2B235D", sun: "#FFE24A", clouds: "#5B4AA8", accent: "#FFCA28", panel: "#473A82", panel2: "#6251B8", icon: "#FFE24A", iconBg: "#151226", theme: "#2B235D" },
+        night: { sky: "#151B54", sun: "#7C5CFF", clouds: "#241A5E", accent: "#FF5EDB", panel: "#2C276D", panel2: "#3A337F", icon: "#FF5EDB", iconBg: "#F8F3FF", theme: "#151B54" }
+      };
+      let key = "clearDay";
+      if (condition.includes("thunder")) key = "thunder";
+      else if (condition.includes("snow")) key = "snow";
+      else if (condition.includes("rain") || condition.includes("drizzle")) key = "rainDay";
+      else if (condition.includes("cloud")) key = "cloudyDay";
+      if (night) key = "night";
+      const p = palettes[key];
       document.documentElement.style.setProperty("--sky", p.sky);
       document.documentElement.style.setProperty("--sun", p.sun);
       document.documentElement.style.setProperty("--clouds", p.clouds);
