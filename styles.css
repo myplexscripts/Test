@@ -844,6 +844,27 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .app > *:nth-child(8) { animation-delay: 280ms; }
 .app > *:nth-child(9) { animation-delay: 320ms; }
 
+/* Hero: the big temperature scales up and fades in (the signature move),
+   with the condition icon settling in just before it. */
+@keyframes heroPop {
+  from { opacity: 0; transform: scale(0.9); }
+  to { opacity: 1; transform: scale(1); }
+}
+.display { animation: heroPop 620ms var(--ease-spring) both 140ms; }
+.hero-icon { animation: heroPop 560ms var(--ease-spring) both 80ms; }
+
+/* Forecast cards reveal one-by-one on first load only (the `intro` class is
+   removed after the entrance, so background refreshes don't re-animate). */
+.app.intro .rail .card { animation: rise var(--dur) var(--ease-out) both; }
+.app.intro .rail .card:nth-child(1) { animation-delay: 300ms; }
+.app.intro .rail .card:nth-child(2) { animation-delay: 360ms; }
+.app.intro .rail .card:nth-child(3) { animation-delay: 420ms; }
+.app.intro .rail .card:nth-child(4) { animation-delay: 480ms; }
+.app.intro .rail .card:nth-child(5) { animation-delay: 540ms; }
+.app.intro .rail .card:nth-child(6) { animation-delay: 600ms; }
+.app.intro .rail .card:nth-child(7) { animation-delay: 660ms; }
+.app.intro .rail .card:nth-child(n+8) { animation-delay: 720ms; }
+
 /* ---------- Responsive ---------- */
 @media (max-width: 420px) {
   :root { --gutter: 18px; }

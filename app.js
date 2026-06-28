@@ -84,6 +84,14 @@ function init() {
   registerSW();
   syncControls();
 
+  // One-time entrance: stagger the forecast cards on first load, then drop the
+  // flag so later background refreshes don't re-animate them.
+  const appEl = document.getElementById("app");
+  if (appEl && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    appEl.classList.add("intro");
+    setTimeout(() => appEl.classList.remove("intro"), 2400);
+  }
+
   const cache = loadCache();
   if (cache && cache.units === state.units) {
     state.data = cache.data;
