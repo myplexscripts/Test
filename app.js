@@ -35,6 +35,7 @@ const el = {
   heroIcon: $("heroIcon"), temp: $("temp"), summary: $("summary"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mVisibility: $("mVisibility"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
+  sunCard: $("sunCard"), detailGrid: $("detailGrid"),
   hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
   sheet: $("sheet"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"),
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList")
@@ -167,6 +168,8 @@ function render(data) {
 
   renderHourly();
   renderDaily();
+  renderSun(current);
+  renderDetails(current);
 
   if (state.sheetOpen) { drawGraph(); renderSheetList(); }
 }
@@ -191,6 +194,69 @@ function renderDaily() {
       <span class="lo">${Math.round(d.min)}°</span>
     </button>`).join("");
   el.dayRail.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => openSheet("daily"));
+}
+
+function renderSun(current) {
+  const sys = current.sys || {};
+  const tz = current.timezone ?? 0;
+  if (!sys.sunrise || !sys.sunset) { el.sunCard.style.display = "none"; return; }
+  el.sunCard.style.display = "";
+  const now = current.dt || Math.floor(Date.now() / 1000);
+  let t = (now - sys.sunrise) / (sys.sunset - sys.sunrise);
+  t = Math.max(0, Math.min(1, t));
+  const P0 = [24, 96], P1 = [150, -10], P2 = [276, 96];
+  const x = (1 - t) ** 2 * P0[0] + 2 * (1 - t) * t * P1[0] + t ** 2 * P2[0];
+  const y = (1 - t) ** 2 * P0[1] + 2 * (1 - t) * t * P1[1] + t ** 2 * P2[1];
+  el.sunCard.innerHTML = `
+    <svg class="sun-svg" viewBox="0 0 300 104" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
+      <path class="arc-bg" d="M24,96 Q150,-10 276,96" pathLength="1"/>
+      <path class="arc-fg" d="M24,96 Q150,-10 276,96" pathLength="1" stroke-dasharray="${t.toFixed(3)} 1"/>
+      <circle class="sun-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7"/>
+    </svg>
+    <div class="sun-times">
+      <div class="sun-time"><i class="ph-duotone ph-sun-horizon"></i><span class="d-label">Sunrise</span><strong>${fmtClock(sys.sunrise, tz)}</strong></div>
+      <div class="sun-time end"><i class="ph-duotone ph-moon-stars"></i><span class="d-label">Sunset</span><strong>${fmtClock(sys.sunset, tz)}</strong></div>
+    </div>`;
+}
+
+function renderDetails(current) {
+  const m = current.main || {};
+  const wind = current.wind || {};
+  const clouds = current.clouds || {};
+  const today = state.daily[0];
+  const items = [];
+  items.push(["ph-thermometer-simple", "Feels like", `${Math.round(m.feels_like ?? m.temp ?? 0)}°`, ""]);
+  if (today) items.push(["ph-arrows-vertical", "High / Low", `${Math.round(today.max)}° / ${Math.round(today.min)}°`, "today"]);
+  items.push(["ph-wind", "Wind", windText(wind.speed || 0), wind.deg != null ? direction(wind.deg) : ""]);
+  if (wind.gust != null) items.push(["ph-wind", "Gusts", windText(wind.gust), "peak"]);
+  items.push(["ph-drop", "Humidity", m.humidity != null ? `${m.humidity}%` : "—", ""]);
+  items.push(["ph-gauge", "Pressure", m.pressure != null ? `${m.pressure} hPa` : "—", ""]);
+  items.push(["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "—", ""]);
+  items.push(["ph-eye", "Visibility", visibilityText(current.visibility), ""]);
+  const precip = precipItem(current, today);
+  if (precip) items.push(precip);
+
+  el.detailGrid.innerHTML = items.map(([icon, label, value, sub]) => `
+    <div class="detail">
+      <i class="ph-duotone ${icon}"></i>
+      <span class="d-label">${label}</span>
+      <strong class="d-value">${value}</strong>
+      ${sub ? `<span class="d-sub">${sub}</span>` : ""}
+    </div>`).join("");
+}
+
+function precipItem(current, today) {
+  const snow = current.snow?.["1h"] ?? current.snow?.["3h"];
+  const rain = current.rain?.["1h"] ?? current.rain?.["3h"];
+  if (snow != null) return ["ph-cloud-snow", "Snow", `${snow} mm`, "last hour"];
+  if (rain != null) return ["ph-cloud-rain", "Rain", `${rain} mm`, "last hour"];
+  if (today) return ["ph-umbrella", "Precip chance", `${Math.round((today.pop || 0) * 100)}%`, "today"];
+  return null;
+}
+
+function direction(deg) {
+  const d = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+  return `${d[Math.round(deg / 45) % 8]} · ${Math.round(deg)}°`;
 }
 
 /* ---------- Builders ---------- */

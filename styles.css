@@ -77,6 +77,7 @@ html, body {
   padding: 0;
   min-height: 100%;
   width: 100%;
+  overflow-x: hidden;
 }
 
 html {
@@ -134,11 +135,20 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   top: 0;
   left: 0;
   right: 0;
-  height: calc(96px + var(--safe-t));
-  z-index: 5;
+  height: calc(var(--safe-t) + 54px);
+  z-index: 6;
   pointer-events: none;
   opacity: 0;
-  background: linear-gradient(to bottom, var(--bg) 0%, var(--bg) 42%, transparent 100%);
+  /* Solid through the status-bar / notch, then feather to transparent.
+     The first stop is pinned to the safe-area inset so the solid band
+     always sits exactly behind the status bar on any device. */
+  background: linear-gradient(
+    to bottom,
+    var(--bg) 0%,
+    var(--bg) calc(var(--safe-t) + 6px),
+    color-mix(in srgb, var(--bg) 78%, transparent) 62%,
+    transparent 100%
+  );
   transition: opacity var(--dur) var(--ease-out), background var(--dur-slow) var(--ease-out);
 }
 .status-fade.is-visible { opacity: 1; }
@@ -251,7 +261,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 
 .condition {
   font-size: var(--t-title);
-  font-weight: 600;
+  font-weight: 800;
   letter-spacing: 0.01em;
   text-transform: capitalize;
   margin-top: var(--s-2);
@@ -312,6 +322,28 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   color: var(--on-surface-soft);
 }
 
+/* Charming, low-key idle animations for the conditions bar icons. */
+.metric i { transform-origin: center; will-change: transform; }
+.metric .ph-wind { animation: gust 6s ease-in-out infinite; }
+.metric .ph-drop { animation: drip 5s ease-in-out infinite; }
+.metric .ph-eye  { animation: blink 6.5s ease-in-out infinite; }
+
+@keyframes gust {
+  0%, 70%, 100% { transform: translateX(0) skewX(0deg); }
+  78% { transform: translateX(2.5px) skewX(-7deg); }
+  86% { transform: translateX(-1.5px) skewX(3deg); }
+  93% { transform: translateX(0) skewX(0deg); }
+}
+@keyframes drip {
+  0%, 62%, 100% { transform: translateY(0) scaleY(1); }
+  78% { transform: translateY(2px) scaleY(1.1); }
+  90% { transform: translateY(0) scaleY(1); }
+}
+@keyframes blink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+
 /* ---------- Blocks (hourly / daily) ---------- */
 .block { display: flex; flex-direction: column; gap: var(--s-4); }
 .block-head {
@@ -334,7 +366,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .arrow-btn:active { transform: scale(0.85); background: var(--card-bg); }
 .arrow-btn i { font-size: 2rem; }
 
-/* Horizontal rails */
+/* Horizontal rails — full-bleed: break out of the app's side padding so
+   cards run edge-to-edge and scroll under the screen edges. The inner
+   padding keeps the first/last card aligned to the content gutter. */
 .rail {
   display: flex;
   gap: var(--s-3);
@@ -344,8 +378,10 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   scrollbar-width: none;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior-x: contain;
-  padding: 2px 2px var(--s-2);
-  margin: 0 -2px;
+  margin-left: calc(-1 * (var(--gutter) + var(--safe-l)));
+  margin-right: calc(-1 * (var(--gutter) + var(--safe-r)));
+  padding: 2px calc(var(--gutter) + var(--safe-r)) var(--s-2) calc(var(--gutter) + var(--safe-l));
+  scroll-padding-left: calc(var(--gutter) + var(--safe-l));
 }
 .rail::-webkit-scrollbar { display: none; }
 
@@ -372,6 +408,53 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .day-card { width: 116px; }
 .day-card .hi { font-size: 1.45rem; }
 .day-card .lo { color: var(--ink-soft); font-weight: 700; }
+
+/* ---------- Details grid ---------- */
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+.detail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  border: 2px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--r-md);
+  padding: var(--s-4);
+  min-width: 0;
+}
+.detail i { font-size: 1.8rem; color: var(--ink); margin-bottom: var(--s-1); }
+.d-label {
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.d-value { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.3rem; line-height: 1.1; }
+.d-sub { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
+
+/* ---------- Sun arc ---------- */
+.sun-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  border: 2px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--r-lg);
+  padding: var(--s-5) var(--s-5) var(--s-4);
+}
+.sun-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.arc-bg { fill: none; stroke: var(--ink); opacity: 0.16; stroke-width: 3; stroke-linecap: round; }
+.arc-fg { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+.sun-dot { fill: var(--ink); stroke: var(--bg); stroke-width: 3.5; }
+.sun-times { display: flex; justify-content: space-between; align-items: flex-end; }
+.sun-time { display: flex; flex-direction: column; gap: 2px; }
+.sun-time.end { text-align: right; align-items: flex-end; }
+.sun-time i { font-size: 1.6rem; color: var(--ink); }
+.sun-time strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
 
 /* ---------- Footer ---------- */
 .foot {
@@ -565,6 +648,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .app > *:nth-child(5) { animation-delay: 160ms; }
 .app > *:nth-child(6) { animation-delay: 200ms; }
 .app > *:nth-child(7) { animation-delay: 240ms; }
+.app > *:nth-child(8) { animation-delay: 280ms; }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 420px) {
