@@ -63,16 +63,11 @@
 
     .bg-gradient {
       position: fixed;
-      inset: -18vh -14vw;
+      inset: 0;
       z-index: -1;
       pointer-events: none;
-      background: linear-gradient(135deg, var(--sky) 0%, var(--sun) 50%, var(--clouds) 100%);
-      background-size: 135% 145%;
-      background-position: 50% calc(50% + var(--bg-y));
-      transform: translate3d(0, calc(var(--bg-y) * -0.22), 0) scale(1.04);
+      background: var(--sky);
       transition: background 600ms ease;
-      animation: gradientBreath 18s ease-in-out infinite alternate;
-      will-change: transform, background-position;
     }
 
     .status-fade {
@@ -81,13 +76,11 @@
       top: 0;
       left: 0;
       right: 0;
-      height: calc(72px + var(--safe-top));
+      height: calc(94px + var(--safe-top));
       pointer-events: none;
       opacity: 0;
-      background: linear-gradient(to bottom, var(--sky) 0%, transparent 100%);
-      -webkit-backdrop-filter: saturate(1.5) blur(10px);
-      backdrop-filter: saturate(1.5) blur(10px);
-      transition: opacity 180ms ease;
+      background: linear-gradient(to bottom, var(--sky) 0%, var(--sky) 42%, transparent 100%);
+      transition: opacity 220ms ease, background 600ms ease;
     }
 
     .status-fade.show { opacity: 1; }
@@ -123,7 +116,7 @@
     }
 
     .menu-button { background: transparent; }
-    .menu-button i { font-size: 2.25rem; }
+    .menu-button i { font-size: 2.65rem; }
 
     .brand-icon {
       border: 3px solid var(--black);
@@ -133,7 +126,7 @@
       transition: background 300ms ease, color 300ms ease, transform 180ms ease;
     }
 
-    .brand-icon i { font-size: 1.8rem; color: var(--icon); }
+    .brand-icon i { font-size: 2.15rem; color: var(--icon); }
     .brand { min-width: 0; text-align: center; }
 
     .brand-title {
@@ -213,8 +206,8 @@
 
     .hero-icon {
       display: block;
-      font-size: clamp(4rem, 14vw, 8rem);
-      margin: clamp(14px, 3vw, 28px) auto clamp(6px, 1.5vw, 14px);
+      font-size: clamp(5rem, 16vw, 9.5rem);
+      margin: clamp(16px, 3.5vw, 32px) auto clamp(4px, 1.5vw, 12px);
       line-height: 1;
       color: var(--icon);
     }
@@ -224,10 +217,10 @@
       width: min-content;
       max-width: 100%;
       font-family: Rubik, Inter, sans-serif;
-      font-size: clamp(7.6rem, 24vw, 18.4rem);
+      font-size: clamp(8rem, 25vw, 19rem);
       line-height: 0.76;
       letter-spacing: 0.028em;
-      font-weight: 800;
+      font-weight: 900;
       white-space: nowrap;
       transition: transform 280ms ease, opacity 280ms ease;
     }
@@ -294,7 +287,7 @@
     }
 
     .metric { min-width: 0; }
-    .metric i { display: block; font-size: clamp(1.75rem, 3.5vw, 2.45rem); margin-bottom: 12px; }
+    .metric i { display: block; font-size: clamp(2.1rem, 4.5vw, 3rem); margin-bottom: 12px; }
 
     .metric strong {
       display: block;
@@ -344,7 +337,7 @@
       min-width: 0;
     }
 
-    .section-head i, .forecast-head i, .group-title i { font-size: clamp(1.65rem, 4vw, 2.6rem); }
+    .section-head i, .forecast-head i, .group-title i { font-size: clamp(2rem, 4.5vw, 3rem); }
     .section-head h2, .forecast-head h2 { margin: 0; font-size: clamp(1.45rem, 3.2vw, 2.3rem); }
     .group-title h3 { font-size: clamp(1.1rem, 2.5vw, 1.45rem); }
 
@@ -369,7 +362,7 @@
       outline: none;
     }
 
-    .more-button i, .back-button i { font-size: 1.2rem; }
+    .more-button i, .back-button i { font-size: 1.4rem; }
 
     .rail {
       width: 100%;
@@ -418,7 +411,7 @@
       overflow-wrap: anywhere;
     }
 
-    .day-card i, .hour-card i { display: block; font-size: clamp(1.65rem, 3.5vw, 2.3rem); }
+    .day-card i, .hour-card i { display: block; font-size: clamp(2rem, 4.5vw, 2.85rem); }
 
     .day-card span, .hour-card span {
       font-size: 0.78rem;
@@ -461,7 +454,7 @@
       min-width: 0;
     }
 
-    .detail i { display: block; font-size: 1.45rem; margin-bottom: 10px; }
+    .detail i { display: block; font-size: 1.85rem; margin-bottom: 10px; }
     .detail span { display: block; font-size: 0.78rem; color: var(--muted); line-height: 1.2; font-weight: 850; }
 
     .detail strong {
@@ -535,14 +528,14 @@
     }
 
     .drawer-action:hover { transform: translateX(3px); background: rgba(255, 255, 255, 0.16); }
-    .drawer-action i { color: var(--sun); font-size: 1.55rem; }
+    .drawer-action i { color: var(--sun); font-size: 1.85rem; }
     .drawer p { margin: auto 0 0; color: rgba(255, 255, 255, 0.68); line-height: 1.45; font-size: 0.9rem; font-weight: 650; }
 
     .graph-screen {
       position: fixed;
       inset: 0;
       z-index: 40;
-      background: linear-gradient(135deg, var(--sky) 0%, var(--sun) 50%, var(--clouds) 100%);
+      background: var(--sky);
       color: var(--ink);
       transform: translateX(104%);
       transition: transform 260ms ease;
@@ -620,7 +613,7 @@
       font-weight: 850;
     }
 
-    .graph-day-card i { font-size: 2.1rem; }
+    .graph-day-card i { font-size: 2.5rem; }
     .graph-day-card strong { font-family: Rubik, Inter, sans-serif; font-size: 1.45rem; letter-spacing: 0.012em; }
     .graph-day-card span { font-size: 0.78rem; color: var(--muted); }
 
@@ -638,11 +631,6 @@
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(12px); }
       to { opacity: 1; transform: translateY(0); }
-    }
-
-    @keyframes gradientBreath {
-      from { background-position: 46% calc(48% + var(--bg-y)); }
-      to { background-position: 54% calc(52% + var(--bg-y)); }
     }
 
     @media (max-width: 1040px) {
@@ -665,7 +653,7 @@
       .summary { margin-top: 32px; }
       .metrics-bar { border-radius: 24px; padding: 16px 8px; }
       .metrics-grid { gap: 6px; }
-      .metric i { font-size: 1.7rem; margin-bottom: 10px; }
+      .metric i { font-size: 2rem; margin-bottom: 10px; }
       .metric strong { font-size: clamp(0.82rem, 3.8vw, 1rem); }
       .metric span { font-size: 0.75rem; }
       .data-group { padding: 18px; border-radius: 24px; }
@@ -684,8 +672,8 @@
       .shell { width: min(100% - 16px, var(--max)); }
       .topbar { grid-template-columns: 44px minmax(0, 1fr) 44px; }
       .menu-button, .brand-icon { width: 44px; height: 44px; min-width: 44px; border-radius: 16px; }
-      .menu-button i { font-size: 2rem; }
-      .brand-icon i { font-size: 1.45rem; }
+      .menu-button i { font-size: 2.3rem; }
+      .brand-icon i { font-size: 1.7rem; }
       .temperature { font-size: clamp(6.5rem, 39vw, 9.6rem); letter-spacing: 0.022em; }
       .detail-grid { gap: 8px; }
       .detail strong { font-size: 0.96rem; }
