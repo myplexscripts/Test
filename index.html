@@ -18,7 +18,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="preconnect" href="https://api.openweathermap.org">
   <link rel="preconnect" href="https://openweathermap.org">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Sora:wght@600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Rubik:wght@300..900&display=swap" rel="stylesheet">
   <script src="https://unpkg.com/@phosphor-icons/web" defer></script>
   <style>
     :root {
@@ -138,7 +138,7 @@
 
     .brand-title {
       margin: 0;
-      font-family: Sora, Inter, sans-serif;
+      font-family: Rubik, Inter, sans-serif;
       font-size: clamp(1.15rem, 2vw, 1.55rem);
       letter-spacing: 0.012em;
       line-height: 1;
@@ -203,7 +203,7 @@
 
     .condition {
       margin: 0;
-      font-family: Sora, Inter, sans-serif;
+      font-family: Rubik, Inter, sans-serif;
       font-size: clamp(1.35rem, 4vw, 2.4rem);
       line-height: 1;
       letter-spacing: 0.012em;
@@ -211,11 +211,19 @@
       text-transform: capitalize;
     }
 
+    .hero-icon {
+      display: block;
+      font-size: clamp(4rem, 14vw, 8rem);
+      margin: clamp(14px, 3vw, 28px) auto clamp(6px, 1.5vw, 14px);
+      line-height: 1;
+      color: var(--icon);
+    }
+
     .temperature {
-      margin: clamp(22px, 5vw, 44px) auto 0;
+      margin: 0 auto 0;
       width: min-content;
       max-width: 100%;
-      font-family: Sora, Inter, sans-serif;
+      font-family: Rubik, Inter, sans-serif;
       font-size: clamp(7.6rem, 24vw, 18.4rem);
       line-height: 0.76;
       letter-spacing: 0.028em;
@@ -236,7 +244,7 @@
 
     .summary h2, .section-head h2, .group-title h3, .graph-title h1, .graph-section h2 {
       margin: 0;
-      font-family: Sora, Inter, sans-serif;
+      font-family: Rubik, Inter, sans-serif;
       letter-spacing: 0.012em;
       line-height: 1;
     }
@@ -290,7 +298,7 @@
 
     .metric strong {
       display: block;
-      font-family: Sora, Inter, sans-serif;
+      font-family: Rubik, Inter, sans-serif;
       font-size: clamp(0.92rem, 2.2vw, 1.34rem);
       line-height: 1;
       letter-spacing: 0.012em;
@@ -403,7 +411,7 @@
 
     .day-card strong, .hour-card strong {
       display: block;
-      font-family: Sora, Inter, sans-serif;
+      font-family: Rubik, Inter, sans-serif;
       font-size: clamp(1.13rem, 2.5vw, 1.45rem);
       letter-spacing: 0.012em;
       line-height: 1;
@@ -459,7 +467,7 @@
     .detail strong {
       display: block;
       margin-top: 6px;
-      font-family: Sora, Inter, sans-serif;
+      font-family: Rubik, Inter, sans-serif;
       font-size: clamp(0.98rem, 2.3vw, 1.16rem);
       line-height: 1.1;
       letter-spacing: 0.012em;
@@ -495,7 +503,7 @@
 
     .drawer.open { transform: translateX(0); }
     .drawer-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
-    .drawer h2 { margin: 0; font-family: Sora, Inter, sans-serif; font-size: 1.45rem; letter-spacing: 0.012em; }
+    .drawer h2 { margin: 0; font-family: Rubik, Inter, sans-serif; font-size: 1.45rem; letter-spacing: 0.012em; }
 
     .drawer-close {
       width: 44px;
@@ -613,8 +621,19 @@
     }
 
     .graph-day-card i { font-size: 2.1rem; }
-    .graph-day-card strong { font-family: Sora, Inter, sans-serif; font-size: 1.45rem; letter-spacing: 0.012em; }
+    .graph-day-card strong { font-family: Rubik, Inter, sans-serif; font-size: 1.45rem; letter-spacing: 0.012em; }
     .graph-day-card span { font-size: 0.78rem; color: var(--muted); }
+
+    body.night .day-card,
+    body.night .hour-card,
+    body.night .data-group,
+    body.night .graph-day-card,
+    body.night .graph-canvas-wrap { border-color: rgba(255, 255, 255, 0.16); }
+
+    body.night .detail { border-color: rgba(255, 255, 255, 0.1); }
+
+    body.night .more-button,
+    body.night .back-button { border-color: rgba(255, 255, 255, 0.28); color: var(--white); }
 
     @keyframes fadeUp {
       from { opacity: 0; transform: translateY(12px); }
@@ -730,6 +749,7 @@
           <div class="date-pill" id="datePill">Loading</div>
           <div class="hero-copy">
             <p class="condition" id="conditionWord">Weather</p>
+            <i class="hero-icon ph-duotone ph-sun" id="heroIcon" aria-hidden="true"></i>
             <h1 class="temperature" id="tempMain">--°</h1>
           </div>
         </div>
@@ -775,7 +795,7 @@
     const CACHE_STORE = "home_weather_cache_v14";
     const $ = (id) => document.getElementById(id);
     const el = {
-      openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), statusFade: $("statusFade"), brandIcon: $("brandIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), quickFeels: $("quickFeels"), quickRain: $("quickRain"), wind: $("wind"), visibility: $("visibility"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), detailsGrid: $("detailsGrid"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh"), hourlyMore: $("hourlyMore"), weeklyMore: $("weeklyMore"), graphScreen: $("graphScreen"), graphTitle: $("graphTitle"), graphNote: $("graphNote"), graphCanvas: $("graphCanvas"), graphDayGrid: $("graphDayGrid"), closeGraph: $("closeGraph"), metricsBar: $("metricsBar"), metricsGrid: $("metricsGrid"), stickyStats: $("stickyStats"), stickyGrid: $("stickyGrid")
+      openMenu: $("openMenu"), closeMenu: $("closeMenu"), drawer: $("drawer"), menuOverlay: $("menuOverlay"), statusFade: $("statusFade"), brandIcon: $("brandIcon"), heroIcon: $("heroIcon"), place: $("place"), datePill: $("datePill"), conditionWord: $("conditionWord"), tempMain: $("tempMain"), summaryText: $("summaryText"), updated: $("updated"), quickFeels: $("quickFeels"), quickRain: $("quickRain"), wind: $("wind"), visibility: $("visibility"), dailyRow: $("dailyRow"), hourRow: $("hourRow"), detailsGrid: $("detailsGrid"), status: $("status"), saveKey: $("saveKey"), clearCache: $("clearCache"), refresh: $("refresh"), hourlyMore: $("hourlyMore"), weeklyMore: $("weeklyMore"), graphScreen: $("graphScreen"), graphTitle: $("graphTitle"), graphNote: $("graphNote"), graphCanvas: $("graphCanvas"), graphDayGrid: $("graphDayGrid"), closeGraph: $("closeGraph"), metricsBar: $("metricsBar"), metricsGrid: $("metricsGrid"), stickyStats: $("stickyStats"), stickyGrid: $("stickyGrid")
     };
     let lastZone = 0;
     let hourlyData = [];
@@ -882,6 +902,7 @@
       dailyData = buildDaily(forecast, onecall, lastZone);
       applyPalette(weather.main, lastZone);
       el.brandIcon.className = weatherIcon(weather.main, localHour(lastZone));
+      el.heroIcon.className = `hero-icon ${weatherIcon(weather.main, localHour(lastZone))}`;
       el.place.textContent = `${city}, ${country}`;
       el.datePill.textContent = dateLabel(lastZone);
       el.conditionWord.textContent = desc;
@@ -1025,9 +1046,19 @@
       const values = rows.flatMap(r => [r.value, r.low]).filter(Number.isFinite);
       const min = Math.floor(Math.min(...values)) - 1;
       const max = Math.ceil(Math.max(...values)) + 1;
-      ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--panel") || "#fff1a6";
+      const panelRaw = (getComputedStyle(document.documentElement).getPropertyValue("--panel").trim() || "#fff1a6").replace(/^#/, "");
+      const pr = parseInt(panelRaw.slice(0, 2), 16) || 0;
+      const pg = parseInt(panelRaw.slice(2, 4), 16) || 0;
+      const pb = parseInt(panelRaw.slice(4, 6), 16) || 0;
+      const toL = c => { c /= 255; return c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); };
+      const panelLum = 0.2126 * toL(pr) + 0.7152 * toL(pg) + 0.0722 * toL(pb);
+      const onDark = panelLum < 0.35;
+      const inkColor = onDark ? "#fffdf8" : "#050505";
+      const inkFaint = onDark ? "rgba(255,253,248,.2)" : "rgba(5,5,5,.18)";
+      const inkMid = onDark ? "rgba(255,253,248,.55)" : "rgba(5,5,5,.42)";
+      ctx.fillStyle = `#${panelRaw}`;
       ctx.fillRect(0, 0, rect.width, rect.height);
-      ctx.strokeStyle = "rgba(5,5,5,.18)";
+      ctx.strokeStyle = inkFaint;
       ctx.lineWidth = 1;
       for (let i = 0; i < 4; i++) {
         const y = pad + (chartH / 3) * i;
@@ -1037,11 +1068,11 @@
       const points = rows.map((r, i) => ({ ...r, x: pad + (chartW / Math.max(1, rows.length - 1)) * i, y: toY(r.value), yLow: toY(r.low) }));
       const visible = Math.max(2, Math.ceil(points.length * easeOut(progress)));
       const partial = points.slice(0, visible);
-      drawLine(ctx, partial, "y", "#050505", 4);
-      drawLine(ctx, partial, "yLow", "rgba(5,5,5,.42)", 3);
+      drawLine(ctx, partial, "y", inkColor, 4);
+      drawLine(ctx, partial, "yLow", inkMid, 3);
       ctx.font = "800 12px Inter, system-ui";
       ctx.textAlign = "center";
-      ctx.fillStyle = "#050505";
+      ctx.fillStyle = inkColor;
       partial.forEach((p, i) => {
         ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
         if (i % (points.length > 8 ? 2 : 1) === 0) { ctx.fillText(`${Math.round(p.value)}°`, p.x, p.y - 12); ctx.fillText(p.label, p.x, rect.height - 12); }
