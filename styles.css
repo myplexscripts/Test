@@ -1,0 +1,948 @@
+/* =====================================================================
+   Home Weather — Design System
+   ---------------------------------------------------------------------
+   A flat, bold, single-color-per-condition weather app.
+   Color tokens (--bg, --ink, --surface...) are set at runtime by app.js.
+   Everything that needs to adapt to a light or dark background is derived
+   from --ink via color-mix, so the UI stays legible on any palette.
+   ===================================================================== */
+
+/* ---------- Design tokens ---------- */
+:root {
+  color-scheme: light;
+
+  /* Brand color tokens — defaults are the "sunny" palette.
+     app.js overwrites these per weather condition. */
+  --bg: #ffd83d;                 /* full-screen flat background        */
+  --ink: #0a0a0a;                /* text + icons sitting on --bg       */
+  --surface: #0a0a0a;            /* elevated black cards / pills       */
+  --on-surface: #fffdf8;         /* text on --surface                  */
+  --surface-accent: #ffd83d;     /* accent icons on --surface          */
+  --theme: #ffd83d;              /* status-bar / splash theme color    */
+
+  /* Derived, palette-agnostic tokens (auto light/dark via --ink) */
+  --ink-soft: color-mix(in srgb, var(--ink) 60%, transparent);
+  --ink-faint: color-mix(in srgb, var(--ink) 38%, transparent);
+  --hairline: color-mix(in srgb, var(--ink) 14%, transparent);
+  --card-bg: color-mix(in srgb, var(--ink) 5%, transparent);
+  --card-bg-hi: color-mix(in srgb, var(--ink) 9%, transparent);
+  --card-border: color-mix(in srgb, var(--ink) 16%, transparent);
+  --on-surface-soft: color-mix(in srgb, var(--on-surface) 64%, transparent);
+
+  /* Radius scale */
+  --r-xs: 10px;
+  --r-sm: 14px;
+  --r-md: 20px;
+  --r-lg: 28px;
+  --r-xl: 36px;
+  --r-pill: 999px;
+
+  /* Spacing scale (4pt grid) */
+  --s-1: 4px;  --s-2: 8px;  --s-3: 12px; --s-4: 16px;
+  --s-5: 20px; --s-6: 24px; --s-8: 32px; --s-10: 40px;
+  --s-12: 48px; --s-16: 64px;
+
+  /* Type scale */
+  --t-cap: 0.78rem;
+  --t-sm: 0.9rem;
+  --t-body: 1.05rem;
+  --t-title: clamp(1.35rem, 4vw, 1.75rem);
+  --t-headline: clamp(1.7rem, 6vw, 2.4rem);
+  --t-display: clamp(8rem, 30vw, 13rem);
+
+  /* Motion */
+  --ease-spring: cubic-bezier(0.22, 0.9, 0.3, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --dur-fast: 160ms;
+  --dur: 280ms;
+  --dur-slow: 460ms;
+
+  /* Safe areas */
+  --safe-t: env(safe-area-inset-top, 0px);
+  --safe-b: env(safe-area-inset-bottom, 0px);
+  --safe-l: env(safe-area-inset-left, 0px);
+  --safe-r: env(safe-area-inset-right, 0px);
+
+  /* Layout */
+  --max: 760px;
+  --gutter: clamp(18px, 5vw, 28px);
+}
+
+/* ---------- Reset / base ---------- */
+* { box-sizing: border-box; }
+*::selection { background: var(--ink); color: var(--bg); }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  min-height: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  scrollbar-width: none;        /* hide scrollbars (Firefox) */
+  -ms-overflow-style: none;     /* hide scrollbars (legacy Edge) */
+}
+html::-webkit-scrollbar, body::-webkit-scrollbar, .sheet::-webkit-scrollbar { display: none; }
+.sheet { scrollbar-width: none; -ms-overflow-style: none; }
+
+html {
+  background: var(--bg);
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  color: var(--ink);
+  background: var(--bg);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior-y: contain;
+  transition: color var(--dur-slow) var(--ease-out);
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+h1, h2, h3, p { margin: 0; }
+i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
+
+.display, .display-sm,
+.condition, .block-title, .block-head h2,
+.metric strong, .card strong, .pill,
+.sheet-title, .seg-item, .place-name {
+  font-family: Rubik, Inter, sans-serif;
+}
+
+/* ---------- Backdrop layers ---------- */
+.bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background: var(--bg);
+  transition: background var(--dur-slow) var(--ease-out);
+}
+
+/* Status-bar blend: solid sky color at the very top fading to transparent.
+   No blur — pure gradient, matched to --bg so it disappears into the page. */
+/* Global status-bar scrim: one persistent gradient in the page's dynamic
+   --bg, semi-opaque behind the status bar and fading to transparent below
+   the safe area. It sits above every page (home + sheets) so it is always
+   present; the dark drawer is layered above it. A fixed minimum height means
+   it also works in a normal mobile browser (where the safe-area inset is 0).
+   The soft feather means it improves contrast without looking like a header.
+   Mobile only. */
+.status-fade {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--safe-t) + 40px);
+  z-index: 50;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg) 92%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 64%, transparent) calc(var(--safe-t) + 8px),
+    transparent 100%
+  );
+  transition: background var(--dur-slow) var(--ease-out);
+}
+@media (min-width: 821px) { .status-fade { display: none; } }
+
+/* ---------- Pull to refresh ---------- */
+.ptr {
+  position: fixed;
+  top: calc(var(--safe-t) + 6px);
+  left: 50%;
+  z-index: 6;
+  width: 42px;
+  height: 42px;
+  margin-left: -21px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--on-surface);
+  opacity: 0;
+  transform: translateY(-20px) scale(0.6);
+  pointer-events: none;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+}
+.ptr i { font-size: 1.35rem; }
+.ptr.is-spinning i { animation: spin 800ms linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---------- App shell ---------- */
+.app {
+  position: relative;
+  width: min(var(--max), 100%);
+  margin: 0 auto;
+  padding:
+    calc(var(--safe-t) + var(--s-4))
+    calc(var(--gutter) + var(--safe-r))
+    calc(var(--safe-b) + var(--s-12))
+    calc(var(--gutter) + var(--safe-l));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-8);
+  transition: transform var(--dur) var(--ease-spring);
+}
+
+/* ---------- Top bar ---------- */
+.topbar {
+  display: grid;
+  grid-template-columns: 48px 1fr 48px;
+  align-items: center;
+  gap: var(--s-3);
+}
+
+.icon-btn {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-sm);
+  color: var(--ink);
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.icon-btn:active { transform: scale(0.88); background: var(--card-bg); }
+.icon-btn i { font-size: 2.4rem; }
+
+.icon-btn.badge {
+  border: 2.5px solid var(--ink);
+  background: var(--card-bg);
+}
+.icon-btn.badge i { font-size: 1.5rem; }
+
+.place { text-align: center; min-width: 0; }
+.place-label {
+  display: block;
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.place-name {
+  display: block;
+  font-size: 1.15rem;
+  font-weight: 700;
+  line-height: 1.1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* ---------- Hero ---------- */
+.hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: var(--s-3);
+  padding-top: var(--s-4);
+}
+
+.pill {
+  align-self: center;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--on-surface);
+  padding: 0.7rem 1.2rem;
+  font-size: var(--t-sm);
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+.condition {
+  font-size: var(--t-title);
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  text-transform: capitalize;
+  margin-top: var(--s-2);
+}
+
+.hero-icon {
+  font-size: clamp(5rem, 18vw, 9rem);
+  color: var(--ink);
+  margin: var(--s-2) 0 calc(var(--s-2) * -1);
+}
+
+.display {
+  font-size: var(--t-display);
+  font-weight: 800;
+  line-height: 0.82;
+  letter-spacing: -0.02em;
+  transition: opacity var(--dur) var(--ease-out);
+}
+.display.is-loading { opacity: 0.5; }
+
+/* ---------- Daily summary ---------- */
+.block-title {
+  font-size: var(--t-title);
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+.summary { display: flex; flex-direction: column; gap: var(--s-3); }
+.summary-text {
+  font-size: var(--t-body);
+  line-height: 1.5;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--ink) 84%, transparent);
+  max-width: 60ch;
+}
+
+/* ---------- Surface (the black metrics box) ---------- */
+.surface {
+  background: var(--surface);
+  color: var(--on-surface);
+  border-radius: var(--r-lg);
+  padding: clamp(var(--s-5), 4vw, var(--s-6));
+}
+
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--s-3);
+  text-align: center;
+}
+.metric { display: flex; flex-direction: column; align-items: center; gap: var(--s-2); min-width: 0; }
+.metric i { font-size: 2.4rem; color: var(--surface-accent); }
+.metric strong { font-size: clamp(1.15rem, 4vw, 1.5rem); font-weight: 700; line-height: 1; }
+.metric span {
+  font-size: var(--t-cap);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--on-surface-soft);
+}
+
+/* Charming, low-key idle animations for the conditions bar icons. */
+.metric i { transform-origin: center; will-change: transform; }
+.metric .ph-wind { animation: gust 6s ease-in-out infinite; }
+.metric .ph-drop { animation: drip 5s ease-in-out infinite; }
+.metric .ph-eye  { animation: blink 6.5s ease-in-out infinite; }
+
+@keyframes gust {
+  0%, 70%, 100% { transform: translateX(0) skewX(0deg); }
+  78% { transform: translateX(2.5px) skewX(-7deg); }
+  86% { transform: translateX(-1.5px) skewX(3deg); }
+  93% { transform: translateX(0) skewX(0deg); }
+}
+@keyframes drip {
+  0%, 62%, 100% { transform: translateY(0) scaleY(1); }
+  78% { transform: translateY(2px) scaleY(1.1); }
+  90% { transform: translateY(0) scaleY(1); }
+}
+@keyframes blink {
+  0%, 90%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+
+/* ---------- Blocks (hourly / daily) ---------- */
+.block { display: flex; flex-direction: column; gap: var(--s-4); }
+.block-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+}
+.block-head h2 { font-size: var(--t-title); font-weight: 700; }
+
+.arrow-btn {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  color: var(--ink);
+  transition: transform var(--dur) var(--ease-spring), background var(--dur-fast);
+}
+.arrow-btn:active { transform: scale(0.85); background: var(--card-bg); }
+.arrow-btn i { font-size: 2rem; }
+
+/* Horizontal rails — full-bleed: break out of the app's side padding so
+   cards run edge-to-edge and scroll under the screen edges. The inner
+   padding keeps the first/last card aligned to the content gutter. */
+.rail {
+  display: flex;
+  gap: var(--s-3);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  margin-left: calc(-1 * (var(--gutter) + var(--safe-l)));
+  margin-right: calc(-1 * (var(--gutter) + var(--safe-r)));
+  padding: 2px calc(var(--gutter) + var(--safe-r)) var(--s-2) calc(var(--gutter) + var(--safe-l));
+  scroll-padding-left: calc(var(--gutter) + var(--safe-l));
+}
+.rail::-webkit-scrollbar { display: none; }
+
+.card {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--s-2);
+  text-align: center;
+  border: 2.5px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--r-md);
+  padding: var(--s-4) var(--s-3);
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.card:active { transform: scale(0.95); background: var(--card-bg-hi); }
+.card i { font-size: 2.2rem; color: var(--ink); }
+.card strong { font-size: 1.3rem; font-weight: 700; line-height: 1; }
+.card span { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); line-height: 1.2; }
+
+.hour-card { width: 104px; }
+.day-card { width: 116px; }
+.day-card .hi { font-size: 1.45rem; }
+.day-card .lo { color: var(--ink-soft); font-weight: 700; }
+
+/* ---------- Details grid ---------- */
+.detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--s-3);
+}
+.detail {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
+  border: 2px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--r-md);
+  padding: var(--s-4);
+  min-width: 0;
+  width: 100%;
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.detail:active { transform: scale(0.97); background: var(--card-bg-hi); }
+.d-go {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  font-size: 1rem;
+  color: var(--ink-faint);
+}
+.detail i { font-size: 1.8rem; color: var(--ink); margin-bottom: var(--s-1); }
+.d-label {
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.d-value { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.3rem; line-height: 1.1; }
+.d-sub { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
+
+/* ---------- Wind compass ---------- */
+.wind-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--s-5);
+  align-items: center;
+  border: 2px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--r-lg);
+  padding: var(--s-5);
+  width: 100%;
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.wind-card:active { transform: scale(0.98); background: var(--card-bg-hi); }
+.wind-stats { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
+.wind-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--s-4);
+  padding-bottom: var(--s-3);
+  border-bottom: 1px solid var(--hairline);
+}
+.wind-row:last-child { padding-bottom: 0; border-bottom: 0; }
+.wind-row span { color: var(--ink-soft); font-weight: 600; font-size: var(--t-sm); }
+.wind-row strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
+.wind-compass { width: 124px; height: 124px; flex: 0 0 auto; }
+.compass-svg { width: 100%; height: 100%; display: block; }
+.compass-card { fill: var(--ink-soft); font-size: 9px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; font-family: Inter, sans-serif; }
+.compass-arrow { fill: var(--ink); }
+.compass-value { fill: var(--ink); font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: 19px; text-anchor: middle; }
+.compass-unit { fill: var(--ink-soft); font-size: 8px; font-weight: 700; text-anchor: middle; letter-spacing: 0.04em; }
+
+@media (max-width: 380px) {
+  .wind-card { grid-template-columns: 1fr; justify-items: center; }
+  .wind-stats { width: 100%; }
+}
+
+/* ---------- Sun arc ---------- */
+.sun-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  border: 2px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--r-lg);
+  padding: var(--s-5) var(--s-5) var(--s-4);
+}
+.sun-svg { width: 100%; height: auto; display: block; overflow: visible; }
+.arc-bg { fill: none; stroke: var(--ink); opacity: 0.16; stroke-width: 3; stroke-linecap: round; }
+.arc-fg { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
+.sun-dot { fill: var(--ink); stroke: var(--bg); stroke-width: 3.5; }
+.sun-times { display: flex; justify-content: space-between; align-items: flex-end; }
+.sun-time { display: flex; flex-direction: column; gap: 2px; }
+.sun-time.end { text-align: right; align-items: flex-end; }
+.sun-time i { font-size: 1.6rem; color: var(--ink); }
+.sun-time strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
+
+/* ---------- Radar ---------- */
+.radar-preview {
+  position: relative;
+  isolation: isolate; /* contain Leaflet's high z-index panes to this box */
+  display: block;
+  width: 100%;
+  height: 190px;
+  padding: 0;
+  border: 2px solid var(--card-border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+  background: var(--card-bg);
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+.radar-preview:active { transform: scale(0.98); }
+.radar-map { position: absolute; inset: 0; }
+.radar-cta {
+  position: absolute;
+  left: var(--s-3);
+  bottom: var(--s-3);
+  z-index: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0.5rem 0.85rem;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--on-surface);
+  font-size: var(--t-cap);
+  font-weight: 700;
+  pointer-events: none;
+}
+.radar-cta i { font-size: 1.1rem; color: var(--surface-accent); }
+
+.radar-sheet {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-3);
+  overflow: hidden;
+}
+.radar-map-full {
+  flex: 1;
+  min-height: 0;
+  border: 2px solid var(--card-border);
+  border-radius: var(--r-lg);
+  overflow: hidden;
+}
+.radar-note { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
+
+.radar-timeline { display: flex; align-items: center; gap: var(--s-3); }
+.radar-play {
+  flex: 0 0 auto;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--on-surface);
+  display: grid;
+  place-items: center;
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+.radar-play:active { transform: scale(0.9); }
+.radar-play i { font-size: 1.3rem; color: var(--surface-accent); }
+.radar-scrub {
+  flex: 1;
+  min-width: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: var(--r-pill);
+  background: var(--card-border);
+  outline: none;
+}
+.radar-scrub::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 3px solid var(--bg);
+  cursor: pointer;
+}
+.radar-scrub::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 3px solid var(--bg);
+  cursor: pointer;
+}
+.radar-time {
+  flex: 0 0 auto;
+  min-width: 124px;
+  text-align: right;
+  font-weight: 700;
+  font-size: var(--t-cap);
+  font-variant-numeric: tabular-nums;
+  color: var(--ink-soft);
+}
+
+.radar-legend {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+.legend-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: var(--r-pill);
+  background: linear-gradient(to right, #9be7a0, #4cc06a, #ffd23f, #ff8a3d, #ff4d4d, #b14de0);
+}
+.map-fallback {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: var(--s-6);
+  text-align: center;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+/* Leaflet theming to match the design system */
+.leaflet-container { background: var(--card-bg); font-family: Inter, system-ui, sans-serif; }
+.leaflet-bar a {
+  background: var(--surface);
+  color: var(--on-surface);
+  border-bottom-color: color-mix(in srgb, var(--on-surface) 18%, transparent);
+}
+.leaflet-bar a:hover { background: var(--surface); }
+.leaflet-control-attribution {
+  background: color-mix(in srgb, var(--bg) 82%, transparent);
+  color: var(--ink-soft);
+  font-size: 10px;
+}
+.leaflet-control-attribution a { color: var(--ink-soft); }
+
+/* ---------- Footer ---------- */
+.foot {
+  font-size: var(--t-cap);
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-align: center;
+  min-height: 1.2em;
+}
+
+/* ---------- Scrim ---------- */
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 55;
+  background: rgba(0, 0, 0, 0.42);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur) var(--ease-out);
+}
+.scrim.is-open { opacity: 1; pointer-events: auto; }
+
+/* ---------- Drawer ---------- */
+.drawer {
+  position: fixed;
+  z-index: 56;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(360px, 86vw);
+  padding:
+    calc(var(--safe-t) + var(--s-6))
+    var(--s-6)
+    calc(var(--safe-b) + var(--s-6))
+    calc(var(--safe-l) + var(--s-6));
+  background: var(--surface);
+  color: var(--on-surface);
+  transform: translateX(-102%);
+  transition: transform var(--dur) var(--ease-spring);
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-6);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+  will-change: transform;
+}
+.drawer::-webkit-scrollbar { display: none; }
+.drawer.is-open { transform: translateX(0); }
+.drawer-head { display: flex; align-items: center; justify-content: space-between; }
+.drawer-head h2 { font-family: Rubik, Inter, sans-serif; font-size: 1.5rem; font-weight: 700; }
+.drawer .icon-btn { color: var(--on-surface); }
+.drawer .icon-btn:active { background: rgba(255, 255, 255, 0.12); }
+
+.drawer-group { display: flex; flex-direction: column; gap: var(--s-3); }
+.drawer-label { font-weight: 700; font-size: var(--t-sm); }
+
+/* Theme picker */
+.theme-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-2); }
+.theme-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  padding: var(--s-2) 0;
+  border-radius: var(--r-sm);
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--on-surface);
+  opacity: 0.55;
+  transition: opacity var(--dur-fast), background var(--dur-fast), transform var(--dur-fast) var(--ease-spring);
+}
+.theme-swatch:active { transform: scale(0.94); background: rgba(255, 255, 255, 0.08); }
+.theme-swatch.is-active { opacity: 1; }
+.theme-swatch .sw {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  transition: box-shadow var(--dur-fast);
+}
+.theme-swatch.is-active .sw {
+  border-color: transparent;
+  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--on-surface);
+}
+.sw-auto { background: conic-gradient(from 200deg, #ffd83d, #42c6ff, #ff64d4, #121845, #ffd83d); }
+
+.seg-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--s-3);
+  font-weight: 600;
+}
+
+.drawer-actions { display: flex; flex-direction: column; gap: var(--s-2); }
+.drawer-action {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 56px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--on-surface);
+  font-weight: 600;
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.drawer-action:active { transform: scale(0.97); background: rgba(255, 255, 255, 0.16); }
+.drawer-action i { font-size: 1.6rem; color: var(--surface-accent); }
+.drawer-action.is-active { background: rgba(255, 255, 255, 0.18); }
+.drawer-note {
+  margin-top: auto;
+  font-size: var(--t-sm);
+  line-height: 1.5;
+  color: var(--on-surface-soft);
+}
+
+/* ---------- Segmented control ---------- */
+.segmented {
+  display: inline-flex;
+  padding: 4px;
+  gap: 2px;
+  border-radius: var(--r-pill);
+  background: var(--card-bg-hi);
+}
+.drawer .segmented { background: rgba(255, 255, 255, 0.1); }
+.seg-item {
+  border-radius: var(--r-pill);
+  padding: 0.5rem 1.1rem;
+  font-size: var(--t-sm);
+  font-weight: 700;
+  color: inherit;
+  opacity: 0.6;
+  transition: background var(--dur-fast), opacity var(--dur-fast), color var(--dur-fast);
+}
+.seg-item.is-active {
+  opacity: 1;
+  background: var(--ink);
+  color: var(--bg);
+}
+.drawer .seg-item.is-active { background: var(--on-surface); color: var(--surface); }
+.segmented.small .seg-item { padding: 0.4rem 0.85rem; }
+
+/* ---------- Detail sheet (graph) ---------- */
+.sheet {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: var(--bg);
+  color: var(--ink);
+  transform: translateX(100%);
+  transition: transform var(--dur-slow) var(--ease-spring);
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding:
+    calc(var(--safe-t) + var(--s-4))
+    calc(var(--gutter) + var(--safe-r))
+    calc(var(--safe-b) + var(--s-10))
+    calc(var(--gutter) + var(--safe-l));
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+  will-change: transform;
+}
+.sheet.is-open { transform: translateX(0); }
+
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
+.back-btn {
+  width: 48px;
+  height: 48px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  color: var(--ink);
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+.back-btn:active { transform: scale(0.88); }
+.back-btn i { font-size: 2.1rem; }
+
+.sheet-title { font-size: var(--t-headline); font-weight: 800; letter-spacing: -0.01em; }
+.sheet-note { font-size: var(--t-body); line-height: 1.5; color: var(--ink-soft); max-width: 58ch; }
+
+.graph-card {
+  border: 2.5px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--r-xl);
+  padding: var(--s-4);
+}
+#graph {
+  display: block;
+  width: 100%;
+  height: clamp(240px, 42vh, 420px);
+  border-radius: calc(var(--r-xl) - var(--s-4)); /* concentric */
+}
+
+.sheet-list { display: flex; flex-direction: column; gap: var(--s-2); }
+.row {
+  display: grid;
+  grid-template-columns: 1fr auto auto;
+  align-items: center;
+  gap: var(--s-4);
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-md);
+  background: var(--card-bg);
+  border: 2px solid var(--card-border);
+}
+.row .row-label { font-weight: 700; }
+.row .row-icon { font-size: 1.7rem; color: var(--ink); }
+.row .row-temp { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
+.row .row-sub { font-size: var(--t-cap); color: var(--ink-soft); font-weight: 600; }
+
+/* Tappable day rows open the day breakdown */
+button.row { width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.row-tap { grid-template-columns: 1fr auto auto auto; transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast); }
+.row-tap:active { transform: scale(0.99); background: var(--card-bg-hi); }
+.row-go { font-size: 1rem; color: var(--ink-faint); }
+
+/* Static (non-interactive) detail tiles, e.g. the day breakdown stats */
+.detail.static:active { transform: none; background: var(--card-bg); }
+
+/* ---------- Entrance animation ---------- */
+/* ---------- Entrance choreography (plays once on first load) ----------
+   Top-to-bottom: header → date → condition → icon → temperature (pop) →
+   degree symbol (slides out from behind the number) → summary → the
+   conditions bar and each condition one by one → forecast cards L→R.
+   `backwards` fill hides each element during its delay, then it returns to
+   its natural style — so nothing loops and state stays correct afterwards. */
+@keyframes eFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@keyframes ePop  { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
+@keyframes eDeg  { from { opacity: 0; transform: translateX(-0.5em); } to { opacity: 1; transform: none; } }
+@keyframes eFadeOnly { from { opacity: 0; } to { opacity: 1; } }
+
+.topbar    { animation: eFade 0.55s var(--ease-out) backwards 0ms; }
+.pill      { animation: eFade 0.5s var(--ease-out) backwards 130ms; }
+.condition { animation: eFade 0.5s var(--ease-out) backwards 220ms; }
+.hero-icon { animation: ePop 0.55s var(--ease-spring) backwards 300ms; }
+.temp-num  { animation: ePop 0.6s var(--ease-spring) backwards 380ms; }
+.temp-deg  { animation: eDeg 0.5s var(--ease-spring) backwards 680ms; }
+.summary .block-title { animation: eFade 0.5s var(--ease-out) backwards 760ms; }
+.summary-text         { animation: eFade 0.5s var(--ease-out) backwards 840ms; }
+
+.metrics { animation: eFadeOnly 0.5s var(--ease-out) backwards 920ms; }
+.metrics .metric:nth-child(1) { animation: eFade 0.45s var(--ease-out) backwards 1010ms; }
+.metrics .metric:nth-child(2) { animation: eFade 0.45s var(--ease-out) backwards 1085ms; }
+.metrics .metric:nth-child(3) { animation: eFade 0.45s var(--ease-out) backwards 1160ms; }
+
+[aria-label="Hourly forecast"] .block-head,
+[aria-label="Daily forecast"] .block-head { animation: eFade 0.5s var(--ease-out) backwards 1250ms; }
+
+/* Forecast cards pop in L→R, on first load only (the `intro` class is removed
+   after the entrance, so background refreshes never re-animate them). */
+.app.intro .rail .card { animation: ePop 0.5s var(--ease-spring) backwards; }
+.app.intro .rail .card:nth-child(1) { animation-delay: 1310ms; }
+.app.intro .rail .card:nth-child(2) { animation-delay: 1370ms; }
+.app.intro .rail .card:nth-child(3) { animation-delay: 1430ms; }
+.app.intro .rail .card:nth-child(4) { animation-delay: 1490ms; }
+.app.intro .rail .card:nth-child(5) { animation-delay: 1550ms; }
+.app.intro .rail .card:nth-child(6) { animation-delay: 1610ms; }
+.app.intro .rail .card:nth-child(7) { animation-delay: 1670ms; }
+.app.intro .rail .card:nth-child(n+8) { animation-delay: 1730ms; }
+
+[aria-label="Radar"]          { animation: eFade 0.6s var(--ease-out) backwards 1500ms; }
+[aria-label="Today's details"]{ animation: eFade 0.6s var(--ease-out) backwards 1650ms; }
+.foot { animation: eFade 0.6s var(--ease-out) backwards 1800ms; }
+
+/* Degree symbol sits tucked behind the number, then slides out. */
+.temp-num { display: inline-block; position: relative; z-index: 2; }
+.temp-deg { display: inline-block; position: relative; z-index: 1; }
+
+/* ---------- Responsive ---------- */
+@media (max-width: 420px) {
+  :root { --gutter: 18px; }
+  .icon-btn i { font-size: 2.2rem; }
+  .metric i { font-size: 2.1rem; }
+  .hour-card { width: 92px; }
+  .day-card { width: 104px; }
+}
+
+@media (min-width: 680px) {
+  .hero-icon { font-size: 8rem; }
+  .display { font-size: clamp(9rem, 22vw, 12rem); }
+}
+
+/* ---------- Reduced motion ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+}

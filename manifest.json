@@ -1,13 +1,13 @@
 {
-  "name": "Home Weather",
+  "name": "Weather",
   "short_name": "Weather",
-  "description": "A personal weather dashboard for home.",
+  "description": "A bold, flat, personal weather app.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait-primary",
-  "background_color": "#FFE84A",
-  "theme_color": "#FFE84A",
+  "orientation": "portrait",
+  "background_color": "#ffd83d",
+  "theme_color": "#ffd83d",
   "icons": [
     {
       "src": "icon.svg",

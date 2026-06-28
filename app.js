@@ -72,7 +72,7 @@ const radar = {
   mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, ecccLayerName: "", themeDark: null
 };
 const RAINVIEWER_API = "https://api.rainviewer.com/public/weather-maps.json";
-const RV_COLOR = 4;    // colour scheme: Weather Channel
+const RV_COLOR = 7;    // colour scheme: Dark Sky (Apple-like blue→purple→red→yellow)
 const RV_OPTS = "1_1"; // smooth + show snow
 const RV_SIZE = 256;
 // Environment & Climate Change Canada radar (GeoMet WMS, time-animated).
@@ -842,6 +842,10 @@ function baseTileUrl() {
     ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
     : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
 }
+// Radar maps always use the dark basemap so precipitation colours pop.
+function radarTileUrl() {
+  return "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
+}
 function owmTileUrl(layer) {
   return `https://tile.openweathermap.org/map/${layer}/{z}/{x}/{y}.png?appid=${API_KEY}`;
 }
@@ -857,7 +861,7 @@ async function initRadarPreview() {
       zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false,
       doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, tap: false
     }).setView([c.lat, c.lon], 6);
-    radar.previewBase = L.tileLayer(baseTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(radar.preview);
+    radar.previewBase = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(radar.preview);
     requestAnimationFrame(() => radar.preview && radar.preview.invalidateSize());
     // Overlay the latest radar frame: ECCC for Canadian locations, RainViewer elsewhere.
     if (inCanada(c.lat, c.lon)) {
@@ -891,7 +895,7 @@ function initRadarMap() {
   if (radar.map) { radar.map.setView([c.lat, c.lon]); return; }
   try {
     radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: true, preferCanvas: true, minZoom: 3, maxZoom: 12 }).setView([c.lat, c.lon], 7);
-    radar.base = L.tileLayer(baseTileUrl(), {
+    radar.base = L.tileLayer(radarTileUrl(), {
       subdomains: "abcd", maxZoom: 19, updateWhenZooming: false, keepBuffer: 1, attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(radar.map);
     radar.marker = L.circleMarker([c.lat, c.lon], {
@@ -1050,7 +1054,14 @@ function makeRadarLayer() {
     }).addTo(radar.map);
   }
   const c = layer.getContainer && layer.getContainer();
-  if (c) c.style.transition = "opacity 450ms ease";
+  if (c) {
+    c.style.transition = "opacity 550ms ease-in-out";
+    if (radar.source === "eccc") {
+      // Shift ECCC's green/yellow palette toward the blue-purple-red range
+      // so it reads like the Dark Sky heat-map colour scale.
+      c.style.filter = "hue-rotate(140deg) saturate(2) brightness(1.1)";
+    }
+  }
   return layer;
 }
 
@@ -1069,8 +1080,11 @@ function showFrame(i, immediate, onShown) {
   const backLayer = radar.layers[1 - radar.front];
   if (immediate || !backLayer) {
     applyFrame(frontLayer, f);
-    frontLayer.setOpacity(0.85);
+    frontLayer.setOpacity(0.9);
     if (backLayer) backLayer.setOpacity(0);
+    // Pre-warm next frame
+    const ni = (radar.idx + 1) % radar.frames.length;
+    if (backLayer && radar.frames[ni]) applyFrame(backLayer, radar.frames[ni]);
     if (onShown) onShown();
     return;
   }
@@ -1079,14 +1093,17 @@ function showFrame(i, immediate, onShown) {
   const reveal = () => {
     if (done || gen !== radar.gen) return;
     done = true;
-    backLayer.setOpacity(0.85);
+    backLayer.setOpacity(0.9);
     frontLayer.setOpacity(0);
     radar.front = 1 - radar.front;
+    // Pre-warm next frame into now-idle layer so tiles load during the hold gap.
+    const nextIdx = (radar.idx + 1) % radar.frames.length;
+    if (radar.frames[nextIdx]) applyFrame(frontLayer, radar.frames[nextIdx]);
     if (onShown) onShown();
   };
   applyFrame(backLayer, f);
   if (backLayer.once) backLayer.once("load", reveal);
-  setTimeout(reveal, 700); // fallback so playback never stalls
+  setTimeout(reveal, 400); // fallback — tiles are pre-warmed so 400ms is ample
 }
 
 function relTime(f) {
@@ -1109,7 +1126,7 @@ function startRadarPlay() {
   const advance = () => {
     if (!radar.playing) return;
     const atEnd = radar.idx === radar.frames.length - 1;
-    showFrame(radar.idx + 1, false, () => { if (radar.playing) radar.timer = setTimeout(advance, atEnd ? 1500 : 250); });
+    showFrame(radar.idx + 1, false, () => { if (radar.playing) radar.timer = setTimeout(advance, atEnd ? 1200 : 300); });
   };
   radar.timer = setTimeout(advance, 250);
 }
