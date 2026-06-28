@@ -644,9 +644,9 @@ function initRadarMap() {
   const c = state.center;
   if (radar.map) { radar.map.setView([c.lat, c.lon]); return; }
   try {
-    radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: true, preferCanvas: true }).setView([c.lat, c.lon], 7);
+    radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: true, preferCanvas: true, minZoom: 3, maxZoom: 12 }).setView([c.lat, c.lon], 7);
     radar.base = L.tileLayer(baseTileUrl(), {
-      subdomains: "abcd", maxZoom: 18, updateWhenZooming: false, keepBuffer: 1, attribution: '&copy; OpenStreetMap &copy; CARTO'
+      subdomains: "abcd", maxZoom: 19, updateWhenZooming: false, keepBuffer: 1, attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(radar.map);
     radar.marker = L.circleMarker([c.lat, c.lon], {
       radius: 7, weight: 3, color: "#ffffff",
@@ -691,7 +691,7 @@ function applyMode(mode) {
     loadRainviewer();
   } else {
     el.radarTimeline.style.display = "none";
-    radar.owm = L.tileLayer(owmTileUrl(mode), { opacity: 0.72, maxZoom: 18, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; OpenWeather" }).addTo(radar.map);
+    radar.owm = L.tileLayer(owmTileUrl(mode), { opacity: 0.72, maxZoom: 12, maxNativeZoom: 9, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; OpenWeather" }).addTo(radar.map);
   }
 }
 
@@ -719,7 +719,7 @@ async function loadRainviewer() {
     el.radarScrub.max = String(frames.length - 1);
     if (!radar.overlay) {
       radar.overlay = L.tileLayer(rvUrl(frames[radar.idx]), {
-        opacity: 0.85, maxZoom: 18, tileSize: RV_SIZE, updateWhenZooming: false, keepBuffer: 0, attribution: "&copy; RainViewer"
+        opacity: 0.85, maxZoom: 12, maxNativeZoom: 10, tileSize: RV_SIZE, updateWhenZooming: false, keepBuffer: 0, attribution: "&copy; RainViewer"
       }).addTo(radar.map);
     }
     showFrame(radar.idx);
