@@ -52,7 +52,7 @@ const state = {
   data: null,
   hourly: [],
   daily: [],
-  tab: "hourly",
+  detail: { metric: "temp", range: "hourly" },
   center: { ...HOME },
   tz: 0,
   placeName: "",
@@ -113,9 +113,14 @@ function wireEvents() {
     };
   });
 
-  el.hourlyMore.onclick = () => openSheet("hourly");
-  el.dailyMore.onclick = () => openSheet("daily");
+  el.hourlyMore.onclick = () => openDetail("temp", "hourly");
+  el.dailyMore.onclick = () => openDetail("temp", "daily");
   el.sheetBack.onclick = closeSheet;
+  el.windCard.onclick = () => openDetail("wind");
+  el.detailGrid.addEventListener("click", (e) => {
+    const card = e.target.closest("[data-metric]");
+    if (card) openDetail(card.dataset.metric, card.dataset.range || "hourly");
+  });
   el.radarPreview.onclick = openRadar;
   el.radarMore.onclick = openRadar;
   el.radarBack.onclick = closeRadar;
@@ -123,14 +128,14 @@ function wireEvents() {
   el.radarPlay.onclick = toggleRadarPlay;
   el.radarScrub.oninput = () => { stopRadarPlay(); showFrame(Number(el.radarScrub.value), true); };
   el.tabSeg.querySelectorAll("[data-tab]").forEach((b) => {
-    b.onclick = () => setTab(b.dataset.tab);
+    b.onclick = () => setRange(b.dataset.tab);
   });
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { closeSheet(); closeDrawer(); closeRadar(); }
   });
 
-  window.addEventListener("resize", () => { if (state.sheetOpen) drawGraph(); });
+  window.addEventListener("resize", () => { if (state.sheetOpen) drawDetailChart(); });
 
   initGestures();
 }
@@ -204,7 +209,7 @@ function render(data) {
   state.placeName = current.name || state.loc.label;
   syncMaps();
 
-  if (state.sheetOpen) { drawGraph(); renderSheetList(); }
+  if (state.sheetOpen) renderDetailSheet();
 }
 
 function renderHourly() {
@@ -215,7 +220,7 @@ function renderHourly() {
       <strong>${Math.round(h.temp)}°</strong>
       <span>${Math.round(h.pop * 100)}%</span>
     </button>`).join("");
-  el.hourRail.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => openSheet("hourly"));
+  el.hourRail.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => openDetail("temp", "hourly"));
 }
 
 function renderDaily() {
@@ -226,7 +231,7 @@ function renderDaily() {
       <strong class="hi">${Math.round(d.max)}°</strong>
       <span class="lo">${Math.round(d.min)}°</span>
     </button>`).join("");
-  el.dayRail.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => openSheet("daily"));
+  el.dayRail.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => openDetail("temp", "daily"));
 }
 
 function renderSun(current) {
@@ -302,38 +307,39 @@ function renderDetails(current, forecast) {
   const actual = Math.round(m.temp ?? feels);
   const fd = feels - actual;
   const fSub = Math.abs(fd) < 1 ? "Similar to the actual temperature." : fd < 0 ? `${Math.abs(fd)}° colder than actual.` : `${fd}° warmer than actual.`;
-  items.push(["ph-thermometer-simple", "Feels like", `${feels}°`, fSub]);
+  items.push(["feels", "ph-thermometer-simple", "Feels like", `${feels}°`, fSub]);
 
-  if (today) items.push(["ph-arrows-vertical", "High / Low", `${Math.round(today.max)}° / ${Math.round(today.min)}°`, "Today"]);
+  if (today) items.push(["temp", "ph-arrows-vertical", "High / Low", `${Math.round(today.max)}° / ${Math.round(today.min)}°`, "Today", "daily"]);
 
   if (m.humidity != null) {
     const dp = dewPointDisplay(m.temp, m.humidity);
-    items.push(["ph-drop", "Humidity", `${m.humidity}%`, dp != null ? `Dew point ${dp}°` : ""]);
+    items.push(["humidity", "ph-drop", "Humidity", `${m.humidity}%`, dp != null ? `Dew point ${dp}°` : ""]);
   } else {
-    items.push(["ph-drop", "Humidity", "—", ""]);
+    items.push(["humidity", "ph-drop", "Humidity", "—", ""]);
   }
 
   items.push(precipDetail(current, forecast, tz));
-  items.push(["ph-eye", "Visibility", visibilityText(current.visibility), visDescriptor(current.visibility)]);
-  items.push(["ph-gauge", "Pressure", m.pressure != null ? `${m.pressure}` : "—", m.pressure != null ? "hPa" : ""]);
-  items.push(["ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "—", cloudDescriptor(clouds.all)]);
+  items.push(["visibility", "ph-eye", "Visibility", visibilityText(current.visibility), visDescriptor(current.visibility)]);
+  items.push(["pressure", "ph-gauge", "Pressure", m.pressure != null ? `${m.pressure}` : "—", m.pressure != null ? "hPa" : ""]);
+  items.push(["clouds", "ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "—", cloudDescriptor(clouds.all)]);
 
-  el.detailGrid.innerHTML = items.map(([icon, label, value, sub]) => `
-    <div class="detail">
+  el.detailGrid.innerHTML = items.map(([metric, icon, label, value, sub, range]) => `
+    <button class="detail" data-metric="${metric}"${range ? ` data-range="${range}"` : ""}>
       <i class="ph-duotone ${icon}"></i>
       <span class="d-label">${label}</span>
       <strong class="d-value">${value}</strong>
       ${sub ? `<span class="d-sub">${sub}</span>` : ""}
-    </div>`).join("");
+      <i class="ph ph-caret-right d-go"></i>
+    </button>`).join("");
 }
 
 function precipDetail(current, forecast, tz) {
   const snow = current.snow?.["1h"] ?? current.snow?.["3h"];
   const rain = current.rain?.["1h"] ?? current.rain?.["3h"];
-  if (snow != null) return ["ph-cloud-snow", "Snow", `${snow} mm`, "Last hour"];
-  if (rain != null) return ["ph-cloud-rain", "Precipitation", `${rain} mm`, "Last hour"];
+  if (snow != null) return ["precip", "ph-cloud-snow", "Snow", `${snow} mm`, "Last hour"];
+  if (rain != null) return ["precip", "ph-cloud-rain", "Precipitation", `${rain} mm`, "Last hour"];
   const next = nextPrecip(forecast, tz);
-  return ["ph-umbrella", "Precipitation", "0 mm", next ? `Next: ${next.amt} mm ${next.when}` : "None expected soon"];
+  return ["precip", "ph-umbrella", "Precipitation", "0 mm", next ? `Next: ${next.amt} mm ${next.when}` : "None expected soon"];
 }
 
 function nextPrecip(forecast, tz) {
@@ -465,17 +471,64 @@ function iconClass(main, isNight) {
   return isNight ? "ph-duotone ph-moon-stars" : "ph-duotone ph-sun";
 }
 
-/* ---------- Detail sheet + graph ---------- */
-function openSheet(tab) {
-  state.tab = tab;
+/* ---------- Detail sheet (per-metric, Apple-style) ---------- */
+function speedUnit() { return state.units === "imperial" ? "mph" : "km/h"; }
+function visUnit() { return state.units === "imperial" ? "mi" : "km"; }
+function visVal(mtr) { if (mtr == null) return 0; return state.units === "imperial" ? mtr / 1609 : mtr / 1000; }
+
+const METRICS = {
+  temp: {
+    label: "Temperature", unit: "°", decimals: 0, daily: true,
+    get: (it) => it.main.temp,
+    desc: () => { const t = state.daily[0]; return t ? `High near ${Math.round(t.max)}°, low near ${Math.round(t.min)}°.` : "Temperature trend ahead."; }
+  },
+  feels: {
+    label: "Feels Like", unit: "°", decimals: 0,
+    get: (it) => it.main.feels_like,
+    desc: (c) => { const f = Math.round(c.main?.feels_like ?? 0), a = Math.round(c.main?.temp ?? 0), d = f - a; return Math.abs(d) < 1 ? "Feels about the same as the actual temperature." : d < 0 ? `Feels ${Math.abs(d)}° colder than the air temperature.` : `Feels ${d}° warmer than the air temperature.`; }
+  },
+  humidity: {
+    label: "Humidity", unit: "%", decimals: 0,
+    get: (it) => it.main.humidity,
+    desc: (c) => { const dp = dewPointDisplay(c.main?.temp, c.main?.humidity); return dp != null ? `The dew point is ${dp}° right now.` : "Relative humidity over the next hours."; }
+  },
+  wind: {
+    label: "Wind", unit: speedUnit(), decimals: 0,
+    get: (it) => windParts(it.wind?.speed || 0).v,
+    desc: (c) => { const w = c.wind || {}; const g = w.gust != null ? `, gusting ${windText(w.gust)}` : ""; return `${windText(w.speed || 0)} from the ${w.deg != null ? direction(w.deg) : "—"}${g}.`; }
+  },
+  pressure: {
+    label: "Pressure", unit: "hPa", decimals: 0,
+    get: (it) => it.main.pressure,
+    desc: (c) => { const p = c.main?.pressure; return p != null ? `${p} hPa — ${p >= 1013 ? "above" : "below"} the 1013 hPa average.` : "Sea-level pressure ahead."; }
+  },
+  precip: {
+    label: "Precipitation", unit: "%", decimals: 0,
+    get: (it) => (it.pop || 0) * 100,
+    desc: () => { const n = nextPrecip(state.data?.forecast, state.tz); const t = state.daily[0]; const pop = t ? Math.round((t.pop || 0) * 100) : 0; return n ? `Next precipitation around ${n.when}.` : pop > 0 ? `${pop}% chance today.` : "No precipitation expected soon."; }
+  },
+  clouds: {
+    label: "Cloud Cover", unit: "%", decimals: 0,
+    get: (it) => it.clouds?.all ?? 0,
+    desc: (c) => cloudDescriptor(c.clouds?.all) + " Cloud cover over the next hours."
+  },
+  visibility: {
+    label: "Visibility", unit: visUnit(), decimals: 1,
+    get: (it) => visVal(it.visibility),
+    desc: (c) => `${visDescriptor(c.visibility)} Currently ${visibilityText(c.visibility)}.`
+  }
+};
+
+function openDetail(metric, range) {
+  if (!METRICS[metric]) metric = "temp";
+  state.detail = { metric, range: (range && METRICS[metric].daily) ? range : "hourly" };
   state.sheetOpen = true;
-  syncTabs();
   el.sheet.classList.add("is-open");
   el.sheet.setAttribute("aria-hidden", "false");
   el.sheet.style.transform = "";
   document.body.style.overflow = "hidden";
-  drawGraph();
-  renderSheetList();
+  el.sheet.scrollTop = 0;
+  renderDetailSheet();
 }
 
 function closeSheet() {
@@ -486,46 +539,81 @@ function closeSheet() {
   document.body.style.overflow = "";
 }
 
-function setTab(tab) {
-  state.tab = tab;
-  syncTabs();
-  drawGraph();
-  renderSheetList();
+function setRange(range) {
+  state.detail.range = range;
+  syncRange();
+  drawDetailChart();
+  renderDetailList();
   el.sheet.scrollTo({ top: 0, behavior: "smooth" });
 }
 
-function syncTabs() {
+function syncRange() {
   el.tabSeg.querySelectorAll("[data-tab]").forEach((b) =>
-    b.classList.toggle("is-active", b.dataset.tab === state.tab));
-  const hourly = state.tab === "hourly";
-  el.sheetTitle.textContent = hourly ? "Hourly trend" : "Daily trend";
-  el.sheetNote.textContent = hourly
-    ? "Temperature across the next hours."
-    : "Daily highs and lows for the days ahead.";
+    b.classList.toggle("is-active", b.dataset.tab === state.detail.range));
 }
 
-function renderSheetList() {
-  if (state.tab === "hourly") {
-    el.sheetList.innerHTML = state.hourly.map((h) => `
-      <div class="row">
-        <span class="row-label">${h.label}</span>
-        <i class="row-icon ${iconClass(h.main, h.hour < 6 || h.hour >= 20)}"></i>
-        <span class="row-temp">${Math.round(h.temp)}°<span class="row-sub"> · ${Math.round(h.pop * 100)}%</span></span>
-      </div>`).join("");
+function renderDetailSheet() {
+  const m = METRICS[state.detail.metric];
+  if (!m) return;
+  el.sheetTitle.textContent = m.label;
+  el.tabSeg.style.display = m.daily ? "" : "none";
+  syncRange();
+  el.sheetNote.textContent = m.desc ? m.desc(state.data?.current || {}) : "";
+  drawDetailChart();
+  renderDetailList();
+}
+
+function detailSeries() {
+  const m = METRICS[state.detail.metric];
+  const tz = state.tz || 0;
+  return (state.data?.forecast?.list || []).slice(0, 16)
+    .map((it) => ({ label: fmtHour(it.dt, tz), hi: m.get(it) }))
+    .filter((r) => Number.isFinite(r.hi));
+}
+
+function drawDetailChart() {
+  const m = METRICS[state.detail.metric];
+  if (state.detail.metric === "temp" && state.detail.range === "daily") {
+    drawChart(state.daily.map((d) => ({ label: d.label, hi: d.max, lo: d.min })), m, true);
   } else {
+    drawChart(detailSeries(), m, false);
+  }
+}
+
+function renderDetailList() {
+  const m = METRICS[state.detail.metric];
+  const tz = state.tz || 0;
+  if (state.detail.metric === "temp" && state.detail.range === "daily") {
     el.sheetList.innerHTML = state.daily.map((d) => `
       <div class="row">
         <span class="row-label">${d.label}</span>
         <i class="row-icon ${iconClass(d.main, false)}"></i>
         <span class="row-temp">${Math.round(d.max)}°<span class="row-sub"> / ${Math.round(d.min)}°</span></span>
       </div>`).join("");
+    return;
   }
+  const dec = m.decimals || 0;
+  const unit = state.detail.metric === "wind" ? speedUnit() : state.detail.metric === "visibility" ? visUnit() : m.unit;
+  const valTxt = (v) => {
+    const n = dec ? v.toFixed(dec) : `${Math.round(v)}`;
+    return unit === "°" ? `${n}°` : `${n} ${unit}`;
+  };
+  el.sheetList.innerHTML = (state.data?.forecast?.list || []).slice(0, 16).map((it) => `
+    <div class="row">
+      <span class="row-label">${fmtHour(it.dt, tz)}</span>
+      <i class="row-icon ${iconClass(it.weather?.[0]?.main, false)}"></i>
+      <span class="row-temp">${valTxt(m.get(it))}</span>
+    </div>`).join("");
 }
 
-function drawGraph() {
-  const rows = state.tab === "hourly"
-    ? state.hourly.map((h) => ({ label: h.label, hi: h.temp }))
-    : state.daily.map((d) => ({ label: d.label, hi: d.max, lo: d.min }));
+function hexA(hex, a) {
+  const h = (hex || "").replace("#", "");
+  const n = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  const r = parseInt(n.slice(0, 2), 16) || 0, g = parseInt(n.slice(2, 4), 16) || 0, b = parseInt(n.slice(4, 6), 16) || 0;
+  return `rgba(${r}, ${g}, ${b}, ${a})`;
+}
+
+function drawChart(rows, m, dual) {
   const canvas = el.graph;
   const ctx = canvas.getContext("2d");
   const rect = canvas.getBoundingClientRect();
@@ -537,58 +625,70 @@ function drawGraph() {
   if (!rows.length) return;
 
   const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
-  const hasLo = rows.some((r) => Number.isFinite(r.lo));
-  const vals = rows.flatMap((r) => [r.hi, r.lo]).filter(Number.isFinite);
-  const min = Math.min(...vals) - 1;
-  const max = Math.max(...vals) + 1;
-  const padX = 30, padTop = 34, padBottom = 30;
-  const w = rect.width - padX * 2;
-  const h = rect.height - padTop - padBottom;
-  const x = (i) => padX + (w / Math.max(1, rows.length - 1)) * i;
-  const y = (v) => padTop + h - ((v - min) / Math.max(1, max - min)) * h;
+  const vals = rows.flatMap((r) => dual ? [r.hi, r.lo] : [r.hi]).filter(Number.isFinite);
+  let min = Math.min(...vals), max = Math.max(...vals);
+  if (min === max) { min -= 1; max += 1; } else { const pad = (max - min) * 0.18; min -= pad; max += pad; }
+  const padX = 28, padTop = 34, padB = 30;
+  const w = rect.width - padX * 2, h = rect.height - padTop - padB;
+  const X = (i) => padX + (w / Math.max(1, rows.length - 1)) * i;
+  const Y = (v) => padTop + h - ((v - min) / Math.max(1e-6, max - min)) * h;
+  const dec = m.decimals || 0;
+  const lab = (v) => dec ? v.toFixed(dec) : (m.unit === "°" ? `${Math.round(v)}°` : `${Math.round(v)}`);
 
   // gridlines
-  ctx.strokeStyle = ink; ctx.globalAlpha = 0.14; ctx.lineWidth = 1;
-  for (let i = 0; i <= 3; i++) {
-    const gy = padTop + (h / 3) * i;
-    ctx.beginPath(); ctx.moveTo(padX, gy); ctx.lineTo(rect.width - padX, gy); ctx.stroke();
-  }
+  ctx.strokeStyle = ink; ctx.globalAlpha = 0.12; ctx.lineWidth = 1;
+  for (let i = 0; i <= 3; i++) { const gy = padTop + (h / 3) * i; ctx.beginPath(); ctx.moveTo(padX, gy); ctx.lineTo(rect.width - padX, gy); ctx.stroke(); }
   ctx.globalAlpha = 1;
 
-  const line = (key, alpha, width) => {
-    ctx.beginPath();
+  const curve = (key) => {
     rows.forEach((r, i) => {
-      if (!Number.isFinite(r[key])) return;
-      const px = x(i), py = y(r[key]);
+      const px = X(i), py = Y(r[key]);
       if (i === 0) ctx.moveTo(px, py);
-      else {
-        const prev = rows[i - 1];
-        const cx = (x(i - 1) + px) / 2;
-        ctx.bezierCurveTo(cx, y(prev[key]), cx, py, px, py);
-      }
+      else { const cx = (X(i - 1) + px) / 2; ctx.bezierCurveTo(cx, Y(rows[i - 1][key]), cx, py, px, py); }
     });
-    ctx.strokeStyle = ink; ctx.globalAlpha = alpha; ctx.lineWidth = width;
-    ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
-    ctx.globalAlpha = 1;
   };
-  if (hasLo) line("lo", 0.4, 3);
-  line("hi", 1, 4);
+
+  if (!dual) {
+    // area fill under the line
+    ctx.beginPath(); curve("hi");
+    ctx.lineTo(X(rows.length - 1), padTop + h); ctx.lineTo(X(0), padTop + h); ctx.closePath();
+    const g = ctx.createLinearGradient(0, padTop, 0, padTop + h);
+    g.addColorStop(0, hexA(ink, 0.26)); g.addColorStop(1, hexA(ink, 0));
+    ctx.fillStyle = g; ctx.fill();
+  } else {
+    // band between high and low
+    ctx.beginPath(); curve("hi");
+    for (let i = rows.length - 1; i >= 0; i--) {
+      const px = X(i), py = Y(rows[i].lo);
+      if (i === rows.length - 1) ctx.lineTo(px, py);
+      else { const cx = (X(i + 1) + px) / 2; ctx.bezierCurveTo(cx, Y(rows[i + 1].lo), cx, py, px, py); }
+    }
+    ctx.closePath(); ctx.fillStyle = hexA(ink, 0.14); ctx.fill();
+  }
+
+  const stroke = (key, alpha, width) => { ctx.beginPath(); curve(key); ctx.strokeStyle = ink; ctx.globalAlpha = alpha; ctx.lineWidth = width; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke(); ctx.globalAlpha = 1; };
+  if (dual) stroke("lo", 0.4, 3);
+  stroke("hi", 1, 3.5);
+
+  // "now" marker for hourly charts
+  if (!dual) {
+    ctx.setLineDash([3, 4]); ctx.strokeStyle = ink; ctx.globalAlpha = 0.4; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(X(0), padTop); ctx.lineTo(X(0), padTop + h); ctx.stroke();
+    ctx.setLineDash([]); ctx.globalAlpha = 1;
+  }
 
   // points + labels
-  ctx.fillStyle = ink;
-  ctx.font = "700 12px Inter, system-ui";
-  ctx.textAlign = "center";
+  ctx.fillStyle = ink; ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center";
   const step = rows.length > 8 ? 2 : 1;
   rows.forEach((r, i) => {
-    ctx.globalAlpha = 1;
-    ctx.beginPath(); ctx.arc(x(i), y(r.hi), 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(X(i), Y(r.hi), 4, 0, Math.PI * 2); ctx.fill();
+    if (dual) { ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(X(i), Y(r.lo), 3.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
     if (i % step === 0) {
-      ctx.fillText(`${Math.round(r.hi)}°`, x(i), y(r.hi) - 12);
-      ctx.globalAlpha = 0.6;
-      ctx.fillText(r.label, x(i), rect.height - 10);
+      ctx.fillText(lab(r.hi), X(i), Y(r.hi) - 12);
+      if (dual) { ctx.globalAlpha = 0.6; ctx.fillText(lab(r.lo), X(i), Y(r.lo) + 18); ctx.globalAlpha = 1; }
+      ctx.globalAlpha = 0.55; ctx.fillText(i === 0 && !dual ? "Now" : r.label, X(i), rect.height - 10); ctx.globalAlpha = 1;
     }
   });
-  ctx.globalAlpha = 1;
 }
 
 /* ---------- Drawer ---------- */

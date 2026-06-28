@@ -422,6 +422,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   gap: var(--s-3);
 }
 .detail {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--s-1);
@@ -430,6 +431,17 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   border-radius: var(--r-md);
   padding: var(--s-4);
   min-width: 0;
+  width: 100%;
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.detail:active { transform: scale(0.97); background: var(--card-bg-hi); }
+.d-go {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  font-size: 1rem;
+  color: var(--ink-faint);
 }
 .detail i { font-size: 1.8rem; color: var(--ink); margin-bottom: var(--s-1); }
 .d-label {
@@ -452,7 +464,11 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   background: var(--card-bg);
   border-radius: var(--r-lg);
   padding: var(--s-5);
+  width: 100%;
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
 }
+.wind-card:active { transform: scale(0.98); background: var(--card-bg-hi); }
 .wind-stats { display: flex; flex-direction: column; gap: var(--s-3); min-width: 0; }
 .wind-row {
   display: flex;
