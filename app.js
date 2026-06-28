@@ -65,8 +65,8 @@ const state = {
 /* Radar / map (Leaflet) state.
    mode "radar" = animated RainViewer; others = OpenWeather static layers. */
 const radar = {
-  map: null, base: null, owm: null, marker: null, preview: null, previewBase: null,
-  mode: "radar", frames: [], frameLayers: [], idx: 0, playing: false, timer: null, host: "", loaded: false
+  map: null, base: null, owm: null, overlay: null, marker: null, preview: null, previewBase: null,
+  mode: "radar", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, themeDark: null
 };
 const RAINVIEWER_API = "https://api.rainviewer.com/public/weather-maps.json";
 const RV_COLOR = 4;    // colour scheme: Weather Channel
@@ -616,39 +616,47 @@ function baseTileUrl() {
 function owmTileUrl(layer) {
   return `https://tile.openweathermap.org/map/${layer}/{z}/{x}/{y}.png?appid=${API_KEY}`;
 }
+function rvUrl(f) {
+  return `${radar.host}${f.path}/${RV_SIZE}/{z}/{x}/{y}/${RV_COLOR}/${RV_OPTS}.png`;
+}
 
 async function initRadarPreview() {
   if (!haveLeaflet() || radar.preview) return;
-  const c = state.center;
-  radar.preview = L.map(el.radarPreviewMap, {
-    zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false,
-    doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, tap: false
-  }).setView([c.lat, c.lon], 6);
-  radar.previewBase = L.tileLayer(baseTileUrl(), { subdomains: "abcd" }).addTo(radar.preview);
-  // Show the actual latest radar frame so the preview mirrors the radar screen.
   try {
+    const c = state.center;
+    radar.preview = L.map(el.radarPreviewMap, {
+      zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false,
+      doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, tap: false
+    }).setView([c.lat, c.lon], 6);
+    radar.previewBase = L.tileLayer(baseTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(radar.preview);
+    requestAnimationFrame(() => radar.preview && radar.preview.invalidateSize());
+    // Overlay the latest radar frame so the preview mirrors the radar screen.
     const frames = await ensureFrames();
-    if (frames.length) {
-      const f = frames[radar.idx];
-      L.tileLayer(`${radar.host}${f.path}/${RV_SIZE}/{z}/{x}/{y}/${RV_COLOR}/${RV_OPTS}.png`, { opacity: 0.8 }).addTo(radar.preview);
+    if (radar.preview && frames.length) {
+      L.tileLayer(rvUrl(frames[radar.idx]), { opacity: 0.8, tileSize: RV_SIZE }).addTo(radar.preview);
     }
+    setTimeout(() => radar.preview && radar.preview.invalidateSize(), 400);
   } catch {}
-  setTimeout(() => radar.preview && radar.preview.invalidateSize(), 300);
 }
 
 function initRadarMap() {
   if (!haveLeaflet()) { el.radarMap.innerHTML = '<div class="map-fallback">The map needs an internet connection.</div>'; el.radarTimeline.style.display = "none"; return; }
   const c = state.center;
   if (radar.map) { radar.map.setView([c.lat, c.lon]); return; }
-  radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: true }).setView([c.lat, c.lon], 7);
-  radar.base = L.tileLayer(baseTileUrl(), {
-    subdomains: "abcd", maxZoom: 18, attribution: '&copy; OpenStreetMap &copy; CARTO'
-  }).addTo(radar.map);
-  radar.marker = L.circleMarker([c.lat, c.lon], {
-    radius: 7, weight: 3, color: "#ffffff",
-    fillColor: getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a",
-    fillOpacity: 1
-  }).addTo(radar.map);
+  try {
+    radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: true, preferCanvas: true }).setView([c.lat, c.lon], 7);
+    radar.base = L.tileLayer(baseTileUrl(), {
+      subdomains: "abcd", maxZoom: 18, updateWhenZooming: false, keepBuffer: 1, attribution: '&copy; OpenStreetMap &copy; CARTO'
+    }).addTo(radar.map);
+    radar.marker = L.circleMarker([c.lat, c.lon], {
+      radius: 7, weight: 3, color: "#ffffff",
+      fillColor: getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a",
+      fillOpacity: 1
+    }).addTo(radar.map);
+  } catch {
+    el.radarMap.innerHTML = '<div class="map-fallback">The map could not be loaded.</div>';
+    el.radarTimeline.style.display = "none";
+  }
 }
 
 function openRadar() {
@@ -675,14 +683,15 @@ function applyMode(mode) {
     b.classList.toggle("is-active", b.dataset.layer === mode));
   updateRadarNote();
   if (!haveLeaflet() || !radar.map) return;
-  clearFrames();
+  stopRadarPlay();
+  if (radar.overlay) { radar.map.removeLayer(radar.overlay); radar.overlay = null; }
   if (radar.owm) { radar.map.removeLayer(radar.owm); radar.owm = null; }
   if (mode === "radar") {
     el.radarTimeline.style.display = "";
     loadRainviewer();
   } else {
     el.radarTimeline.style.display = "none";
-    radar.owm = L.tileLayer(owmTileUrl(mode), { opacity: 0.72, maxZoom: 18, attribution: "&copy; OpenWeather" }).addTo(radar.map);
+    radar.owm = L.tileLayer(owmTileUrl(mode), { opacity: 0.72, maxZoom: 18, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; OpenWeather" }).addTo(radar.map);
   }
 }
 
@@ -699,15 +708,20 @@ async function ensureFrames() {
   return radar.frames;
 }
 
+// One overlay layer, animated by swapping its URL — keeps memory flat so
+// mobile Safari doesn't run out of memory (the previous preload-all crashed).
 async function loadRainviewer() {
   if (!haveLeaflet() || !radar.map) return;
   try {
     const frames = await ensureFrames();
-    if (!frames.length) { el.radarTimeline.style.display = "none"; return; }
+    if (!frames.length || !radar.map || radar.mode !== "radar") { el.radarTimeline.style.display = "none"; return; }
     el.radarTimeline.style.display = "";
-    radar.frameLayers = new Array(frames.length).fill(null);
     el.radarScrub.max = String(frames.length - 1);
-    for (let i = 0; i < frames.length; i++) frameLayer(i); // preload all frames for smooth playback
+    if (!radar.overlay) {
+      radar.overlay = L.tileLayer(rvUrl(frames[radar.idx]), {
+        opacity: 0.85, maxZoom: 18, tileSize: RV_SIZE, updateWhenZooming: false, keepBuffer: 0, attribution: "&copy; RainViewer"
+      }).addTo(radar.map);
+    }
     showFrame(radar.idx);
     startRadarPlay();
   } catch {
@@ -715,37 +729,26 @@ async function loadRainviewer() {
   }
 }
 
-function frameLayer(i) {
-  if (radar.frameLayers[i]) return radar.frameLayers[i];
-  const f = radar.frames[i];
-  const url = `${radar.host}${f.path}/${RV_SIZE}/{z}/{x}/{y}/${RV_COLOR}/${RV_OPTS}.png`;
-  const layer = L.tileLayer(url, { opacity: 0, maxZoom: 18, tileSize: RV_SIZE, attribution: "&copy; RainViewer" }).addTo(radar.map);
-  const cont = layer.getContainer && layer.getContainer();
-  if (cont) cont.style.transition = "opacity 240ms linear"; // crossfade between frames
-  radar.frameLayers[i] = layer;
-  return layer;
-}
-
 function showFrame(i) {
-  if (!radar.frames.length) return;
+  if (!radar.frames.length || !radar.overlay) return;
   radar.idx = (i + radar.frames.length) % radar.frames.length;
-  radar.frameLayers.forEach((l, idx) => { if (l) l.setOpacity(idx === radar.idx ? 0.85 : 0); });
-  frameLayer(radar.idx).setOpacity(0.85);
-  el.radarScrub.value = String(radar.idx);
   const f = radar.frames[radar.idx];
+  radar.overlay.setUrl(rvUrl(f));
+  el.radarScrub.value = String(radar.idx);
   el.radarTime.textContent = `${fmtClock(f.time, state.tz || 0)}${f.kind === "forecast" ? " ·fcst" : ""}`;
 }
 
 function startRadarPlay() {
   stopRadarPlay();
+  if (!radar.frames.length) return;
   radar.playing = true;
   el.radarPlay.innerHTML = '<i class="ph ph-pause"></i>';
   const step = () => {
     showFrame(radar.idx + 1);
     const atEnd = radar.idx === radar.frames.length - 1;
-    radar.timer = setTimeout(step, atEnd ? 1400 : 480); // brief hold on the latest frame
+    radar.timer = setTimeout(step, atEnd ? 1400 : 700); // brief hold on the latest frame
   };
-  radar.timer = setTimeout(step, 480);
+  radar.timer = setTimeout(step, 700);
 }
 function stopRadarPlay() {
   radar.playing = false;
@@ -753,12 +756,6 @@ function stopRadarPlay() {
   if (el.radarPlay) el.radarPlay.innerHTML = '<i class="ph ph-play"></i>';
 }
 function toggleRadarPlay() { radar.playing ? stopRadarPlay() : startRadarPlay(); }
-
-function clearFrames() {
-  stopRadarPlay();
-  radar.frameLayers.forEach((l) => l && radar.map.removeLayer(l));
-  radar.frameLayers = [];
-}
 
 function updateRadarNote() {
   const place = state.placeName || "your area";
@@ -775,6 +772,9 @@ function syncMaps() {
 
 function updateMapTheme() {
   if (!haveLeaflet()) return;
+  const dark = !!state.dark;
+  if (radar.themeDark === dark) return; // avoid redundant tile reloads
+  radar.themeDark = dark;
   const url = baseTileUrl();
   if (radar.base) radar.base.setUrl(url);
   if (radar.previewBase) radar.previewBase.setUrl(url);
