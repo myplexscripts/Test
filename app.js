@@ -837,11 +837,6 @@ function closeDrawer() {
 
 /* ---------- Radar / map ---------- */
 function haveLeaflet() { return typeof window.L !== "undefined"; }
-function baseTileUrl() {
-  return state.dark
-    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
-    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
-}
 // Radar maps always use the dark basemap so precipitation colours pop.
 function radarTileUrl() {
   return "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
@@ -900,7 +895,7 @@ function initRadarMap() {
     }).addTo(radar.map);
     radar.marker = L.circleMarker([c.lat, c.lon], {
       radius: 7, weight: 3, color: "#ffffff",
-      fillColor: getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a",
+      fillColor: getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#ffd83d",
       fillOpacity: 1
     }).addTo(radar.map);
   } catch {
@@ -1162,12 +1157,11 @@ function syncMaps() {
 
 function updateMapTheme() {
   if (!haveLeaflet()) return;
-  const dark = !!state.dark;
-  if (radar.themeDark === dark) return; // avoid redundant tile reloads
-  radar.themeDark = dark;
-  const url = baseTileUrl();
-  if (radar.base) radar.base.setUrl(url);
-  if (radar.previewBase) radar.previewBase.setUrl(url);
+  // Radar maps stay on the dark basemap regardless of app theme so the
+  // precipitation colours always pop; just refresh the marker tint.
+  if (radar.marker) {
+    radar.marker.setStyle({ fillColor: getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#ffd83d" });
+  }
 }
 
 /* ---------- Location ---------- */
