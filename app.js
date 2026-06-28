@@ -42,7 +42,7 @@ const el = {
   radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"), radarLegend: $("radarLegend"),
   hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
   sheet: $("sheet"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"),
-  sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList")
+  sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList"), dayStats: $("dayStats")
 };
 
 /* ---------- State ---------- */
@@ -250,7 +250,7 @@ function renderDaily() {
   if (el.dayRail.__sig === html) return;
   el.dayRail.__sig = html;
   el.dayRail.innerHTML = html;
-  el.dayRail.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => openDetail("temp", "daily"));
+  el.dayRail.querySelectorAll("[data-open]").forEach((b, i) => b.onclick = () => openDay(i));
 }
 
 function renderSun(current) {
@@ -433,7 +433,8 @@ function buildDaily(forecast, tz) {
       min: Math.min(...temps),
       max: Math.max(...temps),
       pop: Math.max(...g.items.map((it) => it.pop || 0)),
-      main: rep.weather?.[0]?.main || ""
+      main: rep.weather?.[0]?.main || "",
+      items: g.items
     };
   });
 }
@@ -584,14 +585,90 @@ function syncRange() {
 }
 
 function renderDetailSheet() {
+  if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
   if (!m) return;
+  el.dayStats.style.display = "none";
   el.sheetTitle.textContent = m.label;
   el.tabSeg.style.display = m.daily ? "" : "none";
   syncRange();
   el.sheetNote.textContent = m.desc ? m.desc(state.data?.current || {}) : "";
   drawDetailChart();
   renderDetailList();
+}
+
+function openDay(index) {
+  if (!state.daily[index]) return;
+  state.detail = { metric: "day", dayIndex: index, range: "hourly" };
+  state.sheetOpen = true;
+  el.sheet.classList.add("is-open");
+  el.sheet.setAttribute("aria-hidden", "false");
+  el.sheet.style.transform = "";
+  document.body.style.overflow = "hidden";
+  el.sheet.scrollTop = 0;
+  renderDetailSheet();
+}
+
+function renderDaySheet() {
+  const day = state.daily[state.detail.dayIndex];
+  if (!day) return;
+  const tz = state.tz || 0;
+  const items = day.items || [];
+  el.tabSeg.style.display = "none";
+  el.sheetTitle.textContent = dayFull(day.dt, tz);
+  el.sheetNote.textContent = daySummary(day, items);
+  drawDetailChart();
+  el.dayStats.style.display = "";
+  el.dayStats.innerHTML = dayStatsHTML(day, items);
+  el.sheetList.innerHTML = items.map((it) => {
+    const h = new Date((it.dt + tz) * 1000).getUTCHours();
+    return `
+    <div class="row">
+      <span class="row-label">${fmtHour(it.dt, tz)}</span>
+      <i class="row-icon ${iconClass(it.weather?.[0]?.main, h < 6 || h >= 20)}"></i>
+      <span class="row-temp">${Math.round(it.main.temp)}°<span class="row-sub"> · feels ${Math.round(it.main.feels_like)}°</span></span>
+    </div>`;
+  }).join("");
+}
+
+function dayFull(dt, tz) {
+  const d = new Date((dt + tz) * 1000);
+  const today = new Date((Date.now() / 1000 + tz) * 1000).toISOString().slice(0, 10);
+  if (d.toISOString().slice(0, 10) === today) return "Today";
+  const wd = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getUTCDay()];
+  const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
+  return `${wd}, ${mo} ${d.getUTCDate()}`;
+}
+
+function daySummary(day, items) {
+  const feels = items.map((i) => i.main.feels_like).filter(Number.isFinite);
+  const fMax = feels.length ? Math.round(Math.max(...feels)) : Math.round(day.max);
+  const pop = Math.round((day.pop || 0) * 100);
+  const rain = pop > 0 ? ` ${pop}% chance of precipitation.` : "";
+  return `High ${Math.round(day.max)}°, low ${Math.round(day.min)}°. Feels like up to ${fMax}°.${rain}`;
+}
+
+function dayStatsHTML(day, items) {
+  const feels = items.map((i) => i.main.feels_like).filter(Number.isFinite);
+  const hums = items.map((i) => i.main.humidity).filter((x) => x != null);
+  const winds = items.map((i) => i.wind?.speed || 0);
+  const fMin = feels.length ? Math.round(Math.min(...feels)) : Math.round(day.min);
+  const fMax = feels.length ? Math.round(Math.max(...feels)) : Math.round(day.max);
+  const humAvg = hums.length ? Math.round(hums.reduce((a, b) => a + b, 0) / hums.length) : null;
+  const windMax = winds.length ? Math.max(...winds) : 0;
+  const pop = Math.round((day.pop || 0) * 100);
+  const tiles = [
+    ["ph-thermometer-simple", "Feels like", fMin === fMax ? `${fMax}°` : `${fMin}–${fMax}°`],
+    ["ph-drop", "Humidity", humAvg != null ? `${humAvg}%` : "—"],
+    ["ph-wind", "Wind", windText(windMax)],
+    ["ph-umbrella", "Precipitation", `${pop}%`]
+  ];
+  return tiles.map(([icon, label, value]) => `
+    <div class="detail static">
+      <i class="ph-duotone ${icon}"></i>
+      <span class="d-label">${label}</span>
+      <strong class="d-value">${value}</strong>
+    </div>`).join("");
 }
 
 function detailSeries() {
@@ -603,11 +680,18 @@ function detailSeries() {
 }
 
 function drawDetailChart() {
+  if (state.detail.metric === "day") {
+    const day = state.daily[state.detail.dayIndex];
+    if (!day) return;
+    const tz = state.tz || 0;
+    drawChart((day.items || []).map((it) => ({ label: fmtHour(it.dt, tz), hi: it.main.temp })), METRICS.temp, false, day.label === "Today");
+    return;
+  }
   const m = METRICS[state.detail.metric];
   if (state.detail.metric === "temp" && state.detail.range === "daily") {
-    drawChart(state.daily.map((d) => ({ label: d.label, hi: d.max, lo: d.min })), m, true);
+    drawChart(state.daily.map((d) => ({ label: d.label, hi: d.max, lo: d.min })), m, true, false);
   } else {
-    drawChart(detailSeries(), m, false);
+    drawChart(detailSeries(), m, false, true);
   }
 }
 
@@ -615,12 +699,14 @@ function renderDetailList() {
   const m = METRICS[state.detail.metric];
   const tz = state.tz || 0;
   if (state.detail.metric === "temp" && state.detail.range === "daily") {
-    el.sheetList.innerHTML = state.daily.map((d) => `
-      <div class="row">
+    el.sheetList.innerHTML = state.daily.map((d, i) => `
+      <button class="row row-tap" data-day="${i}">
         <span class="row-label">${d.label}</span>
         <i class="row-icon ${iconClass(d.main, false)}"></i>
         <span class="row-temp">${Math.round(d.max)}°<span class="row-sub"> / ${Math.round(d.min)}°</span></span>
-      </div>`).join("");
+        <i class="ph ph-caret-right row-go"></i>
+      </button>`).join("");
+    el.sheetList.querySelectorAll("[data-day]").forEach((b) => b.onclick = () => openDay(Number(b.dataset.day)));
     return;
   }
   const dec = m.decimals || 0;
@@ -644,7 +730,7 @@ function hexA(hex, a) {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-function drawChart(rows, m, dual) {
+function drawChart(rows, m, dual, showNow) {
   const canvas = el.graph;
   const ctx = canvas.getContext("2d");
   const rect = canvas.getBoundingClientRect();
@@ -701,8 +787,8 @@ function drawChart(rows, m, dual) {
   if (dual) stroke("lo", 0.4, 3);
   stroke("hi", 1, 3.5);
 
-  // "now" marker for hourly charts
-  if (!dual) {
+  // "now" marker (only when the series actually starts at the current time)
+  if (showNow) {
     ctx.setLineDash([3, 4]); ctx.strokeStyle = ink; ctx.globalAlpha = 0.4; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(X(0), padTop); ctx.lineTo(X(0), padTop + h); ctx.stroke();
     ctx.setLineDash([]); ctx.globalAlpha = 1;
@@ -717,7 +803,7 @@ function drawChart(rows, m, dual) {
     if (i % step === 0) {
       ctx.fillText(lab(r.hi), X(i), Y(r.hi) - 12);
       if (dual) { ctx.globalAlpha = 0.6; ctx.fillText(lab(r.lo), X(i), Y(r.lo) + 18); ctx.globalAlpha = 1; }
-      ctx.globalAlpha = 0.55; ctx.fillText(i === 0 && !dual ? "Now" : r.label, X(i), rect.height - 10); ctx.globalAlpha = 1;
+      ctx.globalAlpha = 0.55; ctx.fillText(i === 0 && showNow ? "Now" : r.label, X(i), rect.height - 10); ctx.globalAlpha = 1;
     }
   });
 }

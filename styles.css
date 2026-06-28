@@ -865,6 +865,15 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .row .row-temp { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
 .row .row-sub { font-size: var(--t-cap); color: var(--ink-soft); font-weight: 600; }
 
+/* Tappable day rows open the day breakdown */
+button.row { width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; }
+.row-tap { grid-template-columns: 1fr auto auto auto; transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast); }
+.row-tap:active { transform: scale(0.99); background: var(--card-bg-hi); }
+.row-go { font-size: 1rem; color: var(--ink-faint); }
+
+/* Static (non-interactive) detail tiles, e.g. the day breakdown stats */
+.detail.static:active { transform: none; background: var(--card-bg); }
+
 /* ---------- Entrance animation ---------- */
 /* ---------- Entrance choreography (plays once on first load) ----------
    Top-to-bottom: header → date → condition → icon → temperature (pop) →
