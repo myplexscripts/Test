@@ -521,7 +521,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   border-top: 1.5px solid var(--card-border);
   font-size: var(--t-sm); font-weight: 600; color: var(--ink-soft);
 }
-.moon-line i { font-size: 1.3rem; color: var(--ink); }
+.moon-line .moon-svg { width: 26px; height: 26px; display: block; flex: 0 0 auto; }
 .moon-line strong { margin-left: auto; font-family: Rubik, Inter, sans-serif; font-weight: 700; color: var(--ink); }
 
 /* ---------- Radar ---------- */
@@ -930,17 +930,20 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .aqi-big { font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: clamp(3rem, 16vw, 4.5rem); line-height: 1; }
 .aqi-band { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.3rem; color: var(--ink); }
 
-.scale-wrap { position: relative; margin: var(--s-2) 0 var(--s-1); }
-.scale-bar {
-  /* monochrome severity ramp — lighter (better) to darker (worse), no hue */
-  height: 10px; border-radius: var(--r-pill);
-  background: linear-gradient(to right,
-    color-mix(in srgb, var(--ink) 14%, transparent) 0%,
-    color-mix(in srgb, var(--ink) 70%, transparent) 100%);
+/* Straight position bar matching the sun arc: faint track + solid ink fill + dot. */
+.scale-wrap { position: relative; height: 18px; margin: var(--s-3) 0 var(--s-1); display: flex; align-items: center; }
+.scale-track {
+  position: absolute; left: 0; right: 0; top: 50%; transform: translateY(-50%);
+  height: 6px; border-radius: var(--r-pill);
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+}
+.scale-fill {
+  position: absolute; left: 0; top: 50%; transform: translateY(-50%);
+  height: 6px; border-radius: var(--r-pill); background: var(--ink);
 }
 .scale-dot {
-  position: absolute; top: 50%; width: 18px; height: 18px; border-radius: 50%;
-  background: var(--bg); border: 3px solid var(--ink); transform: translate(-50%, -50%);
+  position: absolute; top: 50%; width: 16px; height: 16px; border-radius: 50%;
+  background: var(--ink); border: 3px solid var(--bg); transform: translate(-50%, -50%);
 }
 .scale-ends { display: flex; justify-content: space-between; font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); margin-bottom: var(--s-4); }
 

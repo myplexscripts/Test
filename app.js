@@ -272,18 +272,35 @@ function uvBand(uv) {
   return { label: "Extreme", advice: "Avoid the sun midday." };
 }
 
-// Moon phase from a date: fraction 0..1 of the synodic cycle + name + glyph.
+// Moon phase from a date: fraction 0..1 of the synodic cycle + name + illum.
 function moonPhase(date = new Date()) {
   const synodic = 29.530588853;
   const ref = Date.UTC(2000, 0, 6, 18, 14) / 1000; // known new moon (s)
   const now = date.getTime() / 1000;
-  let age = (((now - ref) / 86400) % synodic + synodic) % synodic;
+  const age = (((now - ref) / 86400) % synodic + synodic) % synodic;
   const frac = age / synodic; // 0 = new, .5 = full
   const illum = Math.round((1 - Math.cos(frac * 2 * Math.PI)) / 2 * 100);
   const names = ["New moon", "Waxing crescent", "First quarter", "Waxing gibbous", "Full moon", "Waning gibbous", "Last quarter", "Waning crescent"];
-  const glyphs = ["ph-moon", "ph-moon", "ph-moon", "ph-moon", "ph-moon-stars", "ph-moon", "ph-moon", "ph-moon"];
   const idx = Math.floor(((frac * 8) + 0.5)) % 8;
-  return { name: names[idx], illum, icon: glyphs[idx] };
+  return { name: names[idx], illum, frac };
+}
+
+// Simple monochrome moon glyph: a faint full-disk outline with the illuminated
+// fraction filled in --ink (fuller phase = more solid). frac: 0 new → .5 full.
+function moonSVG(frac) {
+  const r = 22, c = 26;                  // viewBox 52x52
+  const theta = frac * 2 * Math.PI;
+  const rx = Math.abs(Math.cos(theta)) * r;
+  const waxing = frac < 0.5;             // lit limb on the right when waxing
+  const gibbous = frac > 0.25 && frac < 0.75;
+  const limb = waxing ? 1 : 0;           // sweep for the bright outer limb
+  const term = gibbous ? limb : 1 - limb; // terminator bulges same way if gibbous
+  const top = `${c} ${c - r}`, bot = `${c} ${c + r}`;
+  const lit = `M ${top} A ${r} ${r} 0 0 ${limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
+  return `<svg viewBox="0 0 52 52" class="moon-svg" aria-hidden="true">
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--ink)" stroke-width="1.5" opacity="0.3"/>
+    <path d="${lit}" fill="var(--ink)"/>
+  </svg>`;
 }
 
 /* ---------- Render ---------- */
@@ -377,7 +394,7 @@ function renderSun(current) {
       <div class="sun-time"><i class="ph-duotone ph-sun-horizon"></i><span class="d-label">Sunrise</span><strong>${fmtClock(sys.sunrise, tz)}</strong></div>
       <div class="sun-time end"><i class="ph-duotone ph-moon-stars"></i><span class="d-label">Sunset</span><strong>${fmtClock(sys.sunset, tz)}</strong></div>
     </div>
-    <div class="moon-line"><i class="ph-duotone ${moon.icon}"></i><span>${moon.name}</span><strong>${moon.illum}% lit</strong></div>`;
+    <div class="moon-line">${moonSVG(moon.frac)}<span>${moon.name}</span><strong>${moon.illum}% lit</strong></div>`;
 }
 
 /* Wind compass dial (Apple-style data viz, flat aesthetic) */
@@ -749,6 +766,19 @@ function section(title, body) {
   return `<div class="info-section"><h3 class="info-head">${title}</h3><div class="info-card">${body}</div></div>`;
 }
 
+// Straight position bar in the sunrise/sunset style: a faint full track, a
+// solid --ink fill up to the value, and a dot. No gradient, no colour.
+function scaleBar(pos, ends) {
+  const p = Math.max(0, Math.min(100, pos));
+  return `
+    <div class="scale-wrap">
+      <div class="scale-track"></div>
+      <div class="scale-fill" style="width:${p}%"></div>
+      <div class="scale-dot" style="left:${p}%"></div>
+    </div>
+    <div class="scale-ends">${ends.map((e) => `<span>${e}</span>`).join("")}</div>`;
+}
+
 function renderAqiSheet(air) {
   el.sheetTitle.textContent = "Air Quality";
   if (air.us_aqi == null) { el.sheetNote.textContent = "Air quality data is unavailable right now."; el.sheetList.innerHTML = ""; return; }
@@ -756,14 +786,8 @@ function renderAqiSheet(air) {
   const b = aqiBand(aqi);
   el.sheetNote.textContent = `The air quality index is ${aqi} — ${b.label.toLowerCase()}.`;
 
-  // Position-on-scale bar (0–300+), coloured low→high, with a marker.
-  const pos = Math.max(0, Math.min(100, (aqi / 300) * 100));
-  const scale = `
-    <div class="scale-wrap">
-      <div class="scale-bar"></div>
-      <div class="scale-dot" style="left:${pos}%"></div>
-    </div>
-    <div class="scale-ends"><span>0</span><span>Good</span><span>Unhealthy</span><span>300+</span></div>`;
+  // Position-on-scale bar (0–300+), sunrise/sunset style.
+  const scale = scaleBar((aqi / 300) * 100, ["0", "Good", "Unhealthy", "300+"]);
 
   // Primary pollutant, explained in plain English.
   const pk = primaryPollutant(air);
@@ -805,6 +829,7 @@ function renderUvSheet(air) {
 
   el.sheetList.innerHTML =
     (cur != null ? `<div class="aqi-hero"><span class="aqi-big">${cur}</span><span class="aqi-band">${u.label}</span></div>` : "") +
+    (cur != null ? scaleBar((cur / 11) * 100, ["0", "Moderate", "Very high", "11+"]) : "") +
     (cur != null ? section("What to do", `<p class="info-text">${u.advice}</p>`) : "") +
     section("UV scale", `<div class="uv-scale">${scaleRows}</div>`) +
     section("About the UV index", `<p class="info-text">The UV index rates the strength of the sun's ultraviolet rays from 0 (low) to 11+ (extreme). Higher means skin and eyes burn faster, so sun protection matters more.</p>`);
