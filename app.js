@@ -250,24 +250,15 @@ function primaryPollutant(air) {
   return best;
 }
 
-// UV band colour for the day-curve gradient.
-function uvColor(uv) {
-  if (uv <= 2) return "#3ec46d";
-  if (uv <= 5) return "#ffd33d";
-  if (uv <= 7) return "#ff9f43";
-  if (uv <= 10) return "#ff5d5d";
-  return "#b657ff";
-}
-
-// US AQI -> band label + colour + short guidance.
+// US AQI -> band label + short guidance.
 function aqiBand(aqi) {
-  if (aqi == null) return { label: "—", color: "var(--ink)", advice: "" };
-  if (aqi <= 50)  return { label: "Good", color: "#3ec46d", advice: "Air quality is satisfactory." };
-  if (aqi <= 100) return { label: "Moderate", color: "#ffd33d", advice: "Acceptable; unusually sensitive people should take care." };
-  if (aqi <= 150) return { label: "Unhealthy for sensitive groups", color: "#ff9f43", advice: "Sensitive groups may feel effects." };
-  if (aqi <= 200) return { label: "Unhealthy", color: "#ff5d5d", advice: "Everyone may begin to feel effects." };
-  if (aqi <= 300) return { label: "Very unhealthy", color: "#b657ff", advice: "Health alert — limit time outdoors." };
-  return { label: "Hazardous", color: "#a3324d", advice: "Avoid outdoor activity." };
+  if (aqi == null) return { label: "—", advice: "" };
+  if (aqi <= 50)  return { label: "Good", advice: "Air quality is satisfactory." };
+  if (aqi <= 100) return { label: "Moderate", advice: "Acceptable; unusually sensitive people should take care." };
+  if (aqi <= 150) return { label: "Unhealthy for sensitive groups", advice: "Sensitive groups may feel effects." };
+  if (aqi <= 200) return { label: "Unhealthy", advice: "Everyone may begin to feel effects." };
+  if (aqi <= 300) return { label: "Very unhealthy", advice: "Health alert — limit time outdoors." };
+  return { label: "Hazardous", advice: "Avoid outdoor activity." };
 }
 
 // UV index -> band label + short guidance.
@@ -788,7 +779,7 @@ function renderAqiSheet(air) {
     </div>`).join("");
 
   el.sheetList.innerHTML =
-    `<div class="aqi-hero"><span class="aqi-big" style="color:${b.color}">${aqi}</span><span class="aqi-band">${b.label}</span></div>` +
+    `<div class="aqi-hero"><span class="aqi-big">${aqi}</span><span class="aqi-band">${b.label}</span></div>` +
     scale +
     section("What this means", `<p class="info-text">${b.advice}</p>`) +
     primary +
@@ -804,14 +795,16 @@ function renderUvSheet(air) {
 
   drawUvChart(hourly);
 
+  // Grayscale severity ramp on the legend dots (no hue) — lighter = lower.
+  const dotOp = { "Low": 0.25, "Moderate": 0.45, "High": 0.62, "Very high": 0.8, "Extreme": 1 };
   const scaleRows = [["Low", "0–2"], ["Moderate", "3–5"], ["High", "6–7"], ["Very high", "8–10"], ["Extreme", "11+"]]
     .map(([label, rg]) => {
       const active = cur != null && u.label === label;
-      return `<div class="uv-scale-row${active ? " is-active" : ""}"><span class="uv-dot" style="background:${uvColor(label === "Low" ? 1 : label === "Moderate" ? 4 : label === "High" ? 6 : label === "Very high" ? 9 : 11)}"></span><span class="row-label">${label}</span><span class="uv-range">${rg}</span></div>`;
+      return `<div class="uv-scale-row${active ? " is-active" : ""}"><span class="uv-dot" style="opacity:${dotOp[label]}"></span><span class="row-label">${label}</span><span class="uv-range">${rg}</span></div>`;
     }).join("");
 
   el.sheetList.innerHTML =
-    (cur != null ? `<div class="aqi-hero"><span class="aqi-big" style="color:${uvColor(cur)}">${cur}</span><span class="aqi-band">${u.label}</span></div>` : "") +
+    (cur != null ? `<div class="aqi-hero"><span class="aqi-big">${cur}</span><span class="aqi-band">${u.label}</span></div>` : "") +
     (cur != null ? section("What to do", `<p class="info-text">${u.advice}</p>`) : "") +
     section("UV scale", `<div class="uv-scale">${scaleRows}</div>`) +
     section("About the UV index", `<p class="info-text">The UV index rates the strength of the sun's ultraviolet rays from 0 (low) to 11+ (extreme). Higher means skin and eyes burn faster, so sun protection matters more.</p>`);
@@ -866,14 +859,10 @@ function drawUvChart(hourly) {
     ctx.globalAlpha = 0.4; ctx.fillStyle = ink; ctx.fillText(label, padX, gy - 4); ctx.globalAlpha = 1;
   });
 
-  // band-coloured vertical gradient (top = high UV = red/purple)
+  // monochrome ink area + line (matches the other graphs; height vs. the
+  // band gridlines conveys the level — no colour needed)
   const grad = ctx.createLinearGradient(0, padTop, 0, padTop + h);
-  grad.addColorStop(0, uvColor(yMax));
-  grad.addColorStop(Math.max(0, 1 - 10 / yMax), uvColor(10));
-  grad.addColorStop(Math.max(0, 1 - 7 / yMax), uvColor(7));
-  grad.addColorStop(Math.max(0, 1 - 5 / yMax), uvColor(5));
-  grad.addColorStop(Math.max(0, 1 - 2 / yMax), uvColor(2));
-  grad.addColorStop(1, uvColor(0));
+  grad.addColorStop(0, hexA(ink, 0.26)); grad.addColorStop(1, hexA(ink, 0));
 
   const curve = () => {
     pts.forEach((p, i) => {
@@ -886,9 +875,9 @@ function drawUvChart(hourly) {
   // area fill
   ctx.beginPath(); curve();
   ctx.lineTo(X(pts.length - 1), padTop + h); ctx.lineTo(X(0), padTop + h); ctx.closePath();
-  ctx.globalAlpha = 0.5; ctx.fillStyle = grad; ctx.fill(); ctx.globalAlpha = 1;
+  ctx.fillStyle = grad; ctx.fill();
   // line
-  ctx.beginPath(); curve(); ctx.strokeStyle = grad; ctx.lineWidth = 3.5; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
+  ctx.beginPath(); curve(); ctx.strokeStyle = ink; ctx.lineWidth = 3.5; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
 
   // "now" marker at the current local hour
   const nowH = new Date().getHours();

@@ -932,8 +932,11 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 
 .scale-wrap { position: relative; margin: var(--s-2) 0 var(--s-1); }
 .scale-bar {
+  /* monochrome severity ramp — lighter (better) to darker (worse), no hue */
   height: 10px; border-radius: var(--r-pill);
-  background: linear-gradient(to right, #3ec46d 0%, #ffd33d 33%, #ff9f43 50%, #ff5d5d 67%, #b657ff 100%);
+  background: linear-gradient(to right,
+    color-mix(in srgb, var(--ink) 14%, transparent) 0%,
+    color-mix(in srgb, var(--ink) 70%, transparent) 100%);
 }
 .scale-dot {
   position: absolute; top: 50%; width: 18px; height: 18px; border-radius: 50%;
@@ -955,7 +958,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .uv-scale-row { display: grid; grid-template-columns: 1.2rem 1fr auto; align-items: center; gap: var(--s-3); font-weight: 600; }
 .uv-scale-row.is-active { font-weight: 800; }
 .uv-scale-row.is-active .uv-range { color: var(--ink); }
-.uv-dot { width: 12px; height: 12px; border-radius: 50%; }
+.uv-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--ink); }
 .uv-range { font-size: var(--t-sm); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
 /* ---------- Entrance animation ---------- */
