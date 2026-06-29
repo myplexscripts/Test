@@ -8,6 +8,8 @@
 /* ---------- Config ---------- */
 const API_KEY = "37c88f3496272531c686b0686ecfe1dd"; // personal testing key
 const API_BASE = "https://api.openweathermap.org/data/2.5";
+// Air quality + UV index — free, keyless, CORS-friendly (no One Call 3.0 needed).
+const AIR_BASE = "https://air-quality-api.open-meteo.com/v1/air-quality";
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
@@ -183,11 +185,12 @@ async function refresh(force) {
   if (force) setStatus("Refreshing…");
   try {
     const q = `lat=${state.loc.lat}&lon=${state.loc.lon}&units=${state.units}&appid=${API_KEY}`;
-    const [current, forecast] = await Promise.all([
+    const [current, forecast, air] = await Promise.all([
       fetchJSON(`${API_BASE}/weather?${q}`),
-      fetchJSON(`${API_BASE}/forecast?${q}`)
+      fetchJSON(`${API_BASE}/forecast?${q}`),
+      fetchAir(state.loc.lat, state.loc.lon).catch(() => null) // never blocks core weather
     ]);
-    const data = { current, forecast };
+    const data = { current, forecast, air };
     state.data = data;
     saveCache(data);
     render(data);
@@ -207,6 +210,49 @@ async function fetchJSON(url) {
   try { data = JSON.parse(text); } catch { data = { message: text || res.statusText }; }
   if (!res.ok) throw new Error(data.message || res.statusText || "Request failed");
   return data;
+}
+
+// Open-Meteo air quality + UV (free, no key). Returns its `current` block or null.
+async function fetchAir(lat, lon) {
+  const params = "current=us_aqi,pm2_5,pm10,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide,uv_index&timezone=auto";
+  const json = await fetchJSON(`${AIR_BASE}?latitude=${lat}&longitude=${lon}&${params}`);
+  return json.current || null;
+}
+
+// US AQI -> band label + colour + short guidance.
+function aqiBand(aqi) {
+  if (aqi == null) return { label: "—", color: "var(--ink)", advice: "" };
+  if (aqi <= 50)  return { label: "Good", color: "#3ec46d", advice: "Air quality is satisfactory." };
+  if (aqi <= 100) return { label: "Moderate", color: "#ffd33d", advice: "Acceptable; unusually sensitive people should take care." };
+  if (aqi <= 150) return { label: "Unhealthy for sensitive groups", color: "#ff9f43", advice: "Sensitive groups may feel effects." };
+  if (aqi <= 200) return { label: "Unhealthy", color: "#ff5d5d", advice: "Everyone may begin to feel effects." };
+  if (aqi <= 300) return { label: "Very unhealthy", color: "#b657ff", advice: "Health alert — limit time outdoors." };
+  return { label: "Hazardous", color: "#a3324d", advice: "Avoid outdoor activity." };
+}
+
+// UV index -> band label + short guidance.
+function uvBand(uv) {
+  if (uv == null) return { label: "—", advice: "" };
+  const u = Math.round(uv);
+  if (u <= 2)  return { label: "Low", advice: "No protection needed." };
+  if (u <= 5)  return { label: "Moderate", advice: "Wear sunglasses; use SPF 30+." };
+  if (u <= 7)  return { label: "High", advice: "Seek shade midday; cover up." };
+  if (u <= 10) return { label: "Very high", advice: "Extra protection — burns happen fast." };
+  return { label: "Extreme", advice: "Avoid the sun midday." };
+}
+
+// Moon phase from a date: fraction 0..1 of the synodic cycle + name + glyph.
+function moonPhase(date = new Date()) {
+  const synodic = 29.530588853;
+  const ref = Date.UTC(2000, 0, 6, 18, 14) / 1000; // known new moon (s)
+  const now = date.getTime() / 1000;
+  let age = (((now - ref) / 86400) % synodic + synodic) % synodic;
+  const frac = age / synodic; // 0 = new, .5 = full
+  const illum = Math.round((1 - Math.cos(frac * 2 * Math.PI)) / 2 * 100);
+  const names = ["New moon", "Waxing crescent", "First quarter", "Waxing gibbous", "Full moon", "Waning gibbous", "Last quarter", "Waning crescent"];
+  const glyphs = ["ph-moon", "ph-moon", "ph-moon", "ph-moon", "ph-moon-stars", "ph-moon", "ph-moon", "ph-moon"];
+  const idx = Math.floor(((frac * 8) + 0.5)) % 8;
+  return { name: names[idx], illum, icon: glyphs[idx] };
 }
 
 /* ---------- Render ---------- */
@@ -283,6 +329,7 @@ function renderSun(current) {
   const tz = current.timezone ?? 0;
   if (!sys.sunrise || !sys.sunset) { el.sunCard.style.display = "none"; return; }
   el.sunCard.style.display = "";
+  const moon = moonPhase();
   const now = current.dt || Math.floor(Date.now() / 1000);
   let t = (now - sys.sunrise) / (sys.sunset - sys.sunrise);
   t = Math.max(0, Math.min(1, t));
@@ -298,7 +345,8 @@ function renderSun(current) {
     <div class="sun-times">
       <div class="sun-time"><i class="ph-duotone ph-sun-horizon"></i><span class="d-label">Sunrise</span><strong>${fmtClock(sys.sunrise, tz)}</strong></div>
       <div class="sun-time end"><i class="ph-duotone ph-moon-stars"></i><span class="d-label">Sunset</span><strong>${fmtClock(sys.sunset, tz)}</strong></div>
-    </div>`;
+    </div>
+    <div class="moon-line"><i class="ph-duotone ${moon.icon}"></i><span>${moon.name}</span><strong>${moon.illum}% lit</strong></div>`;
 }
 
 /* Wind compass dial (Apple-style data viz, flat aesthetic) */
@@ -363,6 +411,17 @@ function renderDetails(current, forecast) {
   }
 
   items.push(precipDetail(current, forecast, tz));
+
+  const air = state.data?.air;
+  if (air && air.us_aqi != null) {
+    const b = aqiBand(air.us_aqi);
+    items.push(["aqi", "ph-wind", "Air quality", `${Math.round(air.us_aqi)}`, b.label]);
+  }
+  if (air && air.uv_index != null) {
+    const u = uvBand(air.uv_index);
+    items.push(["uv", "ph-sun", "UV index", `${Math.round(air.uv_index)}`, u.label]);
+  }
+
   items.push(["visibility", "ph-eye", "Visibility", visibilityText(current.visibility), visDescriptor(current.visibility)]);
   items.push(["pressure", "ph-gauge", "Pressure", m.pressure != null ? `${m.pressure}` : "—", m.pressure != null ? "hPa" : ""]);
   items.push(["clouds", "ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "—", cloudDescriptor(clouds.all)]);
@@ -595,8 +654,9 @@ const METRICS = {
 };
 
 function openDetail(metric, range) {
-  if (!METRICS[metric]) metric = "temp";
-  state.detail = { metric, range: (range && METRICS[metric].daily) ? range : "hourly" };
+  const isInfo = metric === "aqi" || metric === "uv";
+  if (!METRICS[metric] && !isInfo) metric = "temp";
+  state.detail = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
   state.sheetOpen = true;
   el.sheet.classList.add("is-open");
   el.sheet.setAttribute("aria-hidden", "false");
@@ -628,6 +688,9 @@ function syncRange() {
 }
 
 function renderDetailSheet() {
+  const gc = el.graph.closest(".graph-card");
+  if (state.detail.metric === "aqi" || state.detail.metric === "uv") { renderInfoSheet(state.detail.metric); return; }
+  if (gc) gc.style.display = "";
   if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
   if (!m) return;
@@ -638,6 +701,39 @@ function renderDetailSheet() {
   el.sheetNote.textContent = m.desc ? m.desc(state.data?.current || {}) : "";
   drawDetailChart();
   renderDetailList();
+}
+
+// Simple (chartless) detail sheet for Air Quality / UV — data is point-in-time
+// from Open-Meteo, so we show a breakdown / scale instead of an hourly graph.
+function renderInfoSheet(kind) {
+  const air = state.data?.air || {};
+  const gc = el.graph.closest(".graph-card");
+  if (gc) gc.style.display = "none";
+  el.dayStats.style.display = "none";
+  el.tabSeg.style.display = "none";
+  const row = (label, value) =>
+    `<div class="row"><span class="row-label">${label}</span><i class="row-icon"></i><span class="row-temp">${value}</span></div>`;
+  if (kind === "aqi") {
+    const b = aqiBand(air.us_aqi);
+    el.sheetTitle.textContent = "Air Quality";
+    el.sheetNote.textContent = air.us_aqi != null ? `US AQI ${Math.round(air.us_aqi)} — ${b.label}. ${b.advice}` : "Air quality data is unavailable.";
+    const rows = [
+      ["PM2.5", air.pm2_5], ["PM10", air.pm10], ["Ozone (O₃)", air.ozone],
+      ["Nitrogen dioxide (NO₂)", air.nitrogen_dioxide], ["Sulphur dioxide (SO₂)", air.sulphur_dioxide],
+      ["Carbon monoxide (CO)", air.carbon_monoxide]
+    ];
+    el.sheetList.innerHTML = rows.map(([k, v]) => row(k, v != null ? `${Math.round(v)} µg/m³` : "—")).join("");
+  } else {
+    const u = uvBand(air.uv_index);
+    const cur = air.uv_index != null ? Math.round(air.uv_index) : -1;
+    el.sheetTitle.textContent = "UV Index";
+    el.sheetNote.textContent = air.uv_index != null ? `${cur} — ${u.label}. ${u.advice}` : "UV data is unavailable.";
+    const scale = [["0–2", "Low", 0, 2], ["3–5", "Moderate", 3, 5], ["6–7", "High", 6, 7], ["8–10", "Very high", 8, 10], ["11+", "Extreme", 11, 99]];
+    el.sheetList.innerHTML = scale.map(([rg, label, lo, hi]) => {
+      const active = cur >= lo && cur <= hi;
+      return `<div class="row"${active ? ' style="border-color:var(--ink)"' : ""}><span class="row-label">${rg}</span><i class="row-icon"></i><span class="row-temp">${label}${active ? " ·" : ""}</span></div>`;
+    }).join("");
+  }
 }
 
 function openDay(index) {
