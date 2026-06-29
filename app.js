@@ -174,7 +174,11 @@ function wireEvents() {
     if (e.key === "Escape") { closeSheet(); closeDrawer(); closeRadar(); }
   });
 
-  window.addEventListener("resize", () => { if (state.sheetOpen) drawDetailChart(); });
+  window.addEventListener("resize", () => {
+    if (!state.sheetOpen) return;
+    if (state.detail.metric === "uv") drawUvChart(state.data?.air?.hourly);
+    else if (state.detail.metric !== "aqi") drawDetailChart();
+  });
 
   initGestures();
 }
@@ -212,11 +216,47 @@ async function fetchJSON(url) {
   return data;
 }
 
-// Open-Meteo air quality + UV (free, no key). Returns its `current` block or null.
+// Open-Meteo air quality + UV (free, no key). Returns the `current` block with
+// today's `hourly` UV/AQI arrays attached (for the UV day-curve graph).
 async function fetchAir(lat, lon) {
-  const params = "current=us_aqi,pm2_5,pm10,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide,uv_index&timezone=auto";
-  const json = await fetchJSON(`${AIR_BASE}?latitude=${lat}&longitude=${lon}&${params}`);
-  return json.current || null;
+  const cur = "current=us_aqi,pm2_5,pm10,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide,uv_index";
+  const hourly = "hourly=uv_index,us_aqi&forecast_days=1";
+  const json = await fetchJSON(`${AIR_BASE}?latitude=${lat}&longitude=${lon}&${cur}&${hourly}&timezone=auto`);
+  const out = json.current || {};
+  out.hourly = json.hourly || null;
+  return out;
+}
+
+// Pollutant reference info: friendly name + plain-English explanation + a rough
+// "concern" reference (µg/m³) used only to pick the dominant pollutant.
+const POLLUTANTS = {
+  pm2_5:            { name: "PM2.5", desc: "Tiny inhalable particles from smoke, dust and combustion.", ref: 25 },
+  pm10:             { name: "PM10", desc: "Coarser particles like dust, pollen and mould.", ref: 50 },
+  ozone:            { name: "Ozone (O₃)", desc: "Forms in sunlight from traffic and industry; irritates the lungs.", ref: 100 },
+  nitrogen_dioxide: { name: "Nitrogen dioxide (NO₂)", desc: "Mostly from vehicle exhaust and burning fuel.", ref: 40 },
+  sulphur_dioxide:  { name: "Sulphur dioxide (SO₂)", desc: "From burning fossil fuels; can irritate airways.", ref: 40 },
+  carbon_monoxide:  { name: "Carbon monoxide (CO)", desc: "Colourless gas from incomplete combustion, e.g. engines.", ref: 4000 }
+};
+
+// The pollutant currently highest relative to its reference level.
+function primaryPollutant(air) {
+  let best = null, bestRatio = -1;
+  for (const key in POLLUTANTS) {
+    const v = air[key];
+    if (v == null) continue;
+    const ratio = v / POLLUTANTS[key].ref;
+    if (ratio > bestRatio) { bestRatio = ratio; best = key; }
+  }
+  return best;
+}
+
+// UV band colour for the day-curve gradient.
+function uvColor(uv) {
+  if (uv <= 2) return "#3ec46d";
+  if (uv <= 5) return "#ffd33d";
+  if (uv <= 7) return "#ff9f43";
+  if (uv <= 10) return "#ff5d5d";
+  return "#b657ff";
 }
 
 // US AQI -> band label + colour + short guidance.
@@ -703,37 +743,172 @@ function renderDetailSheet() {
   renderDetailList();
 }
 
-// Simple (chartless) detail sheet for Air Quality / UV — data is point-in-time
-// from Open-Meteo, so we show a breakdown / scale instead of an hourly graph.
+// Plain-language detail sheets for Air Quality and UV — written so a non-expert
+// understands what each number means (Apple-Weather style).
 function renderInfoSheet(kind) {
   const air = state.data?.air || {};
   const gc = el.graph.closest(".graph-card");
-  if (gc) gc.style.display = "none";
   el.dayStats.style.display = "none";
   el.tabSeg.style.display = "none";
-  const row = (label, value) =>
-    `<div class="row"><span class="row-label">${label}</span><i class="row-icon"></i><span class="row-temp">${value}</span></div>`;
-  if (kind === "aqi") {
-    const b = aqiBand(air.us_aqi);
-    el.sheetTitle.textContent = "Air Quality";
-    el.sheetNote.textContent = air.us_aqi != null ? `US AQI ${Math.round(air.us_aqi)} — ${b.label}. ${b.advice}` : "Air quality data is unavailable.";
-    const rows = [
-      ["PM2.5", air.pm2_5], ["PM10", air.pm10], ["Ozone (O₃)", air.ozone],
-      ["Nitrogen dioxide (NO₂)", air.nitrogen_dioxide], ["Sulphur dioxide (SO₂)", air.sulphur_dioxide],
-      ["Carbon monoxide (CO)", air.carbon_monoxide]
-    ];
-    el.sheetList.innerHTML = rows.map(([k, v]) => row(k, v != null ? `${Math.round(v)} µg/m³` : "—")).join("");
-  } else {
-    const u = uvBand(air.uv_index);
-    const cur = air.uv_index != null ? Math.round(air.uv_index) : -1;
-    el.sheetTitle.textContent = "UV Index";
-    el.sheetNote.textContent = air.uv_index != null ? `${cur} — ${u.label}. ${u.advice}` : "UV data is unavailable.";
-    const scale = [["0–2", "Low", 0, 2], ["3–5", "Moderate", 3, 5], ["6–7", "High", 6, 7], ["8–10", "Very high", 8, 10], ["11+", "Extreme", 11, 99]];
-    el.sheetList.innerHTML = scale.map(([rg, label, lo, hi]) => {
-      const active = cur >= lo && cur <= hi;
-      return `<div class="row"${active ? ' style="border-color:var(--ink)"' : ""}><span class="row-label">${rg}</span><i class="row-icon"></i><span class="row-temp">${label}${active ? " ·" : ""}</span></div>`;
+  if (kind === "aqi") { if (gc) gc.style.display = "none"; renderAqiSheet(air); }
+  else { if (gc) gc.style.display = ""; renderUvSheet(air); }
+}
+
+function section(title, body) {
+  return `<div class="info-section"><h3 class="info-head">${title}</h3><div class="info-card">${body}</div></div>`;
+}
+
+function renderAqiSheet(air) {
+  el.sheetTitle.textContent = "Air Quality";
+  if (air.us_aqi == null) { el.sheetNote.textContent = "Air quality data is unavailable right now."; el.sheetList.innerHTML = ""; return; }
+  const aqi = Math.round(air.us_aqi);
+  const b = aqiBand(aqi);
+  el.sheetNote.textContent = `The air quality index is ${aqi} — ${b.label.toLowerCase()}.`;
+
+  // Position-on-scale bar (0–300+), coloured low→high, with a marker.
+  const pos = Math.max(0, Math.min(100, (aqi / 300) * 100));
+  const scale = `
+    <div class="scale-wrap">
+      <div class="scale-bar"></div>
+      <div class="scale-dot" style="left:${pos}%"></div>
+    </div>
+    <div class="scale-ends"><span>0</span><span>Good</span><span>Unhealthy</span><span>300+</span></div>`;
+
+  // Primary pollutant, explained in plain English.
+  const pk = primaryPollutant(air);
+  const primary = pk
+    ? section(`Main pollutant · ${POLLUTANTS[pk].name}`, `<p class="info-text">${POLLUTANTS[pk].desc}</p>`)
+    : "";
+
+  // Full breakdown — each pollutant with what it actually is.
+  const breakdown = Object.keys(POLLUTANTS).filter((k) => air[k] != null).map((k) => `
+    <div class="pollutant">
+      <div class="pollutant-top"><span class="pollutant-name">${POLLUTANTS[k].name}</span><strong class="pollutant-val">${Math.round(air[k])} µg/m³</strong></div>
+      <p class="info-text">${POLLUTANTS[k].desc}</p>
+    </div>`).join("");
+
+  el.sheetList.innerHTML =
+    `<div class="aqi-hero"><span class="aqi-big" style="color:${b.color}">${aqi}</span><span class="aqi-band">${b.label}</span></div>` +
+    scale +
+    section("What this means", `<p class="info-text">${b.advice}</p>`) +
+    primary +
+    section("Pollutants right now", breakdown);
+}
+
+function renderUvSheet(air) {
+  el.sheetTitle.textContent = "UV Index";
+  const hourly = air.hourly;
+  const cur = air.uv_index != null ? Math.round(air.uv_index) : null;
+  const u = uvBand(air.uv_index);
+  el.sheetNote.textContent = cur != null ? uvSummary(air, hourly) : "UV data is unavailable right now.";
+
+  drawUvChart(hourly);
+
+  const scaleRows = [["Low", "0–2"], ["Moderate", "3–5"], ["High", "6–7"], ["Very high", "8–10"], ["Extreme", "11+"]]
+    .map(([label, rg]) => {
+      const active = cur != null && u.label === label;
+      return `<div class="uv-scale-row${active ? " is-active" : ""}"><span class="uv-dot" style="background:${uvColor(label === "Low" ? 1 : label === "Moderate" ? 4 : label === "High" ? 6 : label === "Very high" ? 9 : 11)}"></span><span class="row-label">${label}</span><span class="uv-range">${rg}</span></div>`;
     }).join("");
-  }
+
+  el.sheetList.innerHTML =
+    (cur != null ? `<div class="aqi-hero"><span class="aqi-big" style="color:${uvColor(cur)}">${cur}</span><span class="aqi-band">${u.label}</span></div>` : "") +
+    (cur != null ? section("What to do", `<p class="info-text">${u.advice}</p>`) : "") +
+    section("UV scale", `<div class="uv-scale">${scaleRows}</div>`) +
+    section("About the UV index", `<p class="info-text">The UV index rates the strength of the sun's ultraviolet rays from 0 (low) to 11+ (extreme). Higher means skin and eyes burn faster, so sun protection matters more.</p>`);
+}
+
+// Today's hourly UV values (or [] if missing).
+function todayUv(hourly) {
+  if (!hourly || !hourly.time || !hourly.uv_index) return [];
+  return hourly.time.map((t, i) => ({ t, uv: hourly.uv_index[i] })).filter((p) => Number.isFinite(p.uv));
+}
+
+// Apple-style "now" sentence for the UV page.
+function uvSummary(air, hourly) {
+  const cur = Math.round(air.uv_index);
+  const pts = todayUv(hourly);
+  if (!pts.length) return `The UV index is ${cur} right now — ${uvBand(air.uv_index).label.toLowerCase()}.`;
+  const hours = pts.map((p) => Number(p.t.slice(11, 13)));
+  const modIdx = pts.map((p, i) => (p.uv >= 3 ? i : -1)).filter((i) => i >= 0);
+  if (!modIdx.length) return `The UV index stays low all day — no protection needed.`;
+  const from = hours[modIdx[0]], to = hours[modIdx[modIdx.length - 1]];
+  const fmt = (h) => `${(h % 12) || 12}${h < 12 ? "am" : "pm"}`;
+  return `Currently ${uvBand(air.uv_index).label.toLowerCase()}. Moderate or higher from ${fmt(from)} to ${fmt(to)}.`;
+}
+
+// UV day-curve graph: hourly UV across today, area filled with a band-coloured
+// vertical gradient (green→red→purple), with a "now" marker.
+function drawUvChart(hourly) {
+  const canvas = el.graph;
+  const ctx = canvas.getContext("2d");
+  const rect = canvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.max(1, Math.round(rect.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+  const pts = todayUv(hourly);
+  if (!pts.length) return;
+
+  const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
+  const yMax = Math.max(11, Math.ceil(Math.max(...pts.map((p) => p.uv))));
+  const padX = 28, padTop = 26, padB = 26;
+  const w = rect.width - padX * 2, h = rect.height - padTop - padB;
+  const X = (i) => padX + (w / Math.max(1, pts.length - 1)) * i;
+  const Y = (v) => padTop + h - (v / yMax) * h;
+
+  // band gridlines + left labels (Low / Moderate / High / Very high)
+  ctx.font = "700 10px Inter, system-ui"; ctx.textAlign = "left";
+  [["Low", 2], ["Moderate", 5], ["High", 7], ["Very high", 10]].forEach(([label, v]) => {
+    const gy = Y(v);
+    ctx.strokeStyle = ink; ctx.globalAlpha = 0.1; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(padX, gy); ctx.lineTo(rect.width - padX, gy); ctx.stroke();
+    ctx.globalAlpha = 0.4; ctx.fillStyle = ink; ctx.fillText(label, padX, gy - 4); ctx.globalAlpha = 1;
+  });
+
+  // band-coloured vertical gradient (top = high UV = red/purple)
+  const grad = ctx.createLinearGradient(0, padTop, 0, padTop + h);
+  grad.addColorStop(0, uvColor(yMax));
+  grad.addColorStop(Math.max(0, 1 - 10 / yMax), uvColor(10));
+  grad.addColorStop(Math.max(0, 1 - 7 / yMax), uvColor(7));
+  grad.addColorStop(Math.max(0, 1 - 5 / yMax), uvColor(5));
+  grad.addColorStop(Math.max(0, 1 - 2 / yMax), uvColor(2));
+  grad.addColorStop(1, uvColor(0));
+
+  const curve = () => {
+    pts.forEach((p, i) => {
+      const px = X(i), py = Y(p.uv);
+      if (i === 0) ctx.moveTo(px, py);
+      else { const cx = (X(i - 1) + px) / 2; ctx.bezierCurveTo(cx, Y(pts[i - 1].uv), cx, py, px, py); }
+    });
+  };
+
+  // area fill
+  ctx.beginPath(); curve();
+  ctx.lineTo(X(pts.length - 1), padTop + h); ctx.lineTo(X(0), padTop + h); ctx.closePath();
+  ctx.globalAlpha = 0.5; ctx.fillStyle = grad; ctx.fill(); ctx.globalAlpha = 1;
+  // line
+  ctx.beginPath(); curve(); ctx.strokeStyle = grad; ctx.lineWidth = 3.5; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
+
+  // "now" marker at the current local hour
+  const nowH = new Date().getHours();
+  let nowI = pts.findIndex((p) => Number(p.t.slice(11, 13)) === nowH);
+  if (nowI < 0) nowI = pts.length - 1;
+  const nx = X(nowI), ny = Y(pts[nowI].uv);
+  ctx.setLineDash([3, 4]); ctx.strokeStyle = ink; ctx.globalAlpha = 0.35; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(nx, padTop); ctx.lineTo(nx, padTop + h); ctx.stroke();
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
+  ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(nx, ny, 5, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#fff";
+  ctx.beginPath(); ctx.arc(nx, ny, 2.5, 0, Math.PI * 2); ctx.fill();
+
+  // time axis labels
+  ctx.fillStyle = ink; ctx.globalAlpha = 0.55; ctx.font = "700 11px Inter, system-ui"; ctx.textAlign = "center";
+  [6, 12, 18].forEach((hh) => {
+    const i = pts.findIndex((p) => Number(p.t.slice(11, 13)) === hh);
+    if (i >= 0) ctx.fillText(`${(hh % 12) || 12}${hh < 12 ? "am" : "pm"}`, X(i), rect.height - 8);
+  });
+  ctx.globalAlpha = 1;
 }
 
 function openDay(index) {
@@ -819,6 +994,7 @@ function detailSeries() {
 }
 
 function drawDetailChart() {
+  if (state.detail.metric === "aqi" || state.detail.metric === "uv") return; // info sheets draw their own
   if (state.detail.metric === "day") {
     const day = state.daily[state.detail.dayIndex];
     if (!day) return;

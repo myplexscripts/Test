@@ -925,6 +925,39 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 /* Static (non-interactive) detail tiles, e.g. the day breakdown stats */
 .detail.static:active { transform: none; background: var(--card-bg); }
 
+/* ---------- Air Quality / UV info sheets ---------- */
+.aqi-hero { display: flex; align-items: baseline; gap: var(--s-3); margin-bottom: var(--s-2); }
+.aqi-big { font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: clamp(3rem, 16vw, 4.5rem); line-height: 1; }
+.aqi-band { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.3rem; color: var(--ink); }
+
+.scale-wrap { position: relative; margin: var(--s-2) 0 var(--s-1); }
+.scale-bar {
+  height: 10px; border-radius: var(--r-pill);
+  background: linear-gradient(to right, #3ec46d 0%, #ffd33d 33%, #ff9f43 50%, #ff5d5d 67%, #b657ff 100%);
+}
+.scale-dot {
+  position: absolute; top: 50%; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--bg); border: 3px solid var(--ink); transform: translate(-50%, -50%);
+}
+.scale-ends { display: flex; justify-content: space-between; font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); margin-bottom: var(--s-4); }
+
+.info-section { margin-top: var(--s-5); }
+.info-head { font-family: Rubik, Inter, sans-serif; font-size: 1.15rem; font-weight: 700; margin-bottom: var(--s-2); }
+.info-card { background: var(--card-bg); border: 2px solid var(--card-border); border-radius: var(--r-md); padding: var(--s-4); }
+.info-text { font-size: var(--t-sm); line-height: 1.5; color: var(--ink-soft); font-weight: 500; }
+
+.pollutant + .pollutant { margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1.5px solid var(--card-border); }
+.pollutant-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); margin-bottom: 2px; }
+.pollutant-name { font-weight: 700; }
+.pollutant-val { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-variant-numeric: tabular-nums; }
+
+.uv-scale { display: flex; flex-direction: column; gap: var(--s-2); }
+.uv-scale-row { display: grid; grid-template-columns: 1.2rem 1fr auto; align-items: center; gap: var(--s-3); font-weight: 600; }
+.uv-scale-row.is-active { font-weight: 800; }
+.uv-scale-row.is-active .uv-range { color: var(--ink); }
+.uv-dot { width: 12px; height: 12px; border-radius: 50%; }
+.uv-range { font-size: var(--t-sm); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+
 /* ---------- Entrance animation ---------- */
 /* ---------- Entrance choreography (plays once on first load) ----------
    Top-to-bottom: header → date → condition → icon → temperature (pop) →
