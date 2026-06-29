@@ -67,7 +67,7 @@ const state = {
 /* Radar / map (Leaflet) state.
    mode "radar" = animated RainViewer; others = OpenWeather static layers. */
 const radar = {
-  map: null, base: null, owm: null, marker: null, preview: null, previewBase: null,
+  map: null, base: null, owm: null, marker: null, preview: null, previewBase: null, previewMarker: null,
   layers: [], front: 0, gen: 0,
   mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, ecccLayerName: "", themeDark: null
 };
@@ -77,15 +77,16 @@ const RV_OPTS = "1_1"; // smooth + show snow
 const RV_SIZE = 256;
 // Environment & Climate Change Canada radar (GeoMet WMS, time-animated).
 const ECCC_WMS          = "https://geo.weather.gc.ca/geomet";
-const ECCC_LAYER_RAIN_1KM  = "RADAR_1KM_RRAI";       // 1 km individual station rain (reference)
-const ECCC_LAYER_SNOW_1KM  = "RADAR_1KM_RSNO";       // 1 km individual station snow
-const ECCC_LAYER_RAIN_COMP = "RADAR_COMPOSITE_RRAI"; // national composite rain (default)
-const ECCC_LAYER_SNOW_COMP = "RADAR_COMPOSITE_RSNO"; // national composite snow
+// GeoMet's national radar composite is published as the RADAR_1KM_* family
+// (1 km mosaic). There is no RADAR_COMPOSITE_* layer — using those names made
+// GetMap return blank tiles, so the Canada radar showed nothing.
+const ECCC_LAYER_RAIN = "RADAR_1KM_RRAI"; // national composite — rain
+const ECCC_LAYER_SNOW = "RADAR_1KM_RSNO"; // national composite — snow
 const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed" };
 
 function ecccLayer() {
   const main = (state.data?.current?.weather?.[0]?.main || "").toLowerCase();
-  return main === "snow" ? ECCC_LAYER_SNOW_COMP : ECCC_LAYER_RAIN_COMP;
+  return main === "snow" ? ECCC_LAYER_SNOW : ECCC_LAYER_RAIN;
 }
 
 /* ---------- Boot ---------- */
@@ -485,16 +486,15 @@ function applyPalette(kind) {
   r.setProperty("--surface", p.surface);
   r.setProperty("--on-surface", p.onSurface);
   r.setProperty("--surface-accent", p.accent);
-  r.setProperty("--theme", p.bg);
-  document.querySelector('meta[name="theme-color"]').setAttribute("content", p.bg);
+  r.setProperty("--theme", p.surface);
+  // The status bar always sits on the dark "conditions bar" colour (--surface)
+  // on every theme, so the white system icons stay legible everywhere. On
+  // Android the theme-color meta paints the bar; on iOS the .status-fade strip
+  // does (behind the always-translucent, white-icon status bar).
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", p.surface);
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;
   updateMapTheme();
-  // Force status bar icon colour: dark themes get white icons (black-translucent),
-  // light themes get dark icons (default + color-scheme:light hint to the OS).
-  // Android Chrome adapts automatically via theme-color luminance.
-  const sbMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
-  if (sbMeta) sbMeta.setAttribute('content', p.dark ? 'black-translucent' : 'default');
 }
 
 function themeKind() {
@@ -853,6 +853,33 @@ function rvUrl(f) {
   return `${radar.host}${f.path}/${RV_SIZE}/{z}/{x}/{y}/${RV_COLOR}/${RV_OPTS}.png`;
 }
 
+// Apple-style location pin: a rounded pill with the current temperature and a
+// condition glyph, on a short stem pointing at the spot.
+function curIsNight() {
+  const c = state.data?.current, s = c?.sys;
+  if (!c || !s?.sunrise || !s?.sunset) return false;
+  return c.dt < s.sunrise || c.dt >= s.sunset;
+}
+function locationPinIcon() {
+  const t = state.data?.current?.main?.temp;
+  const temp = (t == null) ? "" : `${Math.round(t)}°`;
+  const main = state.data?.current?.weather?.[0]?.main || "";
+  const glyph = iconClass(main, curIsNight()).replace("ph-duotone", "ph");
+  return L.divIcon({
+    className: "map-pin-wrap",
+    html: `<span class="map-pin"><strong class="map-pin-temp">${temp}</strong><i class="${glyph}" aria-hidden="true"></i></span>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0]
+  });
+}
+function setPinMarker(map, ref) {
+  if (!map) return null;
+  const c = state.center;
+  if (radar[ref]) { radar[ref].setLatLng([c.lat, c.lon]).setIcon(locationPinIcon()); return radar[ref]; }
+  radar[ref] = L.marker([c.lat, c.lon], { icon: locationPinIcon(), interactive: false, keyboard: false }).addTo(map);
+  return radar[ref];
+}
+
 async function initRadarPreview() {
   if (!haveLeaflet() || radar.preview) return;
   try {
@@ -862,17 +889,22 @@ async function initRadarPreview() {
       doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, tap: false
     }).setView([c.lat, c.lon], 6);
     radar.previewBase = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(radar.preview);
+    setPinMarker(radar.preview, "previewMarker");
     requestAnimationFrame(() => radar.preview && radar.preview.invalidateSize());
     // Overlay the latest radar frame: ECCC for Canadian locations, RainViewer elsewhere.
     if (inCanada(c.lat, c.lon)) {
       const frames = await ensureEccc().catch(() => null);
       if (radar.preview && frames && frames.length) {
         const f = frames[frames.length - 1];
-        L.tileLayer.wms(ECCC_WMS, {
+        const ec = L.tileLayer.wms(ECCC_WMS, {
           layers: ecccLayer(), format: "image/png", transparent: true, version: "1.3.0",
           crs: L.CRS.EPSG3857, opacity: 0.8, maxZoom: 12,
           attribution: "&copy; Environment and Climate Change Canada (ECCC GeoMet)"
-        }).addTo(radar.preview).setParams({ time: f.iso });
+        }).addTo(radar.preview);
+        ec.setParams({ time: f.iso });
+        // Match the full map: shift ECCC's green palette toward Dark Sky blues.
+        const ecc = ec.getContainer && ec.getContainer();
+        if (ecc) ecc.style.filter = "hue-rotate(140deg) saturate(2) brightness(1.1)";
       } else {
         const rvFrames = await ensureFrames();
         if (radar.preview && rvFrames.length) {
@@ -898,11 +930,7 @@ function initRadarMap() {
     radar.base = L.tileLayer(radarTileUrl(), {
       subdomains: "abcd", maxZoom: 19, updateWhenZooming: false, keepBuffer: 1, attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(radar.map);
-    radar.marker = L.circleMarker([c.lat, c.lon], {
-      radius: 7, weight: 3, color: "#ffffff",
-      fillColor: getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#ffd83d",
-      fillOpacity: 1
-    }).addTo(radar.map);
+    setPinMarker(radar.map, "marker");
   } catch {
     el.radarMap.innerHTML = '<div class="map-fallback">The map could not be loaded.</div>';
     el.radarTimeline.style.display = "none";
@@ -1142,7 +1170,7 @@ function updateRadarNote() {
   let name = LAYER_NAMES[radar.mode] || "Weather";
   if (radar.mode === "radar") {
     if (radar.source === "eccc") {
-      name = ecccLayer() === ECCC_LAYER_SNOW_COMP
+      name = ecccLayer() === ECCC_LAYER_SNOW
         ? "Snow radar · Environment Canada"
         : "Composite rain radar · Environment Canada";
     } else {
@@ -1155,18 +1183,18 @@ function updateRadarNote() {
 function syncMaps() {
   if (!haveLeaflet()) return;
   const c = state.center;
-  if (radar.preview) radar.preview.setView([c.lat, c.lon]); else initRadarPreview();
-  if (radar.map) { radar.map.setView([c.lat, c.lon]); radar.marker && radar.marker.setLatLng([c.lat, c.lon]); }
+  if (radar.preview) { radar.preview.setView([c.lat, c.lon]); setPinMarker(radar.preview, "previewMarker"); } else initRadarPreview();
+  if (radar.map) { radar.map.setView([c.lat, c.lon]); setPinMarker(radar.map, "marker"); }
   if (el.radarNote) updateRadarNote();
 }
 
 function updateMapTheme() {
   if (!haveLeaflet()) return;
   // Radar maps stay on the dark basemap regardless of app theme so the
-  // precipitation colours always pop; just refresh the marker tint.
-  if (radar.marker) {
-    radar.marker.setStyle({ fillColor: getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#ffd83d" });
-  }
+  // precipitation colours always pop; just refresh the location pins (temp +
+  // condition glyph) so they track the latest data.
+  if (radar.marker) radar.marker.setIcon(locationPinIcon());
+  if (radar.previewMarker) radar.previewMarker.setIcon(locationPinIcon());
 }
 
 /* ---------- Location ---------- */
