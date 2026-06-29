@@ -490,6 +490,11 @@ function applyPalette(kind) {
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;
   updateMapTheme();
+  // Force status bar icon colour: dark themes get white icons (black-translucent),
+  // light themes get dark icons (default + color-scheme:light hint to the OS).
+  // Android Chrome adapts automatically via theme-color luminance.
+  const sbMeta = document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]');
+  if (sbMeta) sbMeta.setAttribute('content', p.dark ? 'black-translucent' : 'default');
 }
 
 function themeKind() {
