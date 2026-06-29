@@ -146,15 +146,14 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   top: 0;
   left: 0;
   right: 0;
-  /* Extended to cover the topbar row so the scrim backs the menu/back/toggle buttons */
-  height: calc(var(--safe-t) + 88px);
+  /* Just tall enough to back the floating top-bar buttons, then fade out */
+  height: calc(var(--safe-t) + 80px);
   z-index: 50;
   pointer-events: none;
   background: linear-gradient(
     to bottom,
     color-mix(in srgb, var(--bg) 95%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 82%, transparent) calc(var(--safe-t) + 4px),
-    color-mix(in srgb, var(--bg) 50%, transparent) calc(var(--safe-t) + 52px),
+    color-mix(in srgb, var(--bg) 80%, transparent) calc(var(--safe-t) + 56px),
     transparent 100%
   );
   transition: background var(--dur-slow) var(--ease-out);
@@ -206,11 +205,13 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   grid-template-columns: 48px 1fr 48px;
   align-items: center;
   gap: var(--s-3);
-  /* Stick just below the safe area so it's always inside the scrim backdrop */
+  /* Float the controls with the user, sitting ON TOP of the status scrim.
+     Transparent so the scrim (z 50) shows through as the backdrop; z 51 keeps
+     the buttons above the scrim so they aren't dimmed by the gradient. An open
+     sheet (z 52) covers this, so the menu button stays on the home screen. */
   position: sticky;
   top: calc(var(--safe-t) + var(--s-4));
-  background: var(--bg);
-  transition: background var(--dur-slow) var(--ease-out);
+  z-index: 51;
 }
 
 .icon-btn {
@@ -793,7 +794,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .sheet {
   position: fixed;
   inset: 0;
-  z-index: 40;
+  /* Above the home scrim (50) and floating topbar (51) so the opaque sheet
+     fully covers the home menu button — it never travels to other screens. */
+  z-index: 52;
   background: var(--bg);
   color: var(--ink);
   transform: translateX(100%);
@@ -818,11 +821,31 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   align-items: center;
   justify-content: space-between;
   gap: var(--s-4);
-  /* Stick inside the scrollable sheet so back/tabs stay inside the scrim backdrop */
+  /* Float the back button / toggles with the user, on top of the sheet's own
+     status scrim (drawn by ::before below). */
   position: sticky;
-  top: 0;
+  top: calc(var(--safe-t) + var(--s-4));
   z-index: 2;
-  background: var(--bg);
+}
+/* Per-sheet status scrim. The global .status-fade sits below the sheet now, so
+   each sheet carries its own — matched to the home scrim — to back the floating
+   controls and tint the status bar. Fixed to the (transformed) sheet, so it
+   spans the top strip and the buttons sit on top of it (header content > -1). */
+.sheet-head::before {
+  content: "";
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--safe-t) + 80px);
+  z-index: -1;
+  pointer-events: none;
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg) 95%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 80%, transparent) calc(var(--safe-t) + 56px),
+    transparent 100%
+  );
   transition: background var(--dur-slow) var(--ease-out);
 }
 .back-btn {
