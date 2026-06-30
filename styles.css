@@ -133,27 +133,25 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   transition: background-color var(--dur-slow) var(--ease-out);
 }
 
-/* Status-bar blend: solid sky color at the very top fading to transparent.
-   No blur — pure gradient, matched to --bg so it disappears into the page. */
-/* Global status-bar scrim: one persistent gradient in the page's dynamic
-   --bg, semi-opaque behind the status bar and fading to transparent below
-   the safe area. It sits above every page (home + sheets) so it is always
-   present; the dark drawer is layered above it. A fixed minimum height means
-   it also works in a normal mobile browser (where the safe-area inset is 0).
-   The soft feather means it improves contrast without looking like a header.
-   Mobile only. */
+/* Status-bar scrim: a subtle gradient in the page's dynamic --bg, semi-opaque
+   behind the status bar and feathering to transparent just below the safe
+   area. No blur, no separate-header look — it just improves contrast behind
+   the iOS status bar. A fixed minimum height keeps it working in a normal
+   mobile browser (where the safe-area inset is 0). Mobile only. */
 .status-fade {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  /* Solid status-bar strip in the dark "conditions bar" colour, on every
-     theme, so the white system status-bar icons stay legible. No gradient —
-     just covers the safe-area inset behind the translucent iOS status bar. */
-  height: var(--safe-t);
+  height: calc(var(--safe-t) + 40px);
   z-index: 50;
   pointer-events: none;
-  background: var(--surface);
+  background: linear-gradient(
+    to bottom,
+    color-mix(in srgb, var(--bg) 92%, transparent) 0%,
+    color-mix(in srgb, var(--bg) 64%, transparent) calc(var(--safe-t) + 8px),
+    transparent 100%
+  );
   transition: background var(--dur-slow) var(--ease-out);
 }
 @media (min-width: 821px) { .status-fade { display: none; } }

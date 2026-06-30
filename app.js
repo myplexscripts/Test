@@ -13,6 +13,7 @@ const AIR_BASE = "https://air-quality-api.open-meteo.com/v1/air-quality";
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
+const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397; // moon-math constants
 
 /* Flat per-theme palettes. The background is a single solid colour — no
    gradients. Themes are chosen by the user only (no weather-based switching). */
@@ -302,6 +303,10 @@ function render(data) {
 
   state.hourly = buildHourly(forecast, tz);
   state.daily = buildDaily(forecast, tz);
+  // Set these before the render* calls below — renderMoon/renderSun read them.
+  state.center = { lat: current.coord?.lat ?? state.loc.lat, lon: current.coord?.lon ?? state.loc.lon };
+  state.tz = tz;
+  state.placeName = current.name || state.loc.label;
 
   el.heroIcon.className = `hero-icon ${iconClass(w.main, isNight)}`;
   el.placeName.textContent = current.name ? `${current.name}${sys.country ? ", " + sys.country : ""}` : state.loc.label;
@@ -322,9 +327,6 @@ function render(data) {
   renderMoon(current);
   renderDetails(current, forecast);
 
-  state.center = { lat: current.coord?.lat ?? state.loc.lat, lon: current.coord?.lon ?? state.loc.lon };
-  state.tz = tz;
-  state.placeName = current.name || state.loc.label;
   syncMaps();
 
   if (state.sheetOpen) renderDetailSheet();
@@ -383,7 +385,6 @@ function renderSun(current) {
 
 /* ---------- Moon ---------- */
 // Moon altitude (radians) at a unix time + location — compact SunCalc port.
-const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
 function moonToDays(unix) { return unix / 86400 - 10957.5; } // days since J2000
 function moonCoords(d) {
   const L = MOON_RAD * (218.316 + 13.176396 * d),
