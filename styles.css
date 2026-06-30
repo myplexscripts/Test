@@ -352,12 +352,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   0%, 55%, 100% { stroke-dashoffset: 0; }
   72% { stroke-dashoffset: 54; }
 }
-/* Drop: the shine slides back and forth along the bottom of the drop. */
-.cond-drop .drop-shine { animation: shine 3.6s ease-in-out infinite; }
-@keyframes shine {
-  0%, 100% { transform: translate(8px, -1px); }
-  50% { transform: translate(-42px, -8px); }
-}
+/* Drop: the shine sweeps back and forth along the drop's bottom arc — driven
+   by an SVG <animateTransform> rotate around (128,144) in index.html, which is
+   reliable on iOS (unlike a CSS transform-box rotation). */
 /* Eye: a clean blink (collapse + reopen) around the icon's own centre. */
 .cond-eye { transform-origin: center; animation: blink2 6.5s ease-in-out infinite; }
 @keyframes blink2 {
