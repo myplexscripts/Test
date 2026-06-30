@@ -25,7 +25,10 @@ const PALETTES = {
   storm:       { bg: "#243b6b", ink: "#eef2ff", surface: "#0d1733", onSurface: "#f4f6ff", accent: "#8aa6ee", dark: true  },
   snow:        { bg: "#ffffff", ink: "#0b1626", surface: "#0b1626", onSurface: "#eef5ff", accent: "#79b6ff", dark: false },
   night:       { bg: "#0b132b", ink: "#e9ecff", surface: "#0a1024", onSurface: "#f4f6ff", accent: "#7e9be0", dark: true  },
-  sunset:      { bg: "#ff64d4", ink: "#2b0a24", surface: "#2b0a24", onSurface: "#ffe9fa", accent: "#ff8fe0", dark: false }
+  sunset:      { bg: "#ff64d4", ink: "#2b0a24", surface: "#2b0a24", onSurface: "#ffe9fa", accent: "#ff8fe0", dark: false },
+  // Monochrome dark theme — the inverse of snow: black page, white panels.
+  // statusBar stays black so the white iOS status-bar icons remain legible.
+  newmoon:     { bg: "#000000", ink: "#ffffff", surface: "#ffffff", onSurface: "#0a0a0a", accent: "#0a0a0a", dark: true, statusBar: "#000000" }
 };
 
 /* ---------- DOM ---------- */
@@ -662,12 +665,15 @@ function applyPalette(kind) {
   r.setProperty("--surface", p.surface);
   r.setProperty("--on-surface", p.onSurface);
   r.setProperty("--surface-accent", p.accent);
-  r.setProperty("--theme", p.surface);
-  // The status bar always sits on the dark "conditions bar" colour (--surface)
-  // on every theme, so the white system icons stay legible everywhere. On
-  // Android the theme-color meta paints the bar; on iOS the .status-fade strip
-  // does (behind the always-translucent, white-icon status bar).
-  document.querySelector('meta[name="theme-color"]').setAttribute("content", p.surface);
+  // The status-bar strip must stay dark so the white system icons stay legible
+  // (the iOS status bar is always white). It defaults to --surface, but a theme
+  // with a light surface (e.g. New Moon) can override it via statusBar.
+  const sb = p.statusBar || p.surface;
+  r.setProperty("--statusbar", sb);
+  r.setProperty("--theme", sb);
+  // On Android the theme-color meta paints the bar; on iOS the .status-fade
+  // strip does (behind the always-translucent, white-icon status bar).
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", sb);
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;
   updateMapTheme();

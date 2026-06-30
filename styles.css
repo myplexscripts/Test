@@ -145,7 +145,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   height: var(--safe-t);
   z-index: 50;
   pointer-events: none;
-  background: var(--surface);
+  background: var(--statusbar, var(--surface));
   transition: background var(--dur-slow) var(--ease-out);
 }
 @media (min-width: 821px) { .status-fade { display: none; } }
