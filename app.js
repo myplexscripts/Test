@@ -101,7 +101,9 @@ function ecccLayer() {
 }
 
 /* ---------- Boot ---------- */
-init();
+/* init() is invoked at the very bottom of this file, after every top-level
+   declaration has initialized — otherwise a synchronous cache-path render can
+   touch a `let`/`const` that is still in its temporal dead zone. */
 
 function init() {
   loadState();
@@ -1968,3 +1970,6 @@ function initGestures() {
 function registerSW() {
   if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
 }
+
+/* ---------- Boot (run last, after all declarations are initialized) ---------- */
+init();
