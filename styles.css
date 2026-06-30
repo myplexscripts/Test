@@ -513,14 +513,24 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .sun-time.end { text-align: right; align-items: flex-end; }
 .sun-time i { font-size: 1.6rem; color: var(--ink); }
 .sun-time strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
-.moon-line {
-  display: flex; align-items: center; gap: var(--s-2);
-  margin-top: var(--s-2); padding-top: var(--s-3);
-  border-top: 1.5px solid var(--card-border);
-  font-size: var(--t-sm); font-weight: 600; color: var(--ink-soft);
+/* Moon card: phase + stats on the left, a large moon glyph on the right. */
+.moon-card {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--s-5);
+  border: 2px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--r-lg);
+  padding: var(--s-5);
 }
-.moon-line .moon-svg { width: 26px; height: 26px; display: block; flex: 0 0 auto; }
-.moon-line strong { margin-left: auto; font-family: Rubik, Inter, sans-serif; font-weight: 700; color: var(--ink); }
+.moon-name { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.2rem; margin-bottom: var(--s-3); }
+.moon-stats { display: flex; flex-direction: column; gap: var(--s-2); }
+.moon-stat { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-4); font-weight: 600; color: var(--ink-soft); }
+.moon-stat strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+/* Hero-icon-sized moon (same scale as the current-conditions weather icon). */
+.moon-art { flex: 0 0 auto; }
+.moon-art .moon-svg { width: clamp(5rem, 18vw, 9rem); height: auto; display: block; }
 
 /* ---------- Radar ---------- */
 .radar-preview {

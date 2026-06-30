@@ -38,7 +38,7 @@ const el = {
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mVisibility: $("mVisibility"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
-  sunCard: $("sunCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
+  sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
@@ -319,6 +319,7 @@ function render(data) {
   renderDaily();
   renderWind(current);
   renderSun(current);
+  renderMoon(current);
   renderDetails(current, forecast);
 
   state.center = { lat: current.coord?.lat ?? state.loc.lat, lon: current.coord?.lon ?? state.loc.lon };
@@ -362,7 +363,6 @@ function renderSun(current) {
   const tz = current.timezone ?? 0;
   if (!sys.sunrise || !sys.sunset) { el.sunCard.style.display = "none"; return; }
   el.sunCard.style.display = "";
-  const moon = moonPhase();
   const now = current.dt || Math.floor(Date.now() / 1000);
   let t = (now - sys.sunrise) / (sys.sunset - sys.sunrise);
   t = Math.max(0, Math.min(1, t));
@@ -378,8 +378,86 @@ function renderSun(current) {
     <div class="sun-times">
       <div class="sun-time"><i class="ph-duotone ph-sun-horizon"></i><span class="d-label">Sunrise</span><strong>${fmtClock(sys.sunrise, tz)}</strong></div>
       <div class="sun-time end"><i class="ph-duotone ph-moon-stars"></i><span class="d-label">Sunset</span><strong>${fmtClock(sys.sunset, tz)}</strong></div>
+    </div>`;
+}
+
+/* ---------- Moon ---------- */
+// Moon altitude (radians) at a unix time + location — compact SunCalc port.
+const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
+function moonToDays(unix) { return unix / 86400 - 10957.5; } // days since J2000
+function moonCoords(d) {
+  const L = MOON_RAD * (218.316 + 13.176396 * d),
+        M = MOON_RAD * (134.963 + 13.064993 * d),
+        F = MOON_RAD * (93.272 + 13.229350 * d),
+        l = L + MOON_RAD * 6.289 * Math.sin(M),
+        b = MOON_RAD * 5.128 * Math.sin(F);
+  return {
+    ra: Math.atan2(Math.sin(l) * Math.cos(ECL) - Math.tan(b) * Math.sin(ECL), Math.cos(l)),
+    dec: Math.asin(Math.sin(b) * Math.cos(ECL) + Math.cos(b) * Math.sin(ECL) * Math.sin(l))
+  };
+}
+function moonAltitude(unix, lat, lon) {
+  const lw = MOON_RAD * -lon, phi = MOON_RAD * lat, d = moonToDays(unix), c = moonCoords(d);
+  const H = (MOON_RAD * (280.16 + 360.9856235 * d) - lw) - c.ra;
+  let h = Math.asin(Math.sin(phi) * Math.sin(c.dec) + Math.cos(phi) * Math.cos(c.dec) * Math.cos(H));
+  const hr = h < 0 ? 0 : h;
+  return h + 0.0002967 / Math.tan(hr + 0.00312536 / (hr + 0.08901179)); // refraction
+}
+// Moonrise/moonset (unix UTC) for the local day starting at baseUtc.
+function moonTimes(baseUtc, lat, lon) {
+  const hc = 0.133 * MOON_RAD;
+  let h0 = moonAltitude(baseUtc, lat, lon) - hc, rise, set, ye;
+  for (let i = 1; i <= 24; i += 2) {
+    const h1 = moonAltitude(baseUtc + i * 3600, lat, lon) - hc;
+    const h2 = moonAltitude(baseUtc + (i + 1) * 3600, lat, lon) - hc;
+    const a = (h0 + h2) / 2 - h1, b = (h2 - h0) / 2, xe = -b / (2 * a);
+    ye = (a * xe + b) * xe + h1;
+    const disc = b * b - 4 * a * h1;
+    let roots = 0, x1, x2;
+    if (disc >= 0) {
+      const dx = Math.sqrt(disc) / (Math.abs(a) * 2);
+      x1 = xe - dx; x2 = xe + dx;
+      if (Math.abs(x1) <= 1) roots++;
+      if (Math.abs(x2) <= 1) roots++;
+      if (x1 < -1) x1 = x2;
+    }
+    if (roots === 1) { if (h0 < 0) rise = i + x1; else set = i + x1; }
+    else if (roots === 2) { rise = i + (ye < 0 ? x2 : x1); set = i + (ye < 0 ? x1 : x2); }
+    if (rise != null && set != null) break;
+    h0 = h2;
+  }
+  const out = {};
+  if (rise != null) out.rise = Math.round(baseUtc + rise * 3600);
+  if (set != null) out.set = Math.round(baseUtc + set * 3600);
+  return out;
+}
+
+function renderMoon(current) {
+  if (!el.moonCard) return;
+  const tz = state.tz || current?.timezone || 0;
+  const c = state.center || {};
+  const moon = moonPhase();
+  // UTC instant of the location's local midnight today
+  const nowUnix = Math.floor(Date.now() / 1000);
+  const base = Math.floor((nowUnix + tz) / 86400) * 86400 - tz;
+  const mt = Number.isFinite(c.lat) ? moonTimes(base, c.lat, c.lon) : {};
+  // Days until the next full moon (frac 0=new, .5=full).
+  const synodic = 29.530588853;
+  let d = (((0.5 - moon.frac) % 1) + 1) % 1, days = d * synodic;
+  if (days < 0.5) days += synodic; // basically full now → next one is a cycle away
+  days = Math.round(days);
+  const rows = [
+    ["Illumination", `${moon.illum}%`],
+    ["Moonrise", mt.rise != null ? fmtClock(mt.rise, tz) : "—"],
+    ["Moonset", mt.set != null ? fmtClock(mt.set, tz) : "—"],
+    ["Next full moon", `${days} ${days === 1 ? "day" : "days"}`]
+  ];
+  el.moonCard.innerHTML = `
+    <div class="moon-info">
+      <div class="moon-name">${moon.name}</div>
+      <div class="moon-stats">${rows.map(([k, v]) => `<div class="moon-stat"><span>${k}</span><strong>${v}</strong></div>`).join("")}</div>
     </div>
-    <div class="moon-line">${moonSVG(moon.frac)}<span>${moon.name}</span><strong>${moon.illum}% lit</strong></div>`;
+    <div class="moon-art">${moonSVG(moon.frac)}</div>`;
 }
 
 /* Wind compass dial (Apple-style data viz, flat aesthetic) */
