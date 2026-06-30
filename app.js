@@ -43,6 +43,8 @@ const el = {
   unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"),
   placeName: $("placeName"), datePill: $("datePill"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"),
+  hero: document.querySelector(".hero"),
+  miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mVisibility: $("mVisibility"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
@@ -373,6 +375,12 @@ function render(data) {
   el.temp.classList.remove("is-loading");
   el.summary.textContent = buildSummary(current, state.daily);
 
+  // compact header mirror of the current conditions
+  if (el.miniIcon) el.miniIcon.className = `mini-ic ${iconClass(w.main, isNight)}`;
+  if (el.miniPlace) el.miniPlace.textContent = el.placeName.textContent;
+  if (el.miniCond) el.miniCond.textContent = w.description || w.main || "Weather";
+  if (el.miniTemp) el.miniTemp.textContent = `${Math.round(m.temp ?? 0)}°`;
+
   el.mWind.textContent = windText(current.wind?.speed || 0);
   el.mHumidity.textContent = m.humidity != null ? `${m.humidity}%` : "—";
   el.mVisibility.textContent = visibilityText(current.visibility);
@@ -385,8 +393,50 @@ function render(data) {
   renderDetails(current, forecast);
 
   syncMaps();
+  setupScrollFx();
 
   if (state.sheetOpen) renderDetailSheet();
+}
+
+// Scroll choreography: a compact header that appears past the hero, plus
+// once-only reveals (sun arc draws on; the wind compass "searches" for north).
+let scrollFxReady = false;
+function setupScrollFx() {
+  if (scrollFxReady || !("IntersectionObserver" in window)) return;
+  scrollFxReady = true;
+
+  if (el.hero && el.miniHeader) {
+    new IntersectionObserver(([e]) => {
+      el.miniHeader.classList.toggle("show", !e.isIntersecting);
+      el.miniHeader.setAttribute("aria-hidden", e.isIntersecting ? "true" : "false");
+    }, { threshold: 0, rootMargin: "-72px 0px 0px 0px" }).observe(el.hero);
+  }
+
+  const reveal = new IntersectionObserver((entries) => {
+    entries.forEach((e) => {
+      if (!e.isIntersecting) return;
+      e.target.classList.add("reveal");
+      if (e.target === el.windCard) animateCompass();
+      reveal.unobserve(e.target);
+    });
+  }, { threshold: 0.45 });
+  [el.sunCard, el.windCard].forEach((t) => t && reveal.observe(t));
+}
+
+// The compass arrow sweeps as if hunting for north, then settles on the wind.
+function animateCompass() {
+  const g = el.windCard && el.windCard.querySelector(".compass-rot");
+  if (!g || !g.animate || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const rot = Number(el.windCard.dataset.rot) || 0;
+  g.style.transformBox = "view-box";
+  g.style.transformOrigin = "60px 60px";
+  g.animate([
+    { transform: "rotate(0deg)" },
+    { transform: `rotate(${rot + 70}deg)`, offset: 0.34 },
+    { transform: `rotate(${rot - 38}deg)`, offset: 0.6 },
+    { transform: `rotate(${rot + 14}deg)`, offset: 0.82 },
+    { transform: `rotate(${rot}deg)` }
+  ], { duration: 1500, easing: "cubic-bezier(0.4, 0.05, 0.2, 1)" });
 }
 
 function renderHourly() {
@@ -432,6 +482,7 @@ function renderSun(current) {
   const P0 = [24, 96], P1 = [150, -10], P2 = [276, 96];
   const x = (1 - t) ** 2 * P0[0] + 2 * (1 - t) * t * P1[0] + t ** 2 * P2[0];
   const y = (1 - t) ** 2 * P0[1] + 2 * (1 - t) * t * P1[1] + t ** 2 * P2[1];
+  el.sunCard.style.setProperty("--t", t.toFixed(3)); // drives the draw-on reveal
   el.sunCard.innerHTML = `
     <svg class="sun-svg" viewBox="0 0 300 104" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
       <path class="arc-bg" d="M24,96 Q150,-10 276,96" pathLength="1"/>
@@ -537,6 +588,7 @@ function renderWind(current) {
       <div class="wind-row"><span>Direction</span><strong>${dirTxt}</strong></div>
     </div>
     <div class="wind-compass">${compassSVG(rot, parts.v, parts.u)}</div>`;
+  el.windCard.dataset.rot = String(rot); // used by the "searching" reveal animation
 }
 
 function compassSVG(rot, value, unit) {
@@ -555,7 +607,7 @@ function compassSVG(rot, value, unit) {
     <text x="106" y="60" class="compass-card">E</text>
     <text x="60" y="106" class="compass-card">S</text>
     <text x="14" y="60" class="compass-card">W</text>
-    <g transform="rotate(${rot} 60 60)"><path class="compass-arrow" d="M60 28 L66 45 L60 40 L54 45 Z"/></g>
+    <g class="compass-rot" transform="rotate(${rot} 60 60)"><path class="compass-arrow" d="M60 28 L66 45 L60 40 L54 45 Z"/></g>
     <text x="60" y="59" class="compass-value">${value}</text>
     <text x="60" y="73" class="compass-unit">${unit}</text>
   </svg>`;
@@ -588,7 +640,7 @@ function renderDetails(current, forecast) {
   const air = state.data?.air;
   if (air && air.us_aqi != null) {
     const b = aqiBand(air.us_aqi);
-    items.push(["aqi", "ph-wind", "Air quality", `${Math.round(air.us_aqi)}`, b.label]);
+    items.push(["aqi", "ph-waves", "Air quality", `${Math.round(air.us_aqi)}`, b.label]);
   }
   if (air && air.uv_index != null) {
     const u = uvBand(air.uv_index);
