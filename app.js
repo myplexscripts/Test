@@ -882,7 +882,7 @@ function renderInfoSheet(kind) {
   const gc = el.graph.closest(".graph-card");
   el.dayStats.style.display = "none";
   el.tabSeg.style.display = "none";
-  if (kind === "aqi") { if (gc) gc.style.display = "none"; renderAqiSheet(air); }
+  if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
 }
 
@@ -989,6 +989,7 @@ function drawUvChart(hourly) {
   canvas.height = Math.max(1, Math.round(rect.height * dpr));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, rect.width, rect.height);
+  chartGeom = null; chartRedraw = null;
   const pts = todayUv(hourly);
   if (!pts.length) return;
 
@@ -1047,6 +1048,15 @@ function drawUvChart(hourly) {
     if (i >= 0) ctx.fillText(`${(hh % 12) || 12}${hh < 12 ? "am" : "pm"}`, X(i), rect.height - 8);
   });
   ctx.globalAlpha = 1;
+
+  // geometry + redraw for tap-to-read (so tapping the UV graph reads UV, not
+  // a stale chart left over from another metric)
+  chartGeom = {
+    xs: pts.map((_, i) => X(i)), ys: pts.map((p) => Y(p.uv)),
+    rows: pts.map((p) => { const hh = Number(p.t.slice(11, 13)); return { label: `${(hh % 12) || 12}${hh < 12 ? "am" : "pm"}`, hi: p.uv }; }),
+    padTop, h, rect, dual: false, fmt: (v) => `${Math.round(v)}`
+  };
+  chartRedraw = () => drawUvChart(hourly);
 }
 
 function openDay(index) {
@@ -1186,7 +1196,9 @@ function hexA(hex, a) {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-let chartArgs = null, chartGeom = null; // for tap-to-scrub on the detail chart
+// For tap-to-scrub: the current chart's geometry, plus a fn that re-renders it
+// cleanly (each chart type — drawChart, drawUvChart — sets its own).
+let chartGeom = null, chartRedraw = null;
 
 function drawChart(rows, m, dual, showNow) {
   const canvas = el.graph;
@@ -1197,8 +1209,8 @@ function drawChart(rows, m, dual, showNow) {
   canvas.height = Math.max(1, Math.round(rect.height * dpr));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, rect.width, rect.height);
-  chartArgs = rows.length ? { rows, m, dual, showNow } : null;
   chartGeom = null;
+  chartRedraw = null;
   if (!rows.length) return;
 
   const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
@@ -1266,22 +1278,23 @@ function drawChart(rows, m, dual, showNow) {
     ctx.globalAlpha = 0.55; ctx.fillText(i === 0 && showNow ? "Now" : r.label, X(i), rect.height - 10); ctx.globalAlpha = 1;
   });
 
-  // remember geometry so a tap can highlight the nearest point
+  // remember geometry + how to redraw so a tap can highlight the nearest point
   chartGeom = {
     xs: rows.map((_, i) => X(i)), ys: rows.map((r) => Y(r.hi)),
     rows, padTop, h, rect, dual, fmt: lab
   };
+  chartRedraw = () => drawChart(rows, m, dual, showNow);
 }
 
 // Highlight the data point nearest a client X — a marker + a value/time bubble.
 function showChartPoint(clientX) {
-  if (!chartArgs || !chartGeom) return;
+  if (!chartGeom || !chartRedraw) return;
   const rect = el.graph.getBoundingClientRect();
   const x = clientX - rect.left;
   const xs = chartGeom.xs;
   let idx = 0, best = Infinity;
   for (let i = 0; i < xs.length; i++) { const d = Math.abs(xs[i] - x); if (d < best) { best = d; idx = i; } }
-  drawChart(chartArgs.rows, chartArgs.m, chartArgs.dual, chartArgs.showNow); // clean redraw
+  chartRedraw(); // clean redraw of whatever chart is current
   const g = chartGeom, r = g.rows[idx];
   if (!r) return;
   const ctx = el.graph.getContext("2d");
