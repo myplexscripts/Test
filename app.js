@@ -10,6 +10,9 @@ const API_KEY = "37c88f3496272531c686b0686ecfe1dd"; // personal testing key
 const API_BASE = "https://api.openweathermap.org/data/2.5";
 // Air quality + UV index — free, keyless, CORS-friendly (no One Call 3.0 needed).
 const AIR_BASE = "https://air-quality-api.open-meteo.com/v1/air-quality";
+// True hourly weather (every hour on the hour) — free, keyless. OpenWeather's
+// free /forecast is only 3-hourly, so the hourly rail/detail come from here.
+const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
@@ -181,12 +184,13 @@ async function refresh(force) {
   if (force) setStatus("Refreshing…");
   try {
     const q = `lat=${state.loc.lat}&lon=${state.loc.lon}&units=${state.units}&appid=${API_KEY}`;
-    const [current, forecast, air] = await Promise.all([
+    const [current, forecast, air, hourly] = await Promise.all([
       fetchJSON(`${API_BASE}/weather?${q}`),
       fetchJSON(`${API_BASE}/forecast?${q}`),
-      fetchAir(state.loc.lat, state.loc.lon).catch(() => null) // never blocks core weather
+      fetchAir(state.loc.lat, state.loc.lon).catch(() => null), // never blocks core weather
+      fetchHourlyWx(state.loc.lat, state.loc.lon, state.units).catch(() => null)
     ]);
-    const data = { current, forecast, air };
+    const data = { current, forecast, air, hourly };
     state.data = data;
     saveCache(data);
     render(data);
@@ -217,6 +221,45 @@ async function fetchAir(lat, lon) {
   const out = json.current || {};
   out.hourly = json.hourly || null;
   return out;
+}
+
+// WMO weather code -> an OpenWeather-style condition string (for iconClass).
+function wmoMain(code) {
+  if (code == null) return "Clouds";
+  if (code === 0 || code === 1) return "Clear";
+  if (code === 2 || code === 3) return "Clouds";
+  if (code === 45 || code === 48) return "Mist";
+  if (code >= 51 && code <= 57) return "Drizzle";
+  if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "Rain";
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "Snow";
+  if (code >= 95) return "Thunderstorm";
+  return "Clouds";
+}
+
+// True hourly weather from Open-Meteo, normalised into the same item shape as
+// OpenWeather's forecast list so the rail / detail / METRICS code works as-is.
+// Units are matched to OpenWeather metric (wind in m/s) / imperial (mph).
+async function fetchHourlyWx(lat, lon, units) {
+  const tu = units === "imperial" ? "fahrenheit" : "celsius";
+  const wu = units === "imperial" ? "mph" : "ms";
+  const fields = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,surface_pressure,cloud_cover,visibility";
+  const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&hourly=${fields}&temperature_unit=${tu}&wind_speed_unit=${wu}&timeformat=unixtime&timezone=auto&forecast_days=2`;
+  const h = (await fetchJSON(url)).hourly;
+  if (!h || !h.time) return null;
+  return h.time.map((t, i) => ({
+    dt: t,
+    main: {
+      temp: h.temperature_2m?.[i],
+      feels_like: h.apparent_temperature?.[i],
+      humidity: h.relative_humidity_2m?.[i],
+      pressure: h.surface_pressure?.[i] != null ? Math.round(h.surface_pressure[i]) : null
+    },
+    weather: [{ main: wmoMain(h.weather_code?.[i]) }],
+    wind: { speed: h.wind_speed_10m?.[i] ?? 0, gust: h.wind_gusts_10m?.[i], deg: h.wind_direction_10m?.[i] },
+    pop: (h.precipitation_probability?.[i] ?? 0) / 100,
+    clouds: { all: h.cloud_cover?.[i] },
+    visibility: h.visibility?.[i]
+  }));
 }
 
 // Pollutant reference info: friendly name + plain-English explanation + a rough
@@ -306,7 +349,7 @@ function render(data) {
   const sys = current.sys || {};
   const isNight = sys.sunrise && sys.sunset ? (current.dt < sys.sunrise || current.dt >= sys.sunset) : false;
 
-  state.hourly = buildHourly(forecast, tz);
+  state.hourly = hourlyPoints();
   state.daily = buildDaily(forecast, tz);
   // Set these before the render* calls below — renderMoon/renderSun read them.
   state.center = { lat: current.coord?.lat ?? state.loc.lat, lon: current.coord?.lon ?? state.loc.lon };
@@ -338,13 +381,17 @@ function render(data) {
 }
 
 function renderHourly() {
-  const html = state.hourly.map((h) => `
+  const tz = state.tz || 0;
+  const html = state.hourly.map((it) => {
+    const hh = new Date((it.dt + tz) * 1000).getUTCHours();
+    return `
     <button class="card hour-card" data-open="hourly">
-      <span>${h.label}</span>
-      <i class="${iconClass(h.main, h.hour < 6 || h.hour >= 20)}"></i>
-      <strong>${Math.round(h.temp)}°</strong>
-      <span>${Math.round(h.pop * 100)}%</span>
-    </button>`).join("");
+      <span>${fmtHour(it.dt, tz)}</span>
+      <i class="${iconClass(it.weather?.[0]?.main, hh < 6 || hh >= 20)}"></i>
+      <strong>${Math.round(it.main.temp)}°</strong>
+      <span>${Math.round((it.pop || 0) * 100)}%</span>
+    </button>`;
+  }).join("");
   if (el.hourRail.__sig === html) return; // skip identical re-render (keeps entrance once)
   el.hourRail.__sig = html;
   el.hourRail.innerHTML = html;
@@ -603,15 +650,13 @@ function direction(deg) {
 }
 
 /* ---------- Builders ---------- */
-function buildHourly(forecast, tz) {
-  return (forecast.list || []).slice(0, 12).map((it) => ({
-    dt: it.dt,
-    label: fmtHour(it.dt, tz),
-    hour: new Date((it.dt + tz) * 1000).getUTCHours(),
-    temp: it.main.temp,
-    pop: it.pop || 0,
-    main: it.weather?.[0]?.main || ""
-  }));
+// The next 24 hours, on the hour, as OpenWeather-shaped items. Uses Open-Meteo
+// hourly when available; falls back to OWM's 3-hourly list (one day ≈ 8 points).
+function hourlyPoints() {
+  const nowH = Math.floor(Date.now() / 1000 / 3600) * 3600;
+  const h = state.data?.hourly;
+  if (h && h.length) return h.filter((it) => it.dt >= nowH).slice(0, 24);
+  return (state.data?.forecast?.list || []).slice(0, 8);
 }
 
 function buildDaily(forecast, tz) {
@@ -1050,7 +1095,7 @@ function dayStatsHTML(day, items) {
 function detailSeries() {
   const m = METRICS[state.detail.metric];
   const tz = state.tz || 0;
-  return (state.data?.forecast?.list || []).slice(0, 16)
+  return (state.hourly || [])
     .map((it) => ({ label: fmtHour(it.dt, tz), hi: m.get(it) }))
     .filter((r) => Number.isFinite(r.hi));
 }
@@ -1092,12 +1137,15 @@ function renderDetailList() {
     const n = dec ? v.toFixed(dec) : `${Math.round(v)}`;
     return unit === "°" ? `${n}°` : `${n} ${unit}`;
   };
-  el.sheetList.innerHTML = (state.data?.forecast?.list || []).slice(0, 16).map((it) => `
+  el.sheetList.innerHTML = (state.hourly || []).map((it) => {
+    const hh = new Date((it.dt + tz) * 1000).getUTCHours();
+    return `
     <div class="row">
       <span class="row-label">${fmtHour(it.dt, tz)}</span>
-      <i class="row-icon ${iconClass(it.weather?.[0]?.main, false)}"></i>
+      <i class="row-icon ${iconClass(it.weather?.[0]?.main, hh < 6 || hh >= 20)}"></i>
       <span class="row-temp">${valTxt(m.get(it))}</span>
-    </div>`).join("");
+    </div>`;
+  }).join("");
 }
 
 function hexA(hex, a) {
@@ -1173,7 +1221,7 @@ function drawChart(rows, m, dual, showNow) {
 
   // points + labels
   ctx.fillStyle = ink; ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center";
-  const step = rows.length > 8 ? 2 : 1;
+  const step = Math.max(1, Math.ceil(rows.length / 8)); // ~8 labels max, so a 24h series isn't crowded
   rows.forEach((r, i) => {
     ctx.beginPath(); ctx.arc(X(i), Y(r.hi), 4, 0, Math.PI * 2); ctx.fill();
     if (dual) { ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(X(i), Y(r.lo), 3.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
