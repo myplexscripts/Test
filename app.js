@@ -14,29 +14,17 @@ const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
 
-/* Freeform-gradient per-condition backgrounds: a flat base colour with a few
-   soft radial "blobs" layered on top (a mesh-gradient look). Light palettes
-   keep the near-black "conditions bar" surface with accent-hue icons; dark
-   palettes flip to a light-on-dark scheme. */
-const BG = {
-  sunny:       "radial-gradient(circle at 18% 14%,rgba(255,247,184,.95) 0%,rgba(255,247,184,.75) 10%,rgba(255,247,184,0) 28%),radial-gradient(circle at 82% 18%,rgba(255,211,92,.7) 0%,rgba(255,211,92,.45) 18%,rgba(255,211,92,0) 40%),radial-gradient(circle at 78% 78%,rgba(255,239,160,.85) 0%,rgba(255,239,160,.45) 16%,rgba(255,239,160,0) 36%),radial-gradient(circle at 20% 88%,rgba(255,221,72,.55) 0%,rgba(255,221,72,.28) 20%,rgba(255,221,72,0) 42%)",
-  mostlyclear: "radial-gradient(circle at 20% 14%,rgba(174,232,255,.95) 0%,rgba(174,232,255,.7) 14%,rgba(174,232,255,0) 30%),radial-gradient(circle at 84% 22%,rgba(126,219,255,.65) 0%,rgba(126,219,255,.38) 20%,rgba(126,219,255,0) 38%),radial-gradient(circle at 74% 80%,rgba(31,175,232,.55) 0%,rgba(31,175,232,.3) 18%,rgba(31,175,232,0) 38%),radial-gradient(circle at 16% 84%,rgba(186,239,255,.55) 0%,rgba(186,239,255,.25) 18%,rgba(186,239,255,0) 36%)",
-  cloudy:      "radial-gradient(circle at 18% 16%,rgba(236,245,255,.95) 0%,rgba(236,245,255,.68) 14%,rgba(236,245,255,0) 32%),radial-gradient(circle at 82% 14%,rgba(214,231,252,.7) 0%,rgba(214,231,252,.38) 18%,rgba(214,231,252,0) 38%),radial-gradient(circle at 70% 74%,rgba(141,187,250,.45) 0%,rgba(141,187,250,.2) 16%,rgba(141,187,250,0) 34%),radial-gradient(circle at 22% 82%,rgba(255,255,255,.4) 0%,rgba(255,255,255,.18) 16%,rgba(255,255,255,0) 34%)",
-  rain:        "radial-gradient(circle at 18% 16%,rgba(143,200,255,.82) 0%,rgba(143,200,255,.5) 16%,rgba(143,200,255,0) 34%),radial-gradient(circle at 82% 18%,rgba(112,177,247,.5) 0%,rgba(112,177,247,.24) 18%,rgba(112,177,247,0) 36%),radial-gradient(circle at 22% 82%,rgba(34,111,212,.42) 0%,rgba(34,111,212,.18) 20%,rgba(34,111,212,0) 42%),radial-gradient(circle at 78% 78%,rgba(120,187,255,.42) 0%,rgba(120,187,255,.18) 20%,rgba(120,187,255,0) 38%)",
-  storm:       "radial-gradient(circle at 16% 14%,rgba(77,99,168,.72) 0%,rgba(77,99,168,.42) 16%,rgba(77,99,168,0) 34%),radial-gradient(circle at 82% 18%,rgba(40,57,110,.55) 0%,rgba(40,57,110,.26) 18%,rgba(40,57,110,0) 38%),radial-gradient(circle at 26% 82%,rgba(11,19,43,.7) 0%,rgba(11,19,43,.36) 22%,rgba(11,19,43,0) 44%),radial-gradient(circle at 82% 78%,rgba(17,31,70,.65) 0%,rgba(17,31,70,.3) 18%,rgba(17,31,70,0) 40%)",
-  snow:        "radial-gradient(circle at 18% 14%,rgba(234,246,255,.95) 0%,rgba(234,246,255,.65) 16%,rgba(234,246,255,0) 34%),radial-gradient(circle at 84% 18%,rgba(225,241,255,.62) 0%,rgba(225,241,255,.28) 18%,rgba(225,241,255,0) 36%),radial-gradient(circle at 76% 78%,rgba(191,228,255,.38) 0%,rgba(191,228,255,.14) 18%,rgba(191,228,255,0) 36%),radial-gradient(circle at 18% 84%,rgba(244,250,255,.65) 0%,rgba(244,250,255,.24) 18%,rgba(244,250,255,0) 34%)",
-  night:       "radial-gradient(circle at 14% 22%,rgba(255,255,255,.85) 0 1px,transparent 1.6px),radial-gradient(circle at 28% 12%,rgba(255,255,255,.65) 0 1px,transparent 1.6px),radial-gradient(circle at 66% 20%,rgba(255,255,255,.7) 0 1px,transparent 1.6px),radial-gradient(circle at 78% 10%,rgba(255,255,255,.85) 0 1px,transparent 1.6px),radial-gradient(circle at 84% 28%,rgba(255,255,255,.5) 0 1px,transparent 1.6px),radial-gradient(circle at 20% 14%,rgba(26,47,92,.78) 0%,rgba(26,47,92,.4) 16%,rgba(26,47,92,0) 34%),radial-gradient(circle at 82% 18%,rgba(60,115,215,.22) 0%,rgba(60,115,215,.1) 16%,rgba(60,115,215,0) 34%),radial-gradient(circle at 20% 86%,rgba(7,14,36,.92) 0%,rgba(7,14,36,.44) 24%,rgba(7,14,36,0) 44%),radial-gradient(circle at 82% 82%,rgba(18,35,76,.54) 0%,rgba(18,35,76,.22) 18%,rgba(18,35,76,0) 38%)",
-  sunset:      "radial-gradient(circle at 18% 16%,rgba(255,161,166,.8) 0%,rgba(255,161,166,.44) 18%,rgba(255,161,166,0) 36%),radial-gradient(circle at 82% 18%,rgba(255,116,194,.46) 0%,rgba(255,116,194,.22) 18%,rgba(255,116,194,0) 36%),radial-gradient(circle at 22% 82%,rgba(255,79,109,.34) 0%,rgba(255,79,109,.16) 18%,rgba(255,79,109,0) 36%),radial-gradient(circle at 78% 76%,rgba(255,197,184,.44) 0%,rgba(255,197,184,.18) 20%,rgba(255,197,184,0) 38%)"
-};
+/* Flat per-theme palettes. The background is a single solid colour — no
+   gradients. Themes are chosen by the user only (no weather-based switching). */
 const PALETTES = {
-  sunny:       { bg: "#ffe142", ink: "#0a0a0a", surface: "#0a0a0a", onSurface: "#fffdf8", accent: "#ffd83d", dark: false, bgImage: BG.sunny },
-  mostlyclear: { bg: "#42c6ff", ink: "#06222f", surface: "#06222f", onSurface: "#eafaff", accent: "#5fd0ff", dark: false, bgImage: BG.mostlyclear },
-  cloudy:      { bg: "#b8d7ff", ink: "#0b1f3a", surface: "#0b1f3a", onSurface: "#eef5ff", accent: "#7fb4ff", dark: false, bgImage: BG.cloudy },
-  rain:        { bg: "#4a90e2", ink: "#05203b", surface: "#05203b", onSurface: "#eaf2ff", accent: "#8fc8ff", dark: false, bgImage: BG.rain },
-  storm:       { bg: "#243b6b", ink: "#eef2ff", surface: "#0d1733", onSurface: "#f4f6ff", accent: "#8aa6ee", dark: true,  bgImage: BG.storm },
-  snow:        { bg: "#ffffff", ink: "#0b1626", surface: "#0b1626", onSurface: "#eef5ff", accent: "#79b6ff", dark: false, bgImage: BG.snow },
-  night:       { bg: "#0b132b", ink: "#e9ecff", surface: "#0a1024", onSurface: "#f4f6ff", accent: "#7e9be0", dark: true,  bgImage: BG.night },
-  sunset:      { bg: "#ff64d4", ink: "#2b0a24", surface: "#2b0a24", onSurface: "#ffe9fa", accent: "#ff8fe0", dark: false, bgImage: BG.sunset }
+  sunny:       { bg: "#ffe142", ink: "#0a0a0a", surface: "#0a0a0a", onSurface: "#fffdf8", accent: "#ffd83d", dark: false },
+  mostlyclear: { bg: "#42c6ff", ink: "#06222f", surface: "#06222f", onSurface: "#eafaff", accent: "#5fd0ff", dark: false },
+  cloudy:      { bg: "#b8d7ff", ink: "#0b1f3a", surface: "#0b1f3a", onSurface: "#eef5ff", accent: "#7fb4ff", dark: false },
+  rain:        { bg: "#4a90e2", ink: "#05203b", surface: "#05203b", onSurface: "#eaf2ff", accent: "#8fc8ff", dark: false },
+  storm:       { bg: "#243b6b", ink: "#eef2ff", surface: "#0d1733", onSurface: "#f4f6ff", accent: "#8aa6ee", dark: true  },
+  snow:        { bg: "#ffffff", ink: "#0b1626", surface: "#0b1626", onSurface: "#eef5ff", accent: "#79b6ff", dark: false },
+  night:       { bg: "#0b132b", ink: "#e9ecff", surface: "#0a1024", onSurface: "#f4f6ff", accent: "#7e9be0", dark: true  },
+  sunset:      { bg: "#ff64d4", ink: "#2b0a24", surface: "#2b0a24", onSurface: "#ffe9fa", accent: "#ff8fe0", dark: false }
 };
 
 /* ---------- DOM ---------- */
@@ -68,8 +56,7 @@ const state = {
   hourly: [],
   daily: [],
   detail: { metric: "temp", range: "hourly" },
-  theme: "auto",
-  autoKind: "sunny",
+  theme: "sunny",
   center: { ...HOME },
   tz: 0,
   placeName: "",
@@ -112,6 +99,7 @@ function init() {
   wireEvents();
   registerSW();
   syncControls();
+  applyPalette(themeKind()); // user-chosen theme, applied immediately on load
 
   // One-time entrance: stagger the forecast cards on first load, then drop the
   // flag so later background refreshes don't re-animate them.
@@ -314,9 +302,6 @@ function render(data) {
 
   state.hourly = buildHourly(forecast, tz);
   state.daily = buildDaily(forecast, tz);
-
-  state.autoKind = paletteKind(current, isNight);
-  applyPalette(themeKind());
 
   el.heroIcon.className = `hero-icon ${iconClass(w.main, isNight)}`;
   el.placeName.textContent = current.name ? `${current.name}${sys.country ? ", " + sys.country : ""}` : state.loc.label;
@@ -587,35 +572,11 @@ function buildSummary(current, daily) {
   return `It feels like ${feels}° with ${desc}.${range}${rain}${comfort}`;
 }
 
-/* ---------- Palette ---------- */
-// Within ±45 min of sunrise or sunset → the golden-hour "sunset" look.
-function isNearGolden(current) {
-  const s = current?.sys, dt = current?.dt;
-  if (s?.sunrise == null || s?.sunset == null || dt == null) return false;
-  const win = 45 * 60;
-  return Math.abs(dt - s.sunrise) <= win || Math.abs(dt - s.sunset) <= win;
-}
-
-function paletteKind(current, isNight) {
-  const m = String(current?.weather?.[0]?.main || "").toLowerCase();
-  const clouds = current?.clouds?.all ?? 0;
-  // Active precipitation always wins over time-of-day looks.
-  if (m.includes("thunder")) return "storm";
-  if (m.includes("snow")) return "snow";
-  if (m.includes("rain") || m.includes("drizzle")) return "rain";
-  // Golden hour beats both plain night and clear day.
-  if (isNearGolden(current)) return "sunset";
-  if (isNight) return "night";
-  if (m.includes("cloud")) return clouds > 40 ? "cloudy" : "mostlyclear";
-  // Clear sky: a few clouds reads as "mostly clear", otherwise full "sunny".
-  return clouds > 20 ? "mostlyclear" : "sunny";
-}
-
+/* ---------- Palette (user-chosen only) ---------- */
 function applyPalette(kind) {
   const p = PALETTES[kind] || PALETTES.sunny;
   const r = document.documentElement.style;
   r.setProperty("--bg", p.bg);
-  r.setProperty("--bg-image", p.bgImage || "none");
   r.setProperty("--ink", p.ink);
   r.setProperty("--surface", p.surface);
   r.setProperty("--on-surface", p.onSurface);
@@ -632,11 +593,11 @@ function applyPalette(kind) {
 }
 
 function themeKind() {
-  return (state.theme && state.theme !== "auto" && PALETTES[state.theme]) ? state.theme : (state.autoKind || "sunny");
+  return PALETTES[state.theme] ? state.theme : "sunny";
 }
 
 function setTheme(theme) {
-  state.theme = (theme === "auto" || PALETTES[theme]) ? theme : "auto";
+  state.theme = PALETTES[theme] ? theme : "sunny";
   saveState();
   el.themeGrid.querySelectorAll("[data-theme]").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.theme === state.theme));
@@ -854,8 +815,8 @@ function uvSummary(air, hourly) {
   return `Currently ${uvBand(air.uv_index).label.toLowerCase()}. Moderate or higher from ${fmt(from)} to ${fmt(to)}.`;
 }
 
-// UV day-curve graph: hourly UV across today, area filled with a band-coloured
-// vertical gradient (green→red→purple), with a "now" marker.
+// UV day-curve graph: hourly UV across today, monochrome ink area + line with
+// band gridlines/labels and a "now" marker (same style as the other graphs).
 function drawUvChart(hourly) {
   const canvas = el.graph;
   const ctx = canvas.getContext("2d");
@@ -1590,8 +1551,8 @@ function loadState() {
     if (s) {
       state.units = s.units || "metric";
       state.loc = s.loc || { ...HOME };
-      // Drop themes saved under the old palette names (clear/clouds/thunder…).
-      state.theme = (s.theme === "auto" || PALETTES[s.theme]) ? s.theme : "auto";
+      // Fall back to the default theme if an old/unknown name was saved.
+      state.theme = PALETTES[s.theme] ? s.theme : "sunny";
     }
   } catch {}
 }

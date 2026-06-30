@@ -124,16 +124,12 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 
 /* ---------- Backdrop layers ---------- */
-/* Flat base colour with the per-condition freeform gradient blobs layered on
-   top (set by app.js via --bg / --bg-image). */
+/* Flat solid theme colour — no gradients. */
 .bg {
   position: fixed;
   inset: 0;
   z-index: -1;
   background-color: var(--bg);
-  background-image: var(--bg-image, none);
-  background-repeat: no-repeat;
-  background-size: cover;
   transition: background-color var(--dur-slow) var(--ease-out);
 }
 
@@ -783,8 +779,6 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   border-color: transparent;
   box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--on-surface);
 }
-.sw-auto { background: conic-gradient(from 200deg, #ffd83d, #42c6ff, #ff64d4, #121845, #ffd83d); }
-
 .seg-row {
   display: flex;
   align-items: center;
