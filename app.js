@@ -415,28 +415,60 @@ function setupScrollFx() {
   const reveal = new IntersectionObserver((entries) => {
     entries.forEach((e) => {
       if (!e.isIntersecting) return;
-      e.target.classList.add("reveal");
+      if (e.target === el.sunCard) animateSun();
       if (e.target === el.windCard) animateCompass();
       reveal.unobserve(e.target);
     });
-  }, { threshold: 0.45 });
+  }, { threshold: 0.2 });
   [el.sunCard, el.windCard].forEach((t) => t && reveal.observe(t));
 }
 
-// The compass arrow sweeps as if hunting for north, then settles on the wind.
+// rAF tween helper — explicit numeric values, so no CSS-var / transform-box
+// pitfalls on iOS. Respects reduced-motion by jumping to the end.
+function tween(ms, ease, step) {
+  if (matchMedia("(prefers-reduced-motion: reduce)").matches) { step(1); return; }
+  const t0 = performance.now();
+  (function frame(now) {
+    const p = Math.min(1, (now - t0) / ms);
+    step(ease(p));
+    if (p < 1) requestAnimationFrame(frame);
+  })(t0);
+}
+const easeOutCubic = (p) => 1 - Math.pow(1 - p, 3);
+const easeInOutQuad = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
+
+// Sun arc draws along to the current position; the dot fades in at the end.
+function animateSun() {
+  const arc = el.sunCard && el.sunCard.querySelector(".arc-fg");
+  const dot = el.sunCard && el.sunCard.querySelector(".sun-dot");
+  if (!arc) return;
+  const t = Number(el.sunCard.dataset.t) || 0;
+  if (dot) dot.style.opacity = "0";
+  tween(1100, easeOutCubic, (p) => {
+    arc.style.strokeDashoffset = (t * (1 - p)).toFixed(4); // hidden (t) -> drawn (0)
+    if (dot) dot.style.opacity = String(Math.max(0, (p - 0.75) / 0.25));
+  });
+}
+
+// Compass arrow sweeps as if hunting for north, then settles on the wind.
+// Drives the SVG transform attribute directly (rotate around 60,60) per frame.
 function animateCompass() {
   const g = el.windCard && el.windCard.querySelector(".compass-rot");
-  if (!g || !g.animate || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  if (!g) return;
   const rot = Number(el.windCard.dataset.rot) || 0;
-  g.style.transformBox = "view-box";
-  g.style.transformOrigin = "60px 60px";
-  g.animate([
-    { transform: "rotate(0deg)" },
-    { transform: `rotate(${rot + 70}deg)`, offset: 0.34 },
-    { transform: `rotate(${rot - 38}deg)`, offset: 0.6 },
-    { transform: `rotate(${rot + 14}deg)`, offset: 0.82 },
-    { transform: `rotate(${rot}deg)` }
-  ], { duration: 1500, easing: "cubic-bezier(0.4, 0.05, 0.2, 1)" });
+  const kf = [[0, 0], [rot + 70, 0.34], [rot - 38, 0.6], [rot + 14, 0.82], [rot, 1]];
+  tween(1500, (p) => p, (p) => {
+    let a = rot;
+    for (let i = 1; i < kf.length; i++) {
+      if (p <= kf[i][1]) {
+        const [v0, p0] = kf[i - 1], [v1, p1] = kf[i];
+        const e = easeInOutQuad((p - p0) / (p1 - p0 || 1));
+        a = v0 + (v1 - v0) * e;
+        break;
+      }
+    }
+    g.setAttribute("transform", `rotate(${a.toFixed(2)} 60 60)`);
+  });
 }
 
 function renderHourly() {
@@ -482,7 +514,7 @@ function renderSun(current) {
   const P0 = [24, 96], P1 = [150, -10], P2 = [276, 96];
   const x = (1 - t) ** 2 * P0[0] + 2 * (1 - t) * t * P1[0] + t ** 2 * P2[0];
   const y = (1 - t) ** 2 * P0[1] + 2 * (1 - t) * t * P1[1] + t ** 2 * P2[1];
-  el.sunCard.style.setProperty("--t", t.toFixed(3)); // drives the draw-on reveal
+  el.sunCard.dataset.t = t.toFixed(3); // drives the draw-on reveal
   el.sunCard.innerHTML = `
     <svg class="sun-svg" viewBox="0 0 300 104" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
       <path class="arc-bg" d="M24,96 Q150,-10 276,96" pathLength="1"/>

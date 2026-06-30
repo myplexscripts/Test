@@ -352,18 +352,18 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   0%, 55%, 100% { stroke-dashoffset: 0; }
   72% { stroke-dashoffset: 54; }
 }
-/* Drop: the little shine drifts and fades a bit. */
-.cond-drop .drop-shine { transform-box: view-box; transform-origin: 156px 172px; animation: shine 5s ease-in-out infinite; }
+/* Drop: the shine slides back and forth along the bottom of the drop. */
+.cond-drop .drop-shine { animation: shine 3.6s ease-in-out infinite; }
 @keyframes shine {
-  0%, 60%, 100% { opacity: 1; transform: translate(0, 0); }
-  78% { opacity: 0.45; transform: translate(-7px, -7px); }
+  0%, 100% { transform: translate(8px, -1px); }
+  50% { transform: translate(-42px, -8px); }
 }
-/* Eye: a clean blink (collapse + reopen). */
-.cond-eye { transform-box: view-box; transform-origin: 128px 128px; animation: blink2 7s ease-in-out infinite; }
+/* Eye: a clean blink (collapse + reopen) around the icon's own centre. */
+.cond-eye { transform-origin: center; animation: blink2 6.5s ease-in-out infinite; }
 @keyframes blink2 {
-  0%, 92%, 100% { transform: scaleY(1); }
-  95% { transform: scaleY(0.08); }
-  98% { transform: scaleY(1); }
+  0%, 91%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.06); }
+  98.5% { transform: scaleY(1); }
 }
 @media (prefers-reduced-motion: reduce) {
   .cond-wind .wind-line, .cond-drop .drop-shine, .cond-eye { animation: none; }
@@ -527,15 +527,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .sun-svg { width: 100%; height: auto; display: block; overflow: visible; }
 .arc-bg { fill: none; stroke: var(--ink); opacity: 0.16; stroke-width: 3; stroke-linecap: round; }
 .arc-fg { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
-.sun-dot { fill: var(--ink); stroke: var(--bg); stroke-width: 3.5; transform-box: fill-box; transform-origin: center; }
-/* On first scroll-in, draw the arc + dot along to the current position. */
-.sun-card.reveal .arc-fg { animation: drawArc 1.1s var(--ease-out) both; }
-.sun-card.reveal .sun-dot { animation: popDot 0.4s var(--ease-spring) both 0.95s; }
-@keyframes drawArc { from { stroke-dashoffset: var(--t, 1); } to { stroke-dashoffset: 0; } }
-@keyframes popDot { from { opacity: 0; transform: scale(0.2); } to { opacity: 1; transform: scale(1); } }
-@media (prefers-reduced-motion: reduce) {
-  .sun-card.reveal .arc-fg, .sun-card.reveal .sun-dot { animation: none; }
-}
+.sun-dot { fill: var(--ink); stroke: var(--bg); stroke-width: 3.5; }
+/* The sun arc draw-on and the compass "search" are driven by JS (rAF) on
+   first scroll-in — see animateSun() / animateCompass() in app.js. */
 .sun-times { display: flex; justify-content: space-between; align-items: flex-end; }
 .sun-time { display: flex; flex-direction: column; gap: 2px; }
 .sun-time.end { text-align: right; align-items: flex-end; }
