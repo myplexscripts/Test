@@ -208,6 +208,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .icon-btn:active { transform: scale(0.88); background: var(--card-bg); }
 .icon-btn i { font-size: 2.4rem; }
+/* Line the top-bar glyphs up with the content edges (menu left, location right). */
+.topbar > .icon-btn:first-child { place-items: center start; margin-left: -5px; }
 
 .icon-btn.badge {
   border: 2.5px solid var(--ink);
@@ -870,7 +872,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   width: 48px;
   height: 48px;
   display: grid;
-  place-items: center;
+  /* left-align the glyph + pull left so the arrow lines up with the content edge */
+  place-items: center start;
+  margin-left: -5px;
   border-radius: var(--r-pill);
   color: var(--ink);
   transition: transform var(--dur-fast) var(--ease-spring);
@@ -892,6 +896,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   width: 100%;
   height: clamp(240px, 42vh, 420px);
   border-radius: calc(var(--r-xl) - var(--s-4)); /* concentric */
+  touch-action: pan-y; /* tap/scrub the chart but keep vertical scrolling */
 }
 
 .sheet-list { display: flex; flex-direction: column; gap: var(--s-2); }

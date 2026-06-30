@@ -149,7 +149,7 @@ function wireEvents() {
 
   el.hourlyMore.onclick = () => openDetail("temp", "hourly");
   el.dailyMore.onclick = () => openDetail("temp", "daily");
-  el.sheetBack.onclick = closeSheet;
+  el.sheetBack.onclick = sheetBack;
   el.windCard.onclick = () => openDetail("wind");
   el.detailGrid.addEventListener("click", (e) => {
     const card = e.target.closest("[data-metric]");
@@ -164,6 +164,15 @@ function wireEvents() {
   el.tabSeg.querySelectorAll("[data-tab]").forEach((b) => {
     b.onclick = () => setRange(b.dataset.tab);
   });
+
+  // Tap / drag across the detail chart to read off a point.
+  let scrubbing = false;
+  el.graph.addEventListener("pointerdown", (e) => { scrubbing = true; showChartPoint(e.clientX); });
+  el.graph.addEventListener("pointermove", (e) => { if (scrubbing) showChartPoint(e.clientX); });
+  const endScrub = () => { scrubbing = false; };
+  el.graph.addEventListener("pointerup", endScrub);
+  el.graph.addEventListener("pointercancel", endScrub);
+  el.graph.addEventListener("pointerleave", endScrub);
 
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { closeSheet(); closeDrawer(); closeRadar(); }
@@ -794,21 +803,43 @@ const METRICS = {
   }
 };
 
-function openDetail(metric, range) {
-  const isInfo = metric === "aqi" || metric === "uv";
-  if (!METRICS[metric] && !isInfo) metric = "temp";
-  state.detail = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
+// Shared sheet-open UI (classes / scroll lock).
+function openSheetUI() {
   state.sheetOpen = true;
   el.sheet.classList.add("is-open");
   el.sheet.setAttribute("aria-hidden", "false");
   el.sheet.style.transform = "";
   document.body.style.overflow = "hidden";
   el.sheet.scrollTop = 0;
+}
+
+function openDetail(metric, range) {
+  const isInfo = metric === "aqi" || metric === "uv";
+  if (!METRICS[metric] && !isInfo) metric = "temp";
+  const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
+  state.nav = [view];          // fresh entry from the home screen
+  state.detail = view;
+  openSheetUI();
   renderDetailSheet();
+}
+
+// Back: pop one level off the sheet's nav stack; only close to home at the root.
+function sheetBack() {
+  if (state.nav && state.nav.length > 1) {
+    state.nav.pop();
+    state.detail = state.nav[state.nav.length - 1];
+    el.sheet.classList.add("is-open");
+    el.sheet.style.transform = ""; // in case we got here from a swipe
+    el.sheet.scrollTop = 0;
+    renderDetailSheet();
+  } else {
+    closeSheet();
+  }
 }
 
 function closeSheet() {
   state.sheetOpen = false;
+  state.nav = [];
   el.sheet.classList.remove("is-open");
   el.sheet.setAttribute("aria-hidden", "true");
   el.sheet.style.transform = "";
@@ -1020,13 +1051,13 @@ function drawUvChart(hourly) {
 
 function openDay(index) {
   if (!state.daily[index]) return;
-  state.detail = { metric: "day", dayIndex: index, range: "hourly" };
-  state.sheetOpen = true;
-  el.sheet.classList.add("is-open");
-  el.sheet.setAttribute("aria-hidden", "false");
-  el.sheet.style.transform = "";
-  document.body.style.overflow = "hidden";
-  el.sheet.scrollTop = 0;
+  const view = { metric: "day", dayIndex: index, range: "hourly" };
+  // Opened from within the sheet (a daily list) → push so Back returns there;
+  // opened straight from the home day rail → it's the root.
+  if (state.sheetOpen && state.nav) state.nav.push(view);
+  else state.nav = [view];
+  state.detail = view;
+  openSheetUI();
   renderDetailSheet();
 }
 
@@ -1155,6 +1186,8 @@ function hexA(hex, a) {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
+let chartArgs = null, chartGeom = null; // for tap-to-scrub on the detail chart
+
 function drawChart(rows, m, dual, showNow) {
   const canvas = el.graph;
   const ctx = canvas.getContext("2d");
@@ -1164,6 +1197,8 @@ function drawChart(rows, m, dual, showNow) {
   canvas.height = Math.max(1, Math.round(rect.height * dpr));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, rect.width, rect.height);
+  chartArgs = rows.length ? { rows, m, dual, showNow } : null;
+  chartGeom = null;
   if (!rows.length) return;
 
   const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
@@ -1219,18 +1254,59 @@ function drawChart(rows, m, dual, showNow) {
     ctx.setLineDash([]); ctx.globalAlpha = 1;
   }
 
-  // points + labels
+  // dots + labels only at evenly-spaced points (≤ ~8) so dense series breathe
   ctx.fillStyle = ink; ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center";
-  const step = Math.max(1, Math.ceil(rows.length / 8)); // ~8 labels max, so a 24h series isn't crowded
+  const step = Math.max(1, Math.ceil(rows.length / 8));
   rows.forEach((r, i) => {
-    ctx.beginPath(); ctx.arc(X(i), Y(r.hi), 4, 0, Math.PI * 2); ctx.fill();
+    if (i % step !== 0) return;
+    ctx.beginPath(); ctx.arc(X(i), Y(r.hi), 3.5, 0, Math.PI * 2); ctx.fill();
     if (dual) { ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(X(i), Y(r.lo), 3.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
-    if (i % step === 0) {
-      ctx.fillText(lab(r.hi), X(i), Y(r.hi) - 12);
-      if (dual) { ctx.globalAlpha = 0.6; ctx.fillText(lab(r.lo), X(i), Y(r.lo) + 18); ctx.globalAlpha = 1; }
-      ctx.globalAlpha = 0.55; ctx.fillText(i === 0 && showNow ? "Now" : r.label, X(i), rect.height - 10); ctx.globalAlpha = 1;
-    }
+    ctx.fillText(lab(r.hi), X(i), Y(r.hi) - 12);
+    if (dual) { ctx.globalAlpha = 0.6; ctx.fillText(lab(r.lo), X(i), Y(r.lo) + 18); ctx.globalAlpha = 1; }
+    ctx.globalAlpha = 0.55; ctx.fillText(i === 0 && showNow ? "Now" : r.label, X(i), rect.height - 10); ctx.globalAlpha = 1;
   });
+
+  // remember geometry so a tap can highlight the nearest point
+  chartGeom = {
+    xs: rows.map((_, i) => X(i)), ys: rows.map((r) => Y(r.hi)),
+    rows, padTop, h, rect, dual, fmt: lab
+  };
+}
+
+// Highlight the data point nearest a client X — a marker + a value/time bubble.
+function showChartPoint(clientX) {
+  if (!chartArgs || !chartGeom) return;
+  const rect = el.graph.getBoundingClientRect();
+  const x = clientX - rect.left;
+  const xs = chartGeom.xs;
+  let idx = 0, best = Infinity;
+  for (let i = 0; i < xs.length; i++) { const d = Math.abs(xs[i] - x); if (d < best) { best = d; idx = i; } }
+  drawChart(chartArgs.rows, chartArgs.m, chartArgs.dual, chartArgs.showNow); // clean redraw
+  const g = chartGeom, r = g.rows[idx];
+  if (!r) return;
+  const ctx = el.graph.getContext("2d");
+  const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
+  const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#fff";
+  const px = g.xs[idx], py = g.ys[idx];
+  ctx.save();
+  // vertical guide
+  ctx.strokeStyle = ink; ctx.globalAlpha = 0.5; ctx.lineWidth = 1.5; ctx.setLineDash([2, 3]);
+  ctx.beginPath(); ctx.moveTo(px, g.padTop); ctx.lineTo(px, g.padTop + g.h); ctx.stroke();
+  ctx.setLineDash([]); ctx.globalAlpha = 1;
+  // emphasised dot
+  ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+  // bubble: time · value
+  const val = g.fmt(r.hi) + (g.dual && r.lo != null ? ` / ${g.fmt(r.lo)}` : "");
+  const text = `${r.label}  ${val}`;
+  ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+  const tw = ctx.measureText(text).width + 18, bh = 24;
+  let bx = Math.max(2, Math.min(g.rect.width - tw - 2, px - tw / 2));
+  ctx.fillStyle = ink;
+  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(bx, 2, tw, bh, 9); ctx.fill(); }
+  else ctx.fillRect(bx, 2, tw, bh);
+  ctx.fillStyle = bg; ctx.fillText(text, bx + tw / 2, 2 + bh / 2);
+  ctx.restore();
 }
 
 /* ---------- Drawer ---------- */
@@ -1772,7 +1848,7 @@ function initGestures() {
     } else if (mode === "sheet") {
       el.sheet.style.transition = "";
       const x = currentX(el.sheet);
-      if (x > DISMISS) closeSheet(); else { el.sheet.classList.add("is-open"); el.sheet.style.transform = ""; }
+      if (x > DISMISS) sheetBack(); else { el.sheet.classList.add("is-open"); el.sheet.style.transform = ""; }
     }
     mode = null;
   });
