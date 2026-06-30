@@ -508,7 +508,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 /* Moon card: phase + stats on the left, a large moon glyph on the right. */
 .moon-card {
   display: grid;
-  grid-template-columns: 1fr auto;
+  grid-template-columns: auto 1fr; /* moon on the left, info on the right */
   align-items: center;
   gap: var(--s-5);
   border: 2px solid var(--card-border);

@@ -277,7 +277,7 @@ function moonPhase(date = new Date()) {
 // Simple monochrome moon glyph: a faint full-disk outline with the illuminated
 // fraction filled in --ink (fuller phase = more solid). frac: 0 new → .5 full.
 function moonSVG(frac) {
-  const r = 22, c = 26;                  // viewBox 52x52
+  const r = 23, c = 26;                  // viewBox 52x52
   const theta = frac * 2 * Math.PI;
   const rx = Math.abs(Math.cos(theta)) * r;
   const waxing = frac < 0.5;             // lit limb on the right when waxing
@@ -286,8 +286,10 @@ function moonSVG(frac) {
   const term = gibbous ? limb : 1 - limb; // terminator bulges same way if gibbous
   const top = `${c} ${c - r}`, bot = `${c} ${c + r}`;
   const lit = `M ${top} A ${r} ${r} 0 0 ${limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
+  // Faint full disk (the unlit part) + solid lit fill on top. No stroke, so the
+  // edges stay crisp — a stroked outline left a soft halo around the disk.
   return `<svg viewBox="0 0 52 52" class="moon-svg" aria-hidden="true">
-    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--ink)" stroke-width="1.5" opacity="0.3"/>
+    <circle cx="${c}" cy="${c}" r="${r}" fill="var(--ink)" opacity="0.16"/>
     <path d="${lit}" fill="var(--ink)"/>
   </svg>`;
 }
@@ -454,11 +456,11 @@ function renderMoon(current) {
     ["Next full moon", `${days} ${days === 1 ? "day" : "days"}`]
   ];
   el.moonCard.innerHTML = `
+    <div class="moon-art">${moonSVG(moon.frac)}</div>
     <div class="moon-info">
       <div class="moon-name">${moon.name}</div>
       <div class="moon-stats">${rows.map(([k, v]) => `<div class="moon-stat"><span>${k}</span><strong>${v}</strong></div>`).join("")}</div>
-    </div>
-    <div class="moon-art">${moonSVG(moon.frac)}</div>`;
+    </div>`;
 }
 
 /* Wind compass dial (Apple-style data viz, flat aesthetic) */
