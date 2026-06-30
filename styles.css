@@ -133,25 +133,19 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   transition: background-color var(--dur-slow) var(--ease-out);
 }
 
-/* Status-bar scrim: a subtle gradient in the page's dynamic --bg, semi-opaque
-   behind the status bar and feathering to transparent just below the safe
-   area. No blur, no separate-header look — it just improves contrast behind
-   the iOS status bar. A fixed minimum height keeps it working in a normal
-   mobile browser (where the safe-area inset is 0). Mobile only. */
+/* Status-bar scrim: a solid strip in the theme's dark "conditions bar" colour
+   (--surface), covering the safe-area inset behind the translucent iOS status
+   bar so the white system icons stay legible. It changes with the user's
+   chosen theme. Mobile only. */
 .status-fade {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: calc(var(--safe-t) + 40px);
+  height: var(--safe-t);
   z-index: 50;
   pointer-events: none;
-  background: linear-gradient(
-    to bottom,
-    color-mix(in srgb, var(--bg) 92%, transparent) 0%,
-    color-mix(in srgb, var(--bg) 64%, transparent) calc(var(--safe-t) + 8px),
-    transparent 100%
-  );
+  background: var(--surface);
   transition: background var(--dur-slow) var(--ease-out);
 }
 @media (min-width: 821px) { .status-fade { display: none; } }
