@@ -369,7 +369,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   transition: transform var(--dur) var(--ease-spring), background var(--dur-fast);
 }
 .arrow-btn:active { transform: scale(0.85); background: var(--card-bg); }
-.arrow-btn i { font-size: 2rem; }
+/* Extended-tail arrow (Phosphor arrow-right with a doubled shaft). Sized by
+   height so the arrowhead keeps its original weight; the tail runs longer. */
+.arrow-btn .arrow-ic { height: 1.75rem; width: auto; display: block; overflow: visible; }
 
 /* Horizontal rails — full-bleed: break out of the app's side padding so
    cards run edge-to-edge and scroll under the screen edges. The inner
