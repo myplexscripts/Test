@@ -166,6 +166,7 @@ function wireEvents() {
   el.dailyMore.onclick = () => openDetail("temp", "daily");
   el.sheetBack.onclick = sheetBack;
   el.windCard.onclick = () => openDetail("wind");
+  if (el.moonCard) el.moonCard.onclick = () => openDetail("moon");
   el.detailGrid.addEventListener("click", (e) => {
     const card = e.target.closest("[data-metric]");
     if (card) openDetail(card.dataset.metric, card.dataset.range || "hourly");
@@ -339,9 +340,19 @@ function moonPhase(date = new Date()) {
   const age = (((now - ref) / 86400) % synodic + synodic) % synodic;
   const frac = age / synodic; // 0 = new, .5 = full
   const illum = Math.round((1 - Math.cos(frac * 2 * Math.PI)) / 2 * 100);
-  const names = ["New moon", "Waxing crescent", "First quarter", "Waxing gibbous", "Full moon", "Waning gibbous", "Last quarter", "Waning crescent"];
-  const idx = Math.floor(((frac * 8) + 0.5)) % 8;
-  return { name: names[idx], illum, frac };
+  // Narrow (~14h) windows for the four principal phases; the gibbous/crescent
+  // names cover the spans between, disambiguated by waxing (frac<.5) vs waning.
+  const near = (a, b) => Math.abs(((frac - a) % 1 + 1.5) % 1 - 0.5) < b;
+  let name;
+  if (near(0, 0.02)) name = "New moon";
+  else if (near(0.25, 0.02)) name = "First quarter";
+  else if (near(0.5, 0.02)) name = "Full moon";
+  else if (near(0.75, 0.02)) name = "Last quarter";
+  else if (frac < 0.25) name = "Waxing crescent";
+  else if (frac < 0.5) name = "Waxing gibbous";
+  else if (frac < 0.75) name = "Waning gibbous";
+  else name = "Waning crescent";
+  return { name, illum, frac };
 }
 
 // Simple monochrome moon glyph: a faint full-disk outline with the illuminated
@@ -940,7 +951,7 @@ function openSheetUI() {
 }
 
 function openDetail(metric, range) {
-  const isInfo = metric === "aqi" || metric === "uv";
+  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon";
   if (!METRICS[metric] && !isInfo) metric = "temp";
   const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
   state.nav = [view];          // fresh entry from the home screen
@@ -987,7 +998,7 @@ function syncRange() {
 
 function renderDetailSheet() {
   const gc = el.graph.closest(".graph-card");
-  if (state.detail.metric === "aqi" || state.detail.metric === "uv") { renderInfoSheet(state.detail.metric); return; }
+  if (state.detail.metric === "aqi" || state.detail.metric === "uv" || state.detail.metric === "moon") { renderInfoSheet(state.detail.metric); return; }
   if (gc) gc.style.display = "";
   if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
@@ -1008,7 +1019,8 @@ function renderInfoSheet(kind) {
   const gc = el.graph.closest(".graph-card");
   el.dayStats.style.display = "none";
   el.tabSeg.style.display = "none";
-  if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
+  if (kind === "moon") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderMoonSheet(); }
+  else if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
 }
 
@@ -1102,6 +1114,98 @@ function uvSummary(air, hourly) {
   const from = hours[modIdx[0]], to = hours[modIdx[modIdx.length - 1]];
   const fmt = (h) => `${(h % 12) || 12}${h < 12 ? "am" : "pm"}`;
   return `Currently ${uvBand(air.uv_index).label.toLowerCase()}. Moderate or higher from ${fmt(from)} to ${fmt(to)}.`;
+}
+
+/* ---------- Moon detail screen ---------- */
+// Rough Earth–Moon distance (km) from the mean anomaly — enough for a "roughly"
+// read-out. Real range is ~356,500 (perigee) to ~406,700 km (apogee).
+function moonDistanceKm(unix = Date.now() / 1000) {
+  const d = moonToDays(unix);
+  const M = MOON_RAD * (134.963 + 13.064993 * d);
+  return Math.round(385001 - 20905 * Math.cos(M));
+}
+// Date of the next time the cycle reaches a target fraction (0 new, .25 first
+// quarter, .5 full, .75 last quarter), strictly in the future.
+function nextPhaseDate(targetFrac, from = Date.now()) {
+  const synodic = 29.530588853;
+  const f = moonPhase(new Date(from)).frac;
+  let days = ((((targetFrac - f) % 1) + 1) % 1) * synodic;
+  if (days < 0.5) days += synodic; // essentially at it now → the following one
+  return new Date(from + days * 86400 * 1000);
+}
+const WD_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const MO_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MO_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const WD_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+function fmtDayDate(d) { return `${WD_SHORT[d.getDay()]}, ${MO_SHORT[d.getMonth()]} ${d.getDate()}`; }
+function groupNum(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
+
+function renderMoonSheet() {
+  const now = new Date();
+  const moon = moonPhase(now);
+  const tz = state.tz || state.data?.current?.timezone || 0;
+  const c = state.center || {};
+  // Moonrise / moonset for today (same basis as the home moon card).
+  const nowUnix = Math.floor(Date.now() / 1000);
+  const base = Math.floor((nowUnix + tz) / 86400) * 86400 - tz;
+  const mt = Number.isFinite(c.lat) ? moonTimes(base, c.lat, c.lon) : {};
+  const dist = moonDistanceKm();
+
+  el.sheetTitle.textContent = "Moon";
+  el.sheetNote.textContent = `${moon.name} tonight — ${moon.illum}% of the Moon's face is lit.`;
+
+  // Hero: big glyph + phase + today's date.
+  const hero = `
+    <div class="moon-hero">
+      <div class="moon-hero-art">${moonSVG(moon.frac)}</div>
+      <div class="moon-phase-name">${moon.name}</div>
+      <div class="moon-date">${WD_LONG[now.getDay()]}, ${MO_LONG[now.getMonth()]} ${now.getDate()}</div>
+    </div>`;
+
+  // Three key figures, reference-style.
+  const figs = `
+    <div class="moon-figs">
+      <div class="moon-fig"><span class="d-label">Illumination</span><strong>${moon.illum}%</strong></div>
+      <div class="moon-fig"><span class="d-label">Moonrise</span><strong>${mt.rise != null ? fmtClock(mt.rise, tz) : "—"}</strong></div>
+      <div class="moon-fig"><span class="d-label">Moonset</span><strong>${mt.set != null ? fmtClock(mt.set, tz) : "—"}</strong></div>
+    </div>`;
+
+  // Upcoming principal phases, soonest first, each with its little glyph.
+  const phaseDefs = [["New moon", 0], ["First quarter", 0.25], ["Full moon", 0.5], ["Last quarter", 0.75]];
+  const upcoming = phaseDefs
+    .map(([name, t]) => ({ name, t, date: nextPhaseDate(t) }))
+    .sort((a, b) => a.date - b.date)
+    .map((p) => `
+      <div class="phase-row">
+        <span class="phase-glyph">${moonSVG(p.t)}</span>
+        <span class="phase-name">${p.name}</span>
+        <strong class="phase-date">${fmtDayDate(p.date)}</strong>
+      </div>`).join("");
+
+  // Month calendar with a phase glyph on every day; today highlighted.
+  const y = now.getFullYear(), mo = now.getMonth();
+  const startDow = new Date(y, mo, 1).getDay();
+  const dim = new Date(y, mo + 1, 0).getDate();
+  let cells = "";
+  for (let i = 0; i < startDow; i++) cells += `<div class="cal-cell empty"></div>`;
+  for (let day = 1; day <= dim; day++) {
+    const f = moonPhase(new Date(y, mo, day, 12)).frac;
+    const today = day === now.getDate();
+    cells += `<div class="cal-cell${today ? " is-today" : ""}"><span class="cal-num">${day}</span><span class="cal-moon">${moonSVG(f)}</span></div>`;
+  }
+  const calendar = `
+    <div class="moon-cal">
+      <div class="cal-month">${MO_LONG[mo]} ${y}</div>
+      <div class="cal-grid cal-dow"><span>S</span><span>M</span><span>T</span><span>W</span><span>T</span><span>F</span><span>S</span></div>
+      <div class="cal-grid cal-days">${cells}</div>
+    </div>`;
+
+  el.sheetList.innerHTML =
+    hero + figs +
+    section("Upcoming phases", `<div class="phase-list">${upcoming}</div>`) +
+    section("The month ahead", calendar) +
+    section("About illumination", `<p class="info-text">Illumination is how much of the Moon's Earth-facing side is lit by the Sun — 100% at a full moon and 0% at a new moon. It's the shape you see, and it doesn't care whether the Moon is above the horizon or hidden by clouds. Right now it's ${moon.illum}%.</p>`) +
+    section("About the Moon's distance", `<p class="info-text">The Moon's orbit is an oval, so its distance from Earth drifts through the month — from about 356,500 km at its closest to 406,700 km at its farthest. Right now it's roughly ${groupNum(dist)} km away.</p>`);
 }
 
 // UV day-curve graph: hourly UV across today, monochrome ink area + line with
