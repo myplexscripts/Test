@@ -42,7 +42,7 @@ const el = {
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
   unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
   placeName: $("placeName"), datePill: $("datePill"), condition: $("condition"),
-  heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"),
+  heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), alerts: $("alerts"),
   hero: document.querySelector(".hero"),
   miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mVisibility: $("mVisibility"),
@@ -51,7 +51,7 @@ const el = {
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
-  radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"), radarLegend: $("radarLegend"),
+  radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"), radarLegend: $("radarLegend"), windLegend: $("windLegend"),
   hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
   sheet: $("sheet"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"),
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList"), dayStats: $("dayStats")
@@ -211,13 +211,14 @@ async function refresh(force) {
   if (force) setStatus("Refreshing…");
   try {
     const q = `lat=${state.loc.lat}&lon=${state.loc.lon}&units=${state.units}&appid=${API_KEY}`;
-    const [current, forecast, air, hourly] = await Promise.all([
+    const [current, forecast, air, hourly, alerts] = await Promise.all([
       fetchJSON(`${API_BASE}/weather?${q}`),
       fetchJSON(`${API_BASE}/forecast?${q}`),
       fetchAir(state.loc.lat, state.loc.lon).catch(() => null), // never blocks core weather
-      fetchHourlyWx(state.loc.lat, state.loc.lon, state.units).catch(() => null)
+      fetchHourlyWx(state.loc.lat, state.loc.lon, state.units).catch(() => null),
+      fetchAlerts(state.loc.lat, state.loc.lon, state.units).catch(() => null) // official watches/warnings
     ]);
-    const data = { current, forecast, air, hourly };
+    const data = { current, forecast, air, hourly, alerts };
     state.data = data;
     saveCache(data);
     render(data);
@@ -287,6 +288,16 @@ async function fetchHourlyWx(lat, lon, units) {
     clouds: { all: h.cloud_cover?.[i] },
     visibility: h.visibility?.[i]
   }));
+}
+
+// Official government watches/warnings via OpenWeather One Call 3.0. Each alert
+// carries the issuing authority (e.g. "Environment Canada"), an event name,
+// start/end and a description. Returns [] when there are none (or the endpoint
+// isn't enabled on the key), so it never blocks the core weather.
+async function fetchAlerts(lat, lon) {
+  const url = `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&exclude=minutely,hourly,daily,current&appid=${API_KEY}`;
+  const j = await fetchJSON(url);
+  return Array.isArray(j.alerts) ? j.alerts : [];
 }
 
 // Pollutant reference info: friendly name + plain-English explanation + a rough
@@ -404,6 +415,7 @@ function render(data) {
   el.tempNum.textContent = `${Math.round(m.temp ?? 0)}`;
   el.temp.classList.remove("is-loading");
   el.summary.textContent = buildSummary(current, state.daily);
+  renderAlerts(data.alerts, tz);
 
   // compact header mirror of the current conditions
   if (el.miniIcon) el.miniIcon.className = `mini-ic ${iconClass(w.main, isNight)}`;
@@ -426,6 +438,55 @@ function render(data) {
   setupScrollFx();
 
   if (state.sheetOpen) renderDetailSheet();
+}
+
+/* ---------- Weather alerts ---------- */
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+// OpenWeather gives no clean severity level, so grade it from the event text
+// the way Apple colour-codes its banners.
+function alertLevel(a) {
+  const s = `${a.event || ""} ${(a.tags || []).join(" ")}`.toLowerCase();
+  if (/tornado|hurricane|extreme|emergency|tsunami|red warning/.test(s)) return "extreme";
+  if (/warning/.test(s)) return "warning";
+  if (/watch/.test(s)) return "watch";
+  return "advisory"; // statements, advisories, special weather
+}
+function alertWhen(a, tz) {
+  const now = Math.floor(Date.now() / 1000);
+  if (a.end && a.end > now) return `Until ${dayLabel(a.end, tz)} ${fmtHour(a.end, tz)}`;
+  if (a.start) return `From ${dayLabel(a.start, tz)} ${fmtHour(a.start, tz)}`;
+  return "";
+}
+function renderAlerts(alerts, tz) {
+  const host = el.alerts;
+  if (!host) return;
+  const list = (alerts || []).filter((a) => a && a.event);
+  if (!list.length) { host.hidden = true; host.innerHTML = ""; return; }
+  host.hidden = false;
+  host.innerHTML = list.map((a, i) => {
+    const level = alertLevel(a);
+    const when = alertWhen(a, tz);
+    const meta = [when, a.sender_name].filter(Boolean).map(escapeHTML).join(" · ");
+    const desc = (a.description || "").trim();
+    return `<button class="alert alert-${level}" type="button" data-alert="${i}" aria-expanded="false">
+      <span class="alert-head">
+        <i class="ph-fill ph-warning-octagon alert-ic" aria-hidden="true"></i>
+        <span class="alert-title">${escapeHTML(a.event)}</span>
+        ${desc ? '<i class="ph ph-caret-down alert-chev" aria-hidden="true"></i>' : ""}
+      </span>
+      ${meta ? `<span class="alert-meta">${meta}</span>` : ""}
+      ${desc ? `<span class="alert-desc">${escapeHTML(desc)}</span>` : ""}
+    </button>`;
+  }).join("");
+  host.querySelectorAll(".alert").forEach((btn) => {
+    if (!btn.querySelector(".alert-desc")) return;
+    btn.onclick = () => {
+      const open = btn.classList.toggle("is-open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+  });
 }
 
 // Scroll choreography: a compact header that appears past the hero, plus
@@ -1780,6 +1841,7 @@ function applyMode(mode) {
   const isWind = mode === "wind_new";
   el.radarTimeline.style.display = isRadar ? "" : "none";
   if (el.radarLegend) el.radarLegend.style.display = isRadar ? "" : "none";
+  if (el.windLegend) el.windLegend.style.display = isWind ? "" : "none";
   if (isRadar) {
     loadRadar();
   } else {
@@ -1828,8 +1890,8 @@ async function drawWindArrows() {
   if (!radar.map || radar.mode !== "wind_new" || !radar.windLayer) return;
   const req = ++radar.windReq;
   const b = radar.map.getBounds(), size = radar.map.getSize();
-  const cols = Math.max(3, Math.min(9, Math.round(size.x / 82)));
-  const rows = Math.max(3, Math.min(9, Math.round(size.y / 82)));
+  const cols = Math.max(3, Math.min(7, Math.round(size.x / 104)));
+  const rows = Math.max(4, Math.min(9, Math.round(size.y / 104)));
   const north = b.getNorth(), south = b.getSouth(), west = b.getWest(), east = b.getEast();
   const pts = [];
   for (let r = 0; r < rows; r++) {
@@ -1858,29 +1920,35 @@ async function fetchWindGrid(pts) {
   return arr.map((o) => ({ speed: o.current?.wind_speed_10m, dir: o.current?.wind_direction_10m }));
 }
 
-// Speed → colour, on a calm-blue → strong-red ramp (thresholds in km/h).
+// Speed → colour, on a calm→strong ramp (thresholds in km/h). Matches the
+// #windLegend gradient so the colours actually mean something at a glance.
+const WIND_STOPS = [
+  [0, "#7db8e8"], [12, "#63d9c8"], [24, "#7fe38a"], [40, "#ffd23f"], [58, "#ff9f43"], [80, "#ff5a5a"]
+];
 function windColor(speed) {
   const kmh = state.units === "imperial" ? speed * 1.609 : speed;
-  if (kmh < 5) return "#8fb7d6";
-  if (kmh < 15) return "#6fd0e8";
-  if (kmh < 30) return "#7fe38a";
-  if (kmh < 45) return "#ffd23f";
-  if (kmh < 65) return "#ff9f43";
-  return "#ff5a5a";
+  let c = WIND_STOPS[0][1];
+  for (const [t, col] of WIND_STOPS) { if (kmh >= t) c = col; else break; }
+  return c;
 }
 
+// One bold, uniform-length arrow per grid point: same size everywhere so the
+// map reads as a clean flow field. Direction = arrow; speed = colour + the
+// little number in its tail. A pill background keeps it legible over the map.
 function windArrowIcon(speed, dir) {
   const kmh = state.units === "imperial" ? speed * 1.609 : speed;
   const rot = (dir + 180) % 360;          // point the way the wind blows
-  const len = Math.max(11, Math.min(24, 11 + kmh * 0.34)); // longer = stronger
   const color = windColor(speed);
-  const cy = 15, top = cy - len / 2, bot = cy + len / 2;
-  const svg = `<svg width="30" height="30" viewBox="0 0 30 30" style="transform:rotate(${rot.toFixed(1)}deg)">
-    <g stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
-      <line x1="15" y1="${bot.toFixed(1)}" x2="15" y2="${top.toFixed(1)}"/>
-      <polyline points="11.6,${(top + 4).toFixed(1)} 15,${top.toFixed(1)} 18.4,${(top + 4).toFixed(1)}"/>
-    </g></svg>`;
-  return L.divIcon({ className: "wind-arrow", html: svg, iconSize: [30, 30], iconAnchor: [15, 15] });
+  const val = Math.round(speed);
+  const S = 44, c = S / 2, half = 13;      // fixed shaft length
+  const arrow = `<g transform="rotate(${rot.toFixed(1)} ${c} ${c})">
+      <g stroke="${color}" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+        <line x1="${c}" y1="${c + half}" x2="${c}" y2="${c - half}"/>
+        <polyline points="${c - 5.5},${c - half + 6} ${c},${c - half} ${c + 5.5},${c - half + 6}"/>
+      </g></g>`;
+  const label = `<text x="${c}" y="${S - 2}" class="wind-arrow-val" fill="${color}">${val}</text>`;
+  const svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">${arrow}${label}</svg>`;
+  return L.divIcon({ className: "wind-arrow", html: svg, iconSize: [S, S], iconAnchor: [c, c] });
 }
 
 function inCanada(lat, lon) {
