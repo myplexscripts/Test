@@ -1163,6 +1163,19 @@ const WD_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday
 function fmtDayDate(d) { return `${WD_SHORT[d.getDay()]}, ${MO_SHORT[d.getMonth()]} ${d.getDate()}`; }
 function groupNum(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
 
+// The eight phases of the lunar cycle, with NASA-style plain-English notes.
+// Names match moonPhase() so the current phase can be highlighted.
+const PHASE_GUIDE = [
+  ["New moon", 0, "The Moon sits between Earth and the Sun, so its sunlit side faces away from us. The disk looks dark — the start of the cycle."],
+  ["Waxing crescent", 0.125, "A slim sliver of light appears on the right and grows a little each night. “Waxing” means the lit share is increasing."],
+  ["First quarter", 0.25, "About a week in, the right half of the face is lit — a quarter of the way through the roughly 29.5-day cycle."],
+  ["Waxing gibbous", 0.375, "More than half is lit and still growing. “Gibbous” means the bright part bulges past a half-circle."],
+  ["Full moon", 0.5, "Earth lies between the Sun and Moon, so the whole near side is lit. It rises around sunset and sets around sunrise."],
+  ["Waning gibbous", 0.625, "Just past full, the lit area starts to shrink, fading from the right. “Waning” means decreasing."],
+  ["Last quarter", 0.75, "Three weeks in, the left half is lit — the mirror image of the first quarter."],
+  ["Waning crescent", 0.875, "A thin, shrinking sliver on the left, until the disk goes dark and a new cycle begins."]
+];
+
 function renderMoonSheet() {
   const now = new Date();
   const moon = moonPhase(now);
@@ -1223,9 +1236,20 @@ function renderMoonSheet() {
       <div class="cal-grid cal-days">${cells}</div>
     </div>`;
 
+  // The eight phases, with the current one highlighted.
+  const guide = PHASE_GUIDE.map(([name, frac, desc]) => `
+    <div class="guide-row${name === moon.name ? " is-active" : ""}">
+      <span class="phase-glyph">${moonSVG(frac)}</span>
+      <div class="guide-body">
+        <div class="guide-name">${name}${name === moon.name ? '<span class="guide-now">Now</span>' : ""}</div>
+        <p class="guide-desc">${desc}</p>
+      </div>
+    </div>`).join("");
+
   el.sheetList.innerHTML =
     hero + figs +
     section("Upcoming phases", `<div class="phase-list">${upcoming}</div>`) +
+    section("The eight phases", `<p class="info-text">The Moon makes no light of its own — we see the half lit by the Sun. As it orbits Earth about every 29.5 days, the amount of that lit half we can see grows (waxing) and shrinks (waning), giving eight named phases.</p><div class="phase-guide">${guide}</div>`) +
     section("The month ahead", calendar) +
     section("About illumination", `<p class="info-text">Illumination represents the percentage of the Moon's Earth-facing side lit by the Sun, ranging from 0% at a new moon to 100% at a full moon. This value describes the Moon's phase regardless of your local horizon or weather conditions.</p><p class="info-text info-now">Currently, the Moon's illumination is ${moon.illum}%.</p>`) +
     section("About the Moon's distance", `<p class="info-text">The Moon follows an elliptical orbit, causing its distance from Earth to vary throughout the month between approximately 356,500 km (perigee) and 406,700 km (apogee).</p><p class="info-text info-now">Currently, the Moon is approximately ${groupNum(dist)} km away.</p>`);

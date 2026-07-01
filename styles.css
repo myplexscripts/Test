@@ -133,10 +133,10 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   transition: background-color var(--dur-slow) var(--ease-out);
 }
 
-/* Status-bar scrim: a solid strip in the theme's dark "conditions bar" colour
-   (--surface), covering the safe-area inset behind the translucent iOS status
-   bar so the white system icons stay legible. It changes with the user's
-   chosen theme. Mobile only. */
+/* Status-bar scrim: a flat, solid strip in the theme's dark "conditions bar"
+   colour (--statusbar), covering the safe-area inset behind the translucent iOS
+   status bar so the white system icons stay legible. It changes with the user's
+   chosen theme. Solid fill only — no gradient, no fade transition. Mobile only. */
 .status-fade {
   position: fixed;
   top: 0;
@@ -145,8 +145,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   height: var(--safe-t);
   z-index: 50;
   pointer-events: none;
-  background: var(--statusbar, var(--surface));
-  transition: background var(--dur-slow) var(--ease-out);
+  background-color: var(--statusbar, var(--surface));
+  background-image: none;
 }
 @media (min-width: 821px) { .status-fade { display: none; } }
 
@@ -610,6 +610,27 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .phase-glyph .moon-svg { width: 30px; height: 30px; display: block; }
 .phase-name { font-weight: 600; }
 .phase-date { margin-left: auto; font-family: Rubik, Inter, sans-serif; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
+/* The eight-phase guide: glyph + name + short description per phase. */
+.phase-guide { display: flex; flex-direction: column; margin-top: var(--s-2); }
+.guide-row { display: flex; align-items: flex-start; gap: var(--s-4); padding: var(--s-4) 0; }
+.guide-row + .guide-row { border-top: 2px solid var(--hairline); }
+.guide-row .phase-glyph { margin-top: 2px; }
+.guide-row .phase-glyph .moon-svg { width: 34px; height: 34px; }
+.guide-body { min-width: 0; }
+.guide-name { display: flex; align-items: center; gap: var(--s-3); font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1rem; }
+.guide-desc { margin-top: 4px; font-size: var(--t-sm); line-height: 1.5; font-weight: 500; color: var(--ink-soft); }
+.guide-now {
+  font-family: Inter, sans-serif;
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--on-surface);
+  background: var(--ink);
+  border-radius: var(--r-pill);
+  padding: 2px 8px;
+}
+.guide-row.is-active .guide-desc { color: var(--ink); font-weight: 600; }
 /* Month calendar with a phase glyph on every day. */
 .cal-month { font-family: Rubik, Inter, sans-serif; font-weight: 700; text-align: center; margin-bottom: var(--s-3); }
 .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); }
