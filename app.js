@@ -79,7 +79,7 @@ const state = {
    mode "radar" = animated RainViewer; others = OpenWeather static layers. */
 const radar = {
   map: null, base: null, owm: null, marker: null, preview: null, previewBase: null, previewMarker: null,
-  layers: [], shown: new Map(), raf: null, t0: 0, gateTimer: null,
+  layers: [], shown: new Map(), raf: null, t0: 0, gateTimer: null, ready: false, warmScheduled: false,
   mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, ecccLayerName: "", themeDark: null
 };
 // Playback timing. Every frame's tiles are preloaded before play starts, so
@@ -1561,14 +1561,35 @@ function initRadarMap() {
   }
 }
 
+// Warm the full radar in the background so opening it is instant. The sheet is
+// hidden with a transform (not display:none), so its map container still has
+// full dimensions off-screen — Leaflet can init and preload every frame's tiles
+// right now. Playback stays paused (see gateLoading) until the user opens it.
+function warmRadar() {
+  if (!haveLeaflet() || state.radarOpen || radar.map) return;
+  initRadarMap();
+  if (radar.map && radar.mode === "radar") loadRadar();
+}
+
 function openRadar() {
   state.radarOpen = true;
   el.radarSheet.classList.add("is-open");
   el.radarSheet.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
   initRadarMap();
-  applyMode(radar.mode);
   setTimeout(() => radar.map && radar.map.invalidateSize(), 320);
+  const warmed = radar.mode === "radar" && radar.layers.length;
+  if (!warmed) {
+    applyMode(radar.mode);                    // cold start (non-radar, or not yet warmed)
+    return;
+  }
+  // Warmed: reflect radar mode in the chrome without rebuilding the preloaded
+  // layers, then play immediately (or let the gate start it once tiles finish).
+  el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.classList.toggle("is-active", b.dataset.layer === "radar"));
+  el.radarTimeline.style.display = "";
+  if (el.radarLegend) el.radarLegend.style.display = "";
+  updateRadarNote();
+  if (radar.ready) { radar.idx = 0; startRadarPlay(); }
 }
 function closeRadar() {
   if (!state.radarOpen) return;
@@ -1721,16 +1742,19 @@ function buildRadarLayers() {
 
 // Hold play until every frame's tiles have loaded (with a hard fallback so a
 // slow tile never hangs playback), showing a progress read-out meanwhile.
+// When warming in the background (sheet still closed) we preload the tiles and
+// just mark ready — playback kicks off the moment the user opens the radar.
 function gateLoading() {
   const layers = radar.layers, need = layers.length;
   if (!need) return;
+  radar.ready = false;
   let done = 0, started = false;
   const begin = () => {
     if (started) return;
     started = true;
     if (radar.gateTimer) { clearTimeout(radar.gateTimer); radar.gateTimer = null; }
-    radar.idx = 0;         // loop sweeps oldest → newest
-    startRadarPlay();
+    radar.ready = true;                       // tiles are warm and ready
+    if (state.radarOpen) { radar.idx = 0; startRadarPlay(); } // sweep oldest → newest
   };
   el.radarTime.textContent = "Loading radar… 0%";
   layers.forEach((l) => l.once("load", () => {
@@ -1860,6 +1884,12 @@ function syncMaps() {
   if (radar.preview) { radar.preview.setView([c.lat, c.lon]); setPinMarker(radar.preview, "previewMarker"); } else initRadarPreview();
   if (radar.map) { radar.map.setView([c.lat, c.lon]); setPinMarker(radar.map, "marker"); }
   if (el.radarNote) updateRadarNote();
+  // Warm the full radar once, on idle, so tapping in is instant. Deferred so it
+  // never competes with the first home-screen paint.
+  if (!radar.map && !radar.warmScheduled && !state.radarOpen) {
+    radar.warmScheduled = true;
+    (window.requestIdleCallback || ((fn) => setTimeout(fn, 700)))(warmRadar);
+  }
 }
 
 function updateMapTheme() {
