@@ -555,13 +555,6 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 /* Hero-icon-sized moon (same scale as the current-conditions weather icon). */
 .moon-art { flex: 0 0 auto; }
 .moon-art .moon-svg { width: clamp(5rem, 18vw, 9rem); height: auto; display: block; }
-/* Moon glyph fills: a light lit surface with the shadow drawn dark on top, so a
-   full moon is light and a new moon dark. Fixed neutral greys (a moon is a grey
-   rock) so it reads the same on every theme; a thin crisp outline delineates the
-   disk on pale backgrounds without the soft halo a blurred stroke would add. */
-.moon-svg .moon-lit { fill: #dcdcdc; }
-.moon-svg .moon-shadow { fill: #1b1b1e; }
-.moon-svg .moon-ring { fill: none; stroke: rgba(125, 125, 125, 0.45); stroke-width: 0.75; }
 .moon-card { cursor: pointer; transition: transform var(--dur-fast) var(--ease-spring); }
 .moon-card:active { transform: scale(0.99); }
 
@@ -936,6 +929,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   will-change: transform;
 }
 .sheet.is-open { transform: translateX(0); }
+/* Keep sheet content in a readable centred column on wide screens instead of
+   stretching edge to edge. No effect on phones (100% is already < --max). */
+.sheet > * { width: 100%; max-width: var(--max); margin-inline: auto; }
 
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
 .back-btn {
