@@ -527,6 +527,11 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .sun-dot { fill: var(--ink); stroke: var(--bg); stroke-width: 3.5; }
 /* The sun arc draw-on and the compass "search" are driven by JS (rAF) on
    first scroll-in — see animateSun() / animateCompass() in app.js. */
+/* Adaptive corner durations above the arc (since sunrise / until sunset). */
+.sun-top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s-4); }
+.sun-dur { display: flex; flex-direction: column; gap: 2px; }
+.sun-dur.end { text-align: right; align-items: flex-end; }
+.sun-dur strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.05rem; }
 .sun-times { display: flex; justify-content: space-between; align-items: flex-end; }
 .sun-time { display: flex; flex-direction: column; gap: 2px; }
 .sun-time.end { text-align: right; align-items: flex-end; }

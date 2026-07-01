@@ -517,7 +517,27 @@ function renderSun(current) {
   const x = (1 - t) ** 2 * P0[0] + 2 * (1 - t) * t * P1[0] + t ** 2 * P2[0];
   const y = (1 - t) ** 2 * P0[1] + 2 * (1 - t) * t * P1[1] + t ** 2 * P2[1];
   el.sunCard.dataset.t = t.toFixed(3); // drives the draw-on reveal
+
+  // Corner durations, adaptive to day vs night. ±1 day approximates the
+  // adjacent day's sun times (they shift only a couple minutes day to day).
+  const rt = Math.floor(Date.now() / 1000), DAY = 86400;
+  let left, right;
+  if (rt >= sys.sunrise && rt < sys.sunset) {          // daytime
+    left = ["Since sunrise", rt - sys.sunrise];
+    right = ["Until sunset", sys.sunset - rt];
+  } else if (rt >= sys.sunset) {                        // after sunset
+    left = ["Since sunset", rt - sys.sunset];
+    right = ["Until sunrise", sys.sunrise + DAY - rt];
+  } else {                                              // before sunrise
+    left = ["Since sunset", rt - (sys.sunset - DAY)];
+    right = ["Until sunrise", sys.sunrise - rt];
+  }
+
   el.sunCard.innerHTML = `
+    <div class="sun-top">
+      <div class="sun-dur"><span class="d-label">${left[0]}</span><strong>${fmtDur(left[1])}</strong></div>
+      <div class="sun-dur end"><span class="d-label">${right[0]}</span><strong>${fmtDur(right[1])}</strong></div>
+    </div>
     <svg class="sun-svg" viewBox="0 0 300 104" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
       <path class="arc-bg" d="M24,96 Q150,-10 276,96" pathLength="1"/>
       <path class="arc-fg" d="M24,96 Q150,-10 276,96" pathLength="1" stroke-dasharray="${t.toFixed(3)} 1"/>
@@ -527,6 +547,15 @@ function renderSun(current) {
       <div class="sun-time"><i class="ph-duotone ph-sun-horizon"></i><span class="d-label">Sunrise</span><strong>${fmtClock(sys.sunrise, tz)}</strong></div>
       <div class="sun-time end"><i class="ph-duotone ph-moon-stars"></i><span class="d-label">Sunset</span><strong>${fmtClock(sys.sunset, tz)}</strong></div>
     </div>`;
+}
+
+// Duration in seconds -> "Xh Ym" (or just h / m when the other is 0).
+function fmtDur(s) {
+  s = Math.max(0, Math.round(s));
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  if (h && m) return `${h}h ${m}m`;
+  if (h) return `${h}h`;
+  return `${m}m`;
 }
 
 /* ---------- Moon ---------- */
