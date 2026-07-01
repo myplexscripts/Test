@@ -79,9 +79,20 @@ const state = {
    mode "radar" = animated RainViewer; others = OpenWeather static layers. */
 const radar = {
   map: null, base: null, owm: null, marker: null, preview: null, previewBase: null, previewMarker: null,
-  layers: [], front: 0, gen: 0,
+  layers: [], shown: new Map(), raf: null, t0: 0, gateTimer: null,
   mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, ecccLayerName: "", themeDark: null
 };
+// Playback timing. Every frame's tiles are preloaded before play starts, so
+// these govern a rock-steady rAF clock (no network in the loop) — the source
+// of the "buttery" feel. Each step holds solid, then eases into the next.
+const FRAME_MS = 620;       // on-screen time per radar frame
+const END_HOLD_MS = 1100;   // pause on the latest frame before looping
+const RESET_MS = 520;       // fade the newest out / oldest in on loop restart
+const FADE_FRAC = 0.55;     // tail portion of each step spent crossfading
+const RADAR_OPACITY = 0.9;
+const ECCC_FILTER = "hue-rotate(140deg) saturate(2) brightness(1.1)";
+// easeInOutQuad — soft acceleration in and out of each crossfade.
+function radarEase(t) { return t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2; }
 const RAINVIEWER_API = "https://api.rainviewer.com/public/weather-maps.json";
 const RV_COLOR = 7;    // colour scheme: Dark Sky (Apple-like blue→purple→red→yellow)
 const RV_OPTS = "1_1"; // smooth + show snow
@@ -1590,6 +1601,7 @@ function applyMode(mode) {
 function removeRadarLayers() {
   radar.layers.forEach((l) => l && radar.map.removeLayer(l));
   radar.layers = [];
+  radar.shown.clear();
 }
 
 function inCanada(lat, lon) {
@@ -1667,84 +1679,135 @@ async function loadRadar() {
     if (!frames.length || !radar.map || radar.mode !== "radar") { el.radarTimeline.style.display = "none"; return; }
     el.radarTimeline.style.display = "";
     el.radarScrub.max = String(frames.length - 1);
-    if (!radar.layers.length) {
-      radar.layers = [makeRadarLayer(), makeRadarLayer()];
-      radar.front = 0;
-    }
-    showFrame(radar.idx, true);   // immediate first paint
-    startRadarPlay();
+    buildRadarLayers();     // one preloaded layer per frame
+    renderSolid(radar.idx); // show the latest frame while tiles preload
+    gateLoading();          // start playing once tiles are in
     updateRadarNote();
   } catch {
     el.radarTimeline.style.display = "none";
   }
 }
 
-function makeRadarLayer() {
-  let layer;
-  if (radar.source === "eccc") {
-    layer = L.tileLayer.wms(ECCC_WMS, {
-      layers: ecccLayer(), format: "image/png", transparent: true, version: "1.3.0",
-      crs: L.CRS.EPSG3857,
-      opacity: 0, maxZoom: 12, updateWhenZooming: false, keepBuffer: 0,
-      attribution: "&copy; Environment and Climate Change Canada (ECCC GeoMet)"
-    }).addTo(radar.map);
-  } else {
-    layer = L.tileLayer(rvUrl(radar.frames[radar.idx]), {
-      opacity: 0, maxZoom: 12, maxNativeZoom: 10, tileSize: RV_SIZE,
-      updateWhenZooming: false, keepBuffer: 0, attribution: "&copy; RainViewer"
-    }).addTo(radar.map);
-  }
-  const c = layer.getContainer && layer.getContainer();
-  if (c) {
-    c.style.transition = "opacity 550ms ease-in-out";
+// Build one tile layer per frame, all stacked and transparent, each pinned to
+// its own timestamp so every frame's tiles download up front. Playback then
+// only toggles opacity — no tile requests in the loop, so nothing stutters.
+function buildRadarLayers() {
+  removeRadarLayers();
+  radar.layers = radar.frames.map((f) => {
+    let layer;
     if (radar.source === "eccc") {
-      // Shift ECCC's green/yellow palette toward the blue-purple-red range
-      // so it reads like the Dark Sky heat-map colour scale.
-      c.style.filter = "hue-rotate(140deg) saturate(2) brightness(1.1)";
+      layer = L.tileLayer.wms(ECCC_WMS, {
+        layers: ecccLayer(), format: "image/png", transparent: true, version: "1.3.0",
+        crs: L.CRS.EPSG3857, time: f.iso,
+        opacity: 0, maxZoom: 12, updateWhenIdle: true, updateWhenZooming: false, keepBuffer: 0,
+        attribution: "&copy; Environment and Climate Change Canada (ECCC GeoMet)"
+      });
+    } else {
+      layer = L.tileLayer(rvUrl(f), {
+        opacity: 0, maxZoom: 12, maxNativeZoom: 10, tileSize: RV_SIZE,
+        updateWhenIdle: true, updateWhenZooming: false, keepBuffer: 0, attribution: "&copy; RainViewer"
+      });
     }
-  }
-  return layer;
+    layer.addTo(radar.map);
+    const c = layer.getContainer && layer.getContainer();
+    if (c) {
+      c.style.transition = "none"; // opacity is driven per-frame by rAF, not CSS
+      // Shift ECCC's green/yellow palette toward the Dark Sky blue→red scale.
+      if (radar.source === "eccc") c.style.filter = ECCC_FILTER;
+    }
+    return layer;
+  });
 }
 
-function applyFrame(layer, f) {
-  if (radar.source === "eccc") layer.setParams({ time: f.iso });
-  else layer.setUrl(rvUrl(f));
-}
-
-function showFrame(i, immediate, onShown) {
-  if (!radar.frames.length || !radar.layers.length) return;
-  radar.idx = (i + radar.frames.length) % radar.frames.length;
-  const f = radar.frames[radar.idx];
-  el.radarScrub.value = String(radar.idx);
-  el.radarTime.textContent = relTime(f);
-  const frontLayer = radar.layers[radar.front];
-  const backLayer = radar.layers[1 - radar.front];
-  if (immediate || !backLayer) {
-    applyFrame(frontLayer, f);
-    frontLayer.setOpacity(0.9);
-    if (backLayer) backLayer.setOpacity(0);
-    // Pre-warm next frame
-    const ni = (radar.idx + 1) % radar.frames.length;
-    if (backLayer && radar.frames[ni]) applyFrame(backLayer, radar.frames[ni]);
-    if (onShown) onShown();
-    return;
-  }
-  const gen = ++radar.gen;
-  let done = false;
-  const reveal = () => {
-    if (done || gen !== radar.gen) return;
-    done = true;
-    backLayer.setOpacity(0.9);
-    frontLayer.setOpacity(0);
-    radar.front = 1 - radar.front;
-    // Pre-warm next frame into now-idle layer so tiles load during the hold gap.
-    const nextIdx = (radar.idx + 1) % radar.frames.length;
-    if (radar.frames[nextIdx]) applyFrame(frontLayer, radar.frames[nextIdx]);
-    if (onShown) onShown();
+// Hold play until every frame's tiles have loaded (with a hard fallback so a
+// slow tile never hangs playback), showing a progress read-out meanwhile.
+function gateLoading() {
+  const layers = radar.layers, need = layers.length;
+  if (!need) return;
+  let done = 0, started = false;
+  const begin = () => {
+    if (started) return;
+    started = true;
+    if (radar.gateTimer) { clearTimeout(radar.gateTimer); radar.gateTimer = null; }
+    radar.idx = 0;         // loop sweeps oldest → newest
+    startRadarPlay();
   };
-  applyFrame(backLayer, f);
-  if (backLayer.once) backLayer.once("load", reveal);
-  setTimeout(reveal, 400); // fallback — tiles are pre-warmed so 400ms is ample
+  el.radarTime.textContent = "Loading radar… 0%";
+  layers.forEach((l) => l.once("load", () => {
+    done++;
+    if (!started) el.radarTime.textContent = `Loading radar… ${Math.round((done / need) * 100)}%`;
+    if (done >= need) begin();
+  }));
+  radar.gateTimer = setTimeout(begin, 6000);
+}
+
+// Set opacities from an { idx: opacity } map, only touching layers that
+// changed and zeroing any that dropped out of the active set.
+function setLayerOpacities(target) {
+  radar.shown.forEach((_, idx) => {
+    if (!(idx in target)) { const l = radar.layers[idx]; if (l) l.setOpacity(0); radar.shown.delete(idx); }
+  });
+  for (const k in target) {
+    const idx = +k, o = target[k];
+    if (radar.shown.get(idx) !== o) { const l = radar.layers[idx]; if (l) l.setOpacity(o); radar.shown.set(idx, o); }
+  }
+}
+
+// Show a single frame fully opaque (used while loading and when scrubbing).
+function renderSolid(i) {
+  if (!radar.layers.length) return;
+  const N = radar.frames.length;
+  radar.idx = ((i % N) + N) % N;
+  setLayerOpacities({ [radar.idx]: RADAR_OPACITY });
+  el.radarScrub.value = String(radar.idx);
+  el.radarTime.textContent = relTime(radar.frames[radar.idx]);
+}
+
+// Continuous playhead p ∈ [0, N-1): frame floor(p) held solid, then eased into
+// the next over the tail FADE_FRAC of the step. That crisp hold-then-dissolve
+// reads as motion rather than a muddy full-length crossfade.
+function renderCrossfade(p) {
+  const N = radar.frames.length;
+  const i = Math.min(N - 1, Math.floor(p));
+  if (i >= N - 1) { renderSolid(N - 1); return; }
+  const frac = p - i;
+  let fade = 0;
+  if (frac > 1 - FADE_FRAC) fade = radarEase((frac - (1 - FADE_FRAC)) / FADE_FRAC);
+  setLayerOpacities({ [i]: RADAR_OPACITY * (1 - fade), [i + 1]: RADAR_OPACITY * fade });
+  const idx = fade < 0.5 ? i : i + 1;
+  if (idx !== radar.idx) {
+    radar.idx = idx;
+    el.radarScrub.value = String(idx);
+    el.radarTime.textContent = relTime(radar.frames[idx]);
+  }
+}
+
+// rAF clock: sweep, hold on the newest frame, then a quick fade-out/fade-in
+// back to the oldest so the loop restart feels deliberate, not like a skip.
+function tickRadar(now) {
+  if (!radar.playing) return;
+  const N = radar.frames.length;
+  if (N < 2) { renderSolid(0); return; }
+  const PLAY = (N - 1) * FRAME_MS, total = PLAY + END_HOLD_MS + RESET_MS;
+  const e = (now - radar.t0) % total;
+  if (e < PLAY) {
+    renderCrossfade(e / FRAME_MS);
+  } else if (e < PLAY + END_HOLD_MS) {
+    renderSolid(N - 1);
+  } else {
+    const u = (e - PLAY - END_HOLD_MS) / RESET_MS; // 0..1
+    if (u < 0.5) setLayerOpacities({ [N - 1]: RADAR_OPACITY * (1 - radarEase(u * 2)) });
+    else setLayerOpacities({ 0: RADAR_OPACITY * radarEase(u * 2 - 1) });
+    if (radar.idx !== 0) { radar.idx = 0; el.radarScrub.value = "0"; el.radarTime.textContent = relTime(radar.frames[0]); }
+  }
+  radar.raf = requestAnimationFrame(tickRadar);
+}
+
+// Kept for the scrubber and any external callers: jump to a frame, solid.
+function showFrame(i, _immediate, onShown) {
+  if (!radar.frames.length || !radar.layers.length) return;
+  renderSolid(i);
+  if (onShown) onShown();
 }
 
 function relTime(f) {
@@ -1757,23 +1820,21 @@ function relTime(f) {
   return f.kind === "forecast" ? `${rel} · ${clock} forecast` : `${rel} · ${clock}`;
 }
 
-// Playback chains each step to the previous reveal, so frames never outpace
-// their tiles loading (keeps the animation smooth instead of janky).
+// Playback runs off a single rAF clock over preloaded frames (see tickRadar),
+// so cadence is perfectly even and no frame waits on the network.
 function startRadarPlay() {
   stopRadarPlay();
-  if (!radar.frames.length) return;
+  if (!radar.frames.length || !radar.layers.length) return;
   radar.playing = true;
   el.radarPlay.innerHTML = '<i class="ph ph-pause"></i>';
-  const advance = () => {
-    if (!radar.playing) return;
-    const atEnd = radar.idx === radar.frames.length - 1;
-    showFrame(radar.idx + 1, false, () => { if (radar.playing) radar.timer = setTimeout(advance, atEnd ? 1200 : 300); });
-  };
-  radar.timer = setTimeout(advance, 250);
+  // Anchor the clock so playback resumes from the current frame.
+  radar.t0 = performance.now() - radar.idx * FRAME_MS;
+  radar.raf = requestAnimationFrame(tickRadar);
 }
 function stopRadarPlay() {
   radar.playing = false;
-  if (radar.timer) { clearTimeout(radar.timer); radar.timer = null; }
+  if (radar.raf) { cancelAnimationFrame(radar.raf); radar.raf = null; }
+  if (radar.gateTimer) { clearTimeout(radar.gateTimer); radar.gateTimer = null; }
   if (el.radarPlay) el.radarPlay.innerHTML = '<i class="ph ph-play"></i>';
 }
 function toggleRadarPlay() { radar.playing ? stopRadarPlay() : startRadarPlay(); }
