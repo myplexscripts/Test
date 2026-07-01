@@ -539,6 +539,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .sun-time strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
 /* Moon card: phase + stats on the left, a large moon glyph on the right. */
 .moon-card {
+  position: relative; /* anchors the tap-affordance arrow */
   display: grid;
   grid-template-columns: auto 1fr; /* moon on the left, info on the right */
   align-items: center;
@@ -548,6 +549,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   border-radius: var(--r-lg);
   padding: var(--s-5);
 }
+/* "Tap to open" affordance in the top-right corner. */
+.card-arrow { position: absolute; top: var(--s-4); right: var(--s-4); color: var(--ink-faint); pointer-events: none; }
+.card-arrow .arrow-ic { width: 1.15rem; height: auto; display: block; overflow: visible; }
 .moon-name { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.2rem; margin-bottom: var(--s-3); }
 .moon-stats { display: flex; flex-direction: column; gap: var(--s-2); }
 .moon-stat { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-4); font-weight: 600; color: var(--ink-soft); }
@@ -873,8 +877,25 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .drawer-action:active { transform: scale(0.97); background: rgba(255, 255, 255, 0.16); }
 .drawer-action i { font-size: 1.6rem; color: var(--surface-accent); }
 .drawer-action.is-active { background: rgba(255, 255, 255, 0.18); }
-.drawer-note {
+/* Acknowledgements link — sits with the note at the bottom of the drawer. */
+.drawer-credits {
   margin-top: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  min-height: 48px;
+  padding: 0 var(--s-4);
+  border-radius: var(--r-sm);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--on-surface-soft);
+  font-weight: 600;
+  text-align: left;
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.drawer-credits i { font-size: 1.4rem; color: var(--surface-accent); }
+.drawer-credits:active { transform: scale(0.97); background: rgba(255, 255, 255, 0.12); }
+.drawer-note {
+  margin-top: var(--s-4);
   font-size: var(--t-sm);
   line-height: 1.5;
   color: var(--on-surface-soft);
@@ -1020,6 +1041,15 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .info-head { font-family: Rubik, Inter, sans-serif; font-size: 1.15rem; font-weight: 700; margin-bottom: var(--s-2); }
 .info-card { background: var(--card-bg); border: 2px solid var(--card-border); border-radius: var(--r-md); padding: var(--s-4); }
 .info-text { font-size: var(--t-sm); line-height: 1.5; color: var(--ink-soft); font-weight: 500; }
+.info-now { margin-top: var(--s-3); color: var(--ink); font-weight: 600; }
+
+/* Acknowledgements list — each source is a tappable row that opens its site. */
+.credit-list { display: flex; flex-direction: column; }
+.credit-row { display: flex; flex-direction: column; gap: 2px; padding: var(--s-3) 0; text-decoration: none; color: inherit; }
+.credit-row + .credit-row { border-top: 2px solid var(--hairline); }
+.credit-name { font-family: Rubik, Inter, sans-serif; font-weight: 700; color: var(--ink); }
+.credit-desc { font-size: var(--t-sm); line-height: 1.4; color: var(--ink-soft); font-weight: 500; }
+.credit-row:active { opacity: 0.6; }
 
 .pollutant + .pollutant { margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1.5px solid var(--card-border); }
 .pollutant-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); margin-bottom: 2px; }

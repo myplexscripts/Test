@@ -40,7 +40,7 @@ const el = {
   ptr: $("ptr"), scrim: $("scrim"),
   drawer: $("drawer"), drawerClose: $("drawerClose"),
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
-  unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"),
+  unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
   placeName: $("placeName"), datePill: $("datePill"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"),
   hero: document.querySelector(".hero"),
@@ -149,6 +149,7 @@ function wireEvents() {
   el.locBtn.onclick = useMyLocation;
   el.useLocation.onclick = () => { closeDrawer(); useMyLocation(); };
   el.useHome.onclick = () => { state.loc = { ...HOME }; markLoc("home"); saveState(); closeDrawer(); refresh(true); };
+  if (el.creditsBtn) el.creditsBtn.onclick = () => { closeDrawer(); openDetail("credits"); };
 
   el.unitSeg.querySelectorAll("[data-units]").forEach((b) => {
     b.onclick = () => {
@@ -655,6 +656,7 @@ function renderMoon(current) {
     ["Next full moon", `${days} ${days === 1 ? "day" : "days"}`]
   ];
   el.moonCard.innerHTML = `
+    <span class="card-arrow" aria-hidden="true"><svg class="arrow-ic" viewBox="-144 0 368 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"><line x1="-136" y1="128" x2="216" y2="128"/><polyline points="144 56 216 128 144 200"/></svg></span>
     <div class="moon-art">${moonSVG(moon.frac)}</div>
     <div class="moon-info">
       <div class="moon-name">${moon.name}</div>
@@ -955,7 +957,7 @@ function openSheetUI() {
 }
 
 function openDetail(metric, range) {
-  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon";
+  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits";
   if (!METRICS[metric] && !isInfo) metric = "temp";
   const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
   state.nav = [view];          // fresh entry from the home screen
@@ -1002,7 +1004,7 @@ function syncRange() {
 
 function renderDetailSheet() {
   const gc = el.graph.closest(".graph-card");
-  if (state.detail.metric === "aqi" || state.detail.metric === "uv" || state.detail.metric === "moon") { renderInfoSheet(state.detail.metric); return; }
+  if (["aqi", "uv", "moon", "credits"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
   if (gc) gc.style.display = "";
   if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
@@ -1024,6 +1026,7 @@ function renderInfoSheet(kind) {
   el.dayStats.style.display = "none";
   el.tabSeg.style.display = "none";
   if (kind === "moon") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderMoonSheet(); }
+  else if (kind === "credits") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderCreditsSheet(); }
   else if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
 }
@@ -1208,8 +1211,45 @@ function renderMoonSheet() {
     hero + figs +
     section("Upcoming phases", `<div class="phase-list">${upcoming}</div>`) +
     section("The month ahead", calendar) +
-    section("About illumination", `<p class="info-text">Illumination is how much of the Moon's Earth-facing side is lit by the Sun — 100% at a full moon and 0% at a new moon. It's the shape you see, and it doesn't care whether the Moon is above the horizon or hidden by clouds. Right now it's ${moon.illum}%.</p>`) +
-    section("About the Moon's distance", `<p class="info-text">The Moon's orbit is an oval, so its distance from Earth drifts through the month — from about 356,500 km at its closest to 406,700 km at its farthest. Right now it's roughly ${groupNum(dist)} km away.</p>`);
+    section("About illumination", `<p class="info-text">Illumination represents the percentage of the Moon's Earth-facing side lit by the Sun, ranging from 0% at a new moon to 100% at a full moon. This value describes the Moon's phase regardless of your local horizon or weather conditions.</p><p class="info-text info-now">Currently, the Moon's illumination is ${moon.illum}%.</p>`) +
+    section("About the Moon's distance", `<p class="info-text">The Moon follows an elliptical orbit, causing its distance from Earth to vary throughout the month between approximately 356,500 km (perigee) and 406,700 km (apogee).</p><p class="info-text info-now">Currently, the Moon is approximately ${groupNum(dist)} km away.</p>`);
+}
+
+/* ---------- Acknowledgements screen ---------- */
+// Credit to the free/open sources and tools that power the app.
+const CREDITS = [
+  ["Weather data", [
+    ["OpenWeather", "Current conditions and the daily forecast.", "https://openweathermap.org"],
+    ["Open-Meteo", "Hourly forecast, air quality and UV index.", "https://open-meteo.com"]
+  ]],
+  ["Radar", [
+    ["RainViewer", "Global precipitation radar imagery.", "https://www.rainviewer.com"],
+    ["Environment and Climate Change Canada", "Canadian radar via the MSC GeoMet service.", "https://eccc-msc.github.io/open-data/"]
+  ]],
+  ["Maps", [
+    ["Leaflet", "The interactive map library.", "https://leafletjs.com"],
+    ["CARTO", "Dark basemap tiles.", "https://carto.com/attributions"],
+    ["OpenStreetMap contributors", "The underlying map data.", "https://www.openstreetmap.org/copyright"]
+  ]],
+  ["Icons & type", [
+    ["Phosphor Icons", "The interface icon set.", "https://phosphoricons.com"],
+    ["Inter & Rubik", "Typefaces, served via Google Fonts.", "https://fonts.google.com"]
+  ]],
+  ["Astronomy", [
+    ["SunCalc", "Algorithms behind the sun and moon times.", "https://github.com/mourner/suncalc"]
+  ]]
+];
+
+function renderCreditsSheet() {
+  el.sheetTitle.textContent = "Acknowledgements";
+  el.sheetNote.textContent = "This app is built on free and open data, tools and typefaces. Thank you to the people and projects behind them.";
+  el.sheetList.innerHTML = CREDITS.map(([group, items]) =>
+    section(group, `<div class="credit-list">${items.map(([name, desc, url]) => `
+      <a class="credit-row" href="${url}" target="_blank" rel="noopener noreferrer">
+        <span class="credit-name">${name}</span>
+        <span class="credit-desc">${desc}</span>
+      </a>`).join("")}</div>`)
+  ).join("");
 }
 
 // UV day-curve graph: hourly UV across today, monochrome ink area + line with
