@@ -471,6 +471,29 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .d-value { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.3rem; line-height: 1.1; }
 .d-sub { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
+/* hPa sits alongside the pressure value, sized down like a unit. */
+.d-unit { font-size: 0.72em; font-weight: 700; color: var(--ink-soft); margin-left: 0.35em; }
+/* Flat low→high pressure scale with a marker (matches the sun-arc aesthetic). */
+.p-meter { display: block; margin-top: 2px; }
+.p-track {
+  position: relative;
+  display: block;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ink) 16%, transparent);
+}
+.p-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: inherit; background: color-mix(in srgb, var(--ink) 42%, transparent); }
+.p-dot {
+  position: absolute;
+  top: 50%;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 2px solid var(--card-bg);
+  transform: translate(-50%, -50%);
+}
+.p-scale { display: flex; justify-content: space-between; margin-top: 5px; font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 
 /* ---------- Wind compass ---------- */
 .wind-card {
@@ -549,9 +572,15 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   border-radius: var(--r-lg);
   padding: var(--s-5);
 }
-/* "Tap to open" affordance in the top-right corner. */
-.card-arrow { position: absolute; top: var(--s-4); right: var(--s-4); color: var(--ink-faint); pointer-events: none; }
-.card-arrow .arrow-ic { width: 1.15rem; height: auto; display: block; overflow: visible; }
+/* "Tap to open" affordance — the same caret chevron the detail cards use. */
+.card-go {
+  position: absolute;
+  top: var(--s-3);
+  right: var(--s-3);
+  font-size: 1rem;
+  color: var(--ink-faint);
+  pointer-events: none;
+}
 .moon-name { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.2rem; margin-bottom: var(--s-3); }
 .moon-stats { display: flex; flex-direction: column; gap: var(--s-2); }
 .moon-stat { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-4); font-weight: 600; color: var(--ink-soft); }
@@ -723,6 +752,10 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 /* Apple-style location pin: a dark rounded pill (current temp + condition
    glyph) lifted above a short stem, with a dot at the exact point. The icon
    container is 0×0 anchored on the point, so everything is positioned from it. */
+/* Wind-field arrows: SVG rotates in place; a soft shadow keeps them legible on
+   the dark basemap and the faint speed heat-map. */
+.wind-arrow { pointer-events: none; background: none; border: 0; }
+.wind-arrow svg { display: block; filter: drop-shadow(0 1px 1.5px rgba(0,0,0,0.55)); transform-origin: 15px 15px; }
 .map-pin-wrap { pointer-events: none; }
 .map-pin-wrap::before { /* dot at the exact location */
   content: "";

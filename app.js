@@ -80,7 +80,8 @@ const state = {
 const radar = {
   map: null, base: null, owm: null, marker: null, preview: null, previewBase: null, previewMarker: null,
   layers: [], shown: new Map(), raf: null, t0: 0, gateTimer: null, ready: false, warmScheduled: false,
-  mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, ecccLayerName: "", themeDark: null
+  mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, ecccLayerName: "", themeDark: null,
+  windLayer: null, windMoveHandler: null, windDebounce: null, windReq: 0
 };
 // Playback timing. Every frame's tiles are preloaded before play starts, so
 // these govern a rock-steady rAF clock (no network in the loop) — the source
@@ -104,7 +105,7 @@ const ECCC_WMS          = "https://geo.weather.gc.ca/geomet";
 // GetMap return blank tiles, so the Canada radar showed nothing.
 const ECCC_LAYER_RAIN = "RADAR_1KM_RRAI"; // national composite — rain
 const ECCC_LAYER_SNOW = "RADAR_1KM_RSNO"; // national composite — snow
-const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed" };
+const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed & direction" };
 
 function ecccLayer() {
   const main = (state.data?.current?.weather?.[0]?.main || "").toLowerCase();
@@ -656,7 +657,7 @@ function renderMoon(current) {
     ["Next full moon", `${days} ${days === 1 ? "day" : "days"}`]
   ];
   el.moonCard.innerHTML = `
-    <span class="card-arrow" aria-hidden="true"><svg class="arrow-ic" viewBox="-144 0 368 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"><line x1="-136" y1="128" x2="216" y2="128"/><polyline points="144 56 216 128 144 200"/></svg></span>
+    <i class="ph ph-caret-right card-go" aria-hidden="true"></i>
     <div class="moon-art">${moonSVG(moon.frac)}</div>
     <div class="moon-info">
       <div class="moon-name">${moon.name}</div>
@@ -739,7 +740,11 @@ function renderDetails(current, forecast) {
   }
 
   items.push(["visibility", "ph-eye", "Visibility", visibilityText(current.visibility), visDescriptor(current.visibility)]);
-  items.push(["pressure", "ph-gauge", "Pressure", m.pressure != null ? `${m.pressure}` : "—", m.pressure != null ? "hPa" : ""]);
+  if (m.pressure != null) {
+    items.push(["pressure", "ph-gauge", "Pressure", `${m.pressure}<span class="d-unit">hPa</span>`, pressureMeter(m.pressure)]);
+  } else {
+    items.push(["pressure", "ph-gauge", "Pressure", "—", ""]);
+  }
   items.push(["clouds", "ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "—", cloudDescriptor(clouds.all)]);
 
   el.detailGrid.innerHTML = items.map(([metric, icon, label, value, sub, range]) => `
@@ -750,6 +755,17 @@ function renderDetails(current, forecast) {
       ${sub ? `<span class="d-sub">${sub}</span>` : ""}
       <i class="ph ph-caret-right d-go"></i>
     </button>`).join("");
+}
+
+// A flat low→high scale with a marker for where the current sea-level pressure
+// sits. 980–1040 hPa spans everyday lows (stormy) to highs (settled).
+function pressureMeter(p) {
+  const lo = 980, hi = 1040;
+  const pct = Math.max(0, Math.min(100, ((p - lo) / (hi - lo)) * 100)).toFixed(1);
+  return `<span class="p-meter" aria-hidden="true">
+    <span class="p-track"><span class="p-fill" style="width:${pct}%"></span><span class="p-dot" style="left:${pct}%"></span></span>
+    <span class="p-scale"><span>Low</span><span>High</span></span>
+  </span>`;
 }
 
 function precipDetail(current, forecast, tz) {
@@ -1698,7 +1714,8 @@ function initRadarMap() {
   const c = state.center;
   if (radar.map) { radar.map.setView([c.lat, c.lon]); return; }
   try {
-    radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: true, preferCanvas: true, minZoom: 3, maxZoom: 12 }).setView([c.lat, c.lon], 7);
+    // No on-map attribution control — sources are credited on the Acknowledgements screen.
+    radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: false, preferCanvas: true, minZoom: 3, maxZoom: 12 }).setView([c.lat, c.lon], 7);
     radar.base = L.tileLayer(radarTileUrl(), {
       subdomains: "abcd", maxZoom: 19, updateWhenZooming: false, keepBuffer: 1, attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(radar.map);
@@ -1743,6 +1760,7 @@ function closeRadar() {
   if (!state.radarOpen) return;
   state.radarOpen = false;
   stopRadarPlay();
+  disableWindArrows();
   el.radarSheet.classList.remove("is-open");
   el.radarSheet.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
@@ -1757,13 +1775,18 @@ function applyMode(mode) {
   stopRadarPlay();
   removeRadarLayers();
   if (radar.owm) { radar.map.removeLayer(radar.owm); radar.owm = null; }
+  disableWindArrows();
   const isRadar = mode === "radar";
+  const isWind = mode === "wind_new";
   el.radarTimeline.style.display = isRadar ? "" : "none";
   if (el.radarLegend) el.radarLegend.style.display = isRadar ? "" : "none";
   if (isRadar) {
     loadRadar();
   } else {
-    radar.owm = L.tileLayer(owmTileUrl(mode), { opacity: 0.72, maxZoom: 12, maxNativeZoom: 9, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; OpenWeather" }).addTo(radar.map);
+    // Wind: keep the speed heat-map faint and lay live direction arrows on top.
+    const opacity = isWind ? 0.3 : 0.72;
+    radar.owm = L.tileLayer(owmTileUrl(mode), { opacity, maxZoom: 12, maxNativeZoom: 9, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; OpenWeather" }).addTo(radar.map);
+    if (isWind) enableWindArrows();
   }
 }
 
@@ -1771,6 +1794,93 @@ function removeRadarLayers() {
   radar.layers.forEach((l) => l && radar.map.removeLayer(l));
   radar.layers = [];
   radar.shown.clear();
+}
+
+/* ---------- Wind field (Apple-style direction arrows) ---------- */
+// A grid of little arrows over the map, each pointing the way the wind is
+// blowing and coloured by speed. The grid follows the viewport (re-sampled on
+// pan/zoom) and the wind is fetched from Open-Meteo in one batched request.
+function enableWindArrows() {
+  if (!radar.map) return;
+  if (!radar.windLayer) radar.windLayer = L.layerGroup().addTo(radar.map);
+  if (!radar.windMoveHandler) {
+    radar.windMoveHandler = () => scheduleWindArrows();
+    radar.map.on("moveend zoomend", radar.windMoveHandler);
+  }
+  drawWindArrows();
+}
+
+function disableWindArrows() {
+  if (radar.map && radar.windMoveHandler) { radar.map.off("moveend zoomend", radar.windMoveHandler); }
+  radar.windMoveHandler = null;
+  if (radar.windDebounce) { clearTimeout(radar.windDebounce); radar.windDebounce = null; }
+  if (radar.map && radar.windLayer) { radar.map.removeLayer(radar.windLayer); }
+  radar.windLayer = null;
+  radar.windReq++; // invalidate any in-flight fetch
+}
+
+function scheduleWindArrows() {
+  if (radar.windDebounce) clearTimeout(radar.windDebounce);
+  radar.windDebounce = setTimeout(drawWindArrows, 260);
+}
+
+async function drawWindArrows() {
+  if (!radar.map || radar.mode !== "wind_new" || !radar.windLayer) return;
+  const req = ++radar.windReq;
+  const b = radar.map.getBounds(), size = radar.map.getSize();
+  const cols = Math.max(3, Math.min(9, Math.round(size.x / 82)));
+  const rows = Math.max(3, Math.min(9, Math.round(size.y / 82)));
+  const north = b.getNorth(), south = b.getSouth(), west = b.getWest(), east = b.getEast();
+  const pts = [];
+  for (let r = 0; r < rows; r++) {
+    const lat = north - (r + 0.5) * (north - south) / rows;
+    for (let cc = 0; cc < cols; cc++) pts.push([lat, west + (cc + 0.5) * (east - west) / cols]);
+  }
+  const data = await fetchWindGrid(pts).catch(() => null);
+  if (!data || req !== radar.windReq || radar.mode !== "wind_new" || !radar.windLayer) return;
+  radar.windLayer.clearLayers();
+  pts.forEach((p, i) => {
+    const d = data[i];
+    if (!d || d.speed == null || d.dir == null) return;
+    radar.windLayer.addLayer(L.marker(p, { icon: windArrowIcon(d.speed, d.dir), interactive: false, keyboard: false }));
+  });
+}
+
+// Batched wind sample: Open-Meteo accepts comma-separated coordinate lists and
+// returns one result per point. Speed comes back already in display units.
+async function fetchWindGrid(pts) {
+  const wu = state.units === "imperial" ? "mph" : "kmh";
+  const lat = pts.map((p) => p[0].toFixed(3)).join(",");
+  const lon = pts.map((p) => p[1].toFixed(3)).join(",");
+  const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&current=wind_speed_10m,wind_direction_10m&wind_speed_unit=${wu}&timeformat=unixtime`;
+  const j = await fetchJSON(url);
+  const arr = Array.isArray(j) ? j : [j];
+  return arr.map((o) => ({ speed: o.current?.wind_speed_10m, dir: o.current?.wind_direction_10m }));
+}
+
+// Speed → colour, on a calm-blue → strong-red ramp (thresholds in km/h).
+function windColor(speed) {
+  const kmh = state.units === "imperial" ? speed * 1.609 : speed;
+  if (kmh < 5) return "#8fb7d6";
+  if (kmh < 15) return "#6fd0e8";
+  if (kmh < 30) return "#7fe38a";
+  if (kmh < 45) return "#ffd23f";
+  if (kmh < 65) return "#ff9f43";
+  return "#ff5a5a";
+}
+
+function windArrowIcon(speed, dir) {
+  const kmh = state.units === "imperial" ? speed * 1.609 : speed;
+  const rot = (dir + 180) % 360;          // point the way the wind blows
+  const len = Math.max(11, Math.min(24, 11 + kmh * 0.34)); // longer = stronger
+  const color = windColor(speed);
+  const cy = 15, top = cy - len / 2, bot = cy + len / 2;
+  const svg = `<svg width="30" height="30" viewBox="0 0 30 30" style="transform:rotate(${rot.toFixed(1)}deg)">
+    <g stroke="${color}" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
+      <line x1="15" y1="${bot.toFixed(1)}" x2="15" y2="${top.toFixed(1)}"/>
+      <polyline points="11.6,${(top + 4).toFixed(1)} 15,${top.toFixed(1)} 18.4,${(top + 4).toFixed(1)}"/>
+    </g></svg>`;
+  return L.divIcon({ className: "wind-arrow", html: svg, iconSize: [30, 30], iconAnchor: [15, 15] });
 }
 
 function inCanada(lat, lon) {
