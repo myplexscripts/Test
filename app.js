@@ -355,8 +355,9 @@ function moonPhase(date = new Date()) {
   return { name, illum, frac };
 }
 
-// Simple monochrome moon glyph: a faint full-disk outline with the illuminated
-// fraction filled in --ink (fuller phase = more solid). frac: 0 new → .5 full.
+// Monochrome moon glyph shaped like a real moon: a light lit "surface" disk
+// with the unlit region drawn dark on top — so the dark reads as shadow. A full
+// moon is therefore the lightest, a new moon the darkest. frac: 0 new → .5 full.
 function moonSVG(frac) {
   const r = 23, c = 26;                  // viewBox 52x52
   const theta = frac * 2 * Math.PI;
@@ -366,12 +367,13 @@ function moonSVG(frac) {
   const limb = waxing ? 1 : 0;           // sweep for the bright outer limb
   const term = gibbous ? limb : 1 - limb; // terminator bulges same way if gibbous
   const top = `${c} ${c - r}`, bot = `${c} ${c + r}`;
-  const lit = `M ${top} A ${r} ${r} 0 0 ${limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
-  // Faint full disk (the unlit part) + solid lit fill on top. No stroke, so the
-  // edges stay crisp — a stroked outline left a soft halo around the disk.
+  // Shadow region = the outer semicircle opposite the lit limb, closed back
+  // along the terminator ellipse. Zero-area at full moon, whole disk at new.
+  const shadow = `M ${top} A ${r} ${r} 0 0 ${1 - limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
   return `<svg viewBox="0 0 52 52" class="moon-svg" aria-hidden="true">
-    <circle cx="${c}" cy="${c}" r="${r}" fill="var(--ink)" opacity="0.16"/>
-    <path d="${lit}" fill="var(--ink)"/>
+    <circle cx="${c}" cy="${c}" r="${r}" class="moon-lit"/>
+    <path d="${shadow}" class="moon-shadow"/>
+    <circle cx="${c}" cy="${c}" r="${r}" class="moon-ring"/>
   </svg>`;
 }
 
