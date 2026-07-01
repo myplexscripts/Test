@@ -42,7 +42,7 @@ const el = {
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
   unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
   placeName: $("placeName"), datePill: $("datePill"), condition: $("condition"),
-  heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), alerts: $("alerts"),
+  heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"),
   hero: document.querySelector(".hero"),
   miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mVisibility: $("mVisibility"),
@@ -211,14 +211,13 @@ async function refresh(force) {
   if (force) setStatus("Refreshing…");
   try {
     const q = `lat=${state.loc.lat}&lon=${state.loc.lon}&units=${state.units}&appid=${API_KEY}`;
-    const [current, forecast, air, hourly, alerts] = await Promise.all([
+    const [current, forecast, air, hourly] = await Promise.all([
       fetchJSON(`${API_BASE}/weather?${q}`),
       fetchJSON(`${API_BASE}/forecast?${q}`),
       fetchAir(state.loc.lat, state.loc.lon).catch(() => null), // never blocks core weather
-      fetchHourlyWx(state.loc.lat, state.loc.lon, state.units).catch(() => null),
-      fetchAlerts(state.loc.lat, state.loc.lon, state.units).catch(() => null) // official watches/warnings
+      fetchHourlyWx(state.loc.lat, state.loc.lon, state.units).catch(() => null)
     ]);
-    const data = { current, forecast, air, hourly, alerts };
+    const data = { current, forecast, air, hourly };
     state.data = data;
     saveCache(data);
     render(data);
@@ -288,149 +287,6 @@ async function fetchHourlyWx(lat, lon, units) {
     clouds: { all: h.cloud_cover?.[i] },
     visibility: h.visibility?.[i]
   }));
-}
-
-// Official government watches/warnings. In Canada these come straight from
-// Environment Canada's public CityPage feed (no key needed); elsewhere we fall
-// back to OpenWeather One Call 3.0 if the key has it. Each alert is normalised
-// to { event, sender_name, start, end, description, tags } for renderAlerts.
-async function fetchAlerts(lat, lon) {
-  if (inCanada(lat, lon)) {
-    try {
-      const a = await fetchEcccAlerts(lat, lon); // authoritative for Canada (even when empty)
-      if (a) return a;
-    } catch { /* unreachable / CORS / parse — fall through to OpenWeather */ }
-  }
-  return await fetchOwmAlerts(lat, lon).catch(() => []);
-}
-
-async function fetchOwmAlerts(lat, lon) {
-  const url = `https://api.openweathermap.org/data/3.0/onecall?lat=${lat}&lon=${lon}&exclude=minutely,hourly,daily,current&appid=${API_KEY}`;
-  const j = await fetchJSON(url);
-  return Array.isArray(j.alerts) ? j.alerts : [];
-}
-
-/* ---------- Environment Canada alerts (CityPage feed) ---------- */
-const ECCC_CITYPAGE = "https://dd.weather.gc.ca/citypage_weather/xml";
-const ECCC_SITELIST_CSV = "https://dd.weather.gc.ca/citypage_weather/docs/site_list_en.csv";
-const ECCC_SITELIST_XML = "https://dd.weather.gc.ca/citypage_weather/xml/siteList.xml";
-const CA_PROVINCES = new Set(["AB", "BC", "MB", "NB", "NL", "NS", "NT", "NU", "ON", "PE", "QC", "SK", "YT"]);
-let _ecccSites = null;
-
-// Split one CSV line, honouring simple double-quoted cells.
-function splitCsv(line) {
-  const out = []; let cur = "", q = false;
-  for (let i = 0; i < line.length; i++) {
-    const ch = line[i];
-    if (ch === '"') { q = !q; }
-    else if (ch === "," && !q) { out.push(cur); cur = ""; }
-    else cur += ch;
-  }
-  out.push(cur);
-  return out.map((s) => s.trim());
-}
-function parseCoord(s) {
-  const m = /^(-?\d+(?:\.\d+)?)\s*([NSEW])$/i.exec(s);
-  if (!m) return null;
-  let v = parseFloat(m[1]);
-  const d = m[2].toUpperCase();
-  if (d === "S" || d === "W") v = -Math.abs(v);
-  return v;
-}
-
-// Build (and cache) the list of CityPage sites with coordinates + province.
-// Coordinates come from the CSV; the province code (needed for the XML path)
-// comes from siteList.xml. Cells are matched by shape, not column order, so
-// the lookup survives small format changes in the feed.
-async function ecccSites() {
-  if (_ecccSites) return _ecccSites;
-  const [csv, xml] = await Promise.all([
-    fetch(ECCC_SITELIST_CSV, { cache: "force-cache" }).then((r) => r.text()),
-    fetch(ECCC_SITELIST_XML, { cache: "force-cache" }).then((r) => r.text())
-  ]);
-  const prov = {};
-  const doc = new DOMParser().parseFromString(xml, "text/xml");
-  const siteEls = doc.getElementsByTagName("site");
-  for (let i = 0; i < siteEls.length; i++) {
-    const s = siteEls[i];
-    const code = s.getAttribute("code");
-    const p = s.getElementsByTagName("provinceCode")[0]?.textContent?.trim();
-    if (code && p) prov[code] = p;
-  }
-  const sites = [];
-  for (const line of csv.split(/\r?\n/)) {
-    if (!line || /^codes?,/i.test(line)) continue;
-    const cells = splitCsv(line);
-    const code = cells.find((c) => /^s\d{7}$/i.test(c));
-    if (!code) continue;
-    let lat = null, lon = null;
-    for (const c of cells) {
-      const v = parseCoord(c);
-      if (v == null) continue;
-      if (/[NS]$/i.test(c)) lat = v; else lon = v;
-    }
-    const p = prov[code] || cells.find((c) => CA_PROVINCES.has(c.toUpperCase()))?.toUpperCase();
-    if (lat != null && lon != null && p) sites.push({ code, prov: p, lat, lon });
-  }
-  if (!sites.length) throw new Error("ECCC: empty site list");
-  _ecccSites = sites;
-  return sites;
-}
-
-function nearestSite(sites, lat, lon) {
-  let best = null, bestD = Infinity;
-  for (const s of sites) {
-    const dLat = (s.lat - lat), dLon = (s.lon - lon) * Math.cos(lat * Math.PI / 180);
-    const d = dLat * dLat + dLon * dLon; // planar approx — fine at city scale
-    if (d < bestD) { bestD = d; best = s; }
-  }
-  return best;
-}
-
-// "20260701205000" (UTC) → unix seconds.
-function ecccStamp(s) {
-  const m = /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})$/.exec((s || "").trim());
-  if (!m) return null;
-  return Math.floor(Date.UTC(+m[1], +m[2] - 1, +m[3], +m[4], +m[5], +m[6]) / 1000);
-}
-
-async function fetchEcccAlerts(lat, lon) {
-  const sites = await ecccSites();
-  const site = nearestSite(sites, lat, lon);
-  if (!site) return [];
-  const url = `${ECCC_CITYPAGE}/${site.prov}/${site.code}_e.xml`;
-  const xml = await (await fetch(url, { cache: "no-store" })).text();
-  const doc = new DOMParser().parseFromString(xml, "text/xml");
-  const warnings = doc.getElementsByTagName("warnings")[0];
-  if (!warnings) return [];
-  const out = [];
-  const events = warnings.getElementsByTagName("event");
-  for (let i = 0; i < events.length; i++) {
-    const ev = events[i];
-    const type = (ev.getAttribute("type") || "").toLowerCase();
-    if (type === "ended") continue; // skip cancellations
-    const name = ev.getAttribute("description") || ev.getAttribute("type") || "Weather alert";
-    // eventIssue time: prefer the UTC-zoned dateTime's <timeStamp>.
-    let start = null;
-    const dts = ev.getElementsByTagName("dateTime");
-    for (let k = 0; k < dts.length; k++) {
-      const dt = dts[k];
-      if (dt.getAttribute("name") !== "eventIssue") continue;
-      const utc = (dt.getAttribute("zone") || "").toUpperCase().includes("UTC") || dt.getAttribute("UTCOffset") === "0";
-      if (utc || start == null) start = ecccStamp(dt.getElementsByTagName("timeStamp")[0]?.textContent);
-      if (utc) break;
-    }
-    const summary = ev.getElementsByTagName("textSummary")[0]?.textContent?.trim();
-    out.push({
-      event: name,
-      sender_name: "Environment Canada",
-      start,
-      end: null,
-      tags: [type],
-      description: summary || `${name} in effect.`
-    });
-  }
-  return out;
 }
 
 // Pollutant reference info: friendly name + plain-English explanation + a rough
@@ -548,7 +404,6 @@ function render(data) {
   el.tempNum.textContent = `${Math.round(m.temp ?? 0)}`;
   el.temp.classList.remove("is-loading");
   el.summary.textContent = buildSummary(current, state.daily);
-  renderAlerts(data.alerts, tz);
 
   // compact header mirror of the current conditions
   if (el.miniIcon) el.miniIcon.className = `mini-ic ${iconClass(w.main, isNight)}`;
@@ -571,56 +426,6 @@ function render(data) {
   setupScrollFx();
 
   if (state.sheetOpen) renderDetailSheet();
-}
-
-/* ---------- Weather alerts ---------- */
-function escapeHTML(s) {
-  return String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
-}
-// OpenWeather gives no clean severity level, so grade it from the event text
-// the way Apple colour-codes its banners.
-function alertLevel(a) {
-  const s = `${a.event || ""} ${(a.tags || []).join(" ")}`.toLowerCase();
-  if (/tornado|hurricane|extreme|emergency|tsunami|red warning/.test(s)) return "extreme";
-  if (/warning/.test(s)) return "warning";
-  if (/watch/.test(s)) return "watch";
-  return "advisory"; // statements, advisories, special weather
-}
-function alertWhen(a, tz) {
-  const now = Math.floor(Date.now() / 1000);
-  if (a.end && a.end > now) return `Until ${dayLabel(a.end, tz)} ${fmtHour(a.end, tz)}`;
-  if (a.start && a.start > now) return `From ${dayLabel(a.start, tz)} ${fmtHour(a.start, tz)}`;
-  if (a.start) return `Since ${dayLabel(a.start, tz)} ${fmtHour(a.start, tz)}`;
-  return "";
-}
-function renderAlerts(alerts, tz) {
-  const host = el.alerts;
-  if (!host) return;
-  const list = (alerts || []).filter((a) => a && a.event);
-  if (!list.length) { host.hidden = true; host.innerHTML = ""; return; }
-  host.hidden = false;
-  host.innerHTML = list.map((a, i) => {
-    const level = alertLevel(a);
-    const when = alertWhen(a, tz);
-    const meta = [when, a.sender_name].filter(Boolean).map(escapeHTML).join(" · ");
-    const desc = (a.description || "").trim();
-    return `<button class="alert alert-${level}" type="button" data-alert="${i}" aria-expanded="false">
-      <span class="alert-head">
-        <i class="ph-fill ph-warning-octagon alert-ic" aria-hidden="true"></i>
-        <span class="alert-title">${escapeHTML(a.event)}</span>
-        ${desc ? '<i class="ph ph-caret-down alert-chev" aria-hidden="true"></i>' : ""}
-      </span>
-      ${meta ? `<span class="alert-meta">${meta}</span>` : ""}
-      ${desc ? `<span class="alert-desc">${escapeHTML(desc)}</span>` : ""}
-    </button>`;
-  }).join("");
-  host.querySelectorAll(".alert").forEach((btn) => {
-    if (!btn.querySelector(".alert-desc")) return;
-    btn.onclick = () => {
-      const open = btn.classList.toggle("is-open");
-      btn.setAttribute("aria-expanded", open ? "true" : "false");
-    };
-  });
 }
 
 // Scroll choreography: a compact header that appears past the hero, plus
@@ -1431,8 +1236,7 @@ function renderMoonSheet() {
 const CREDITS = [
   ["Weather data", [
     ["OpenWeather", "Current conditions and the daily forecast.", "https://openweathermap.org"],
-    ["Open-Meteo", "Hourly forecast, air quality and UV index.", "https://open-meteo.com"],
-    ["Environment Canada", "Public weather alerts and warnings.", "https://weather.gc.ca"]
+    ["Open-Meteo", "Hourly forecast, air quality and UV index.", "https://open-meteo.com"]
   ]],
   ["Radar", [
     ["RainViewer", "Global precipitation radar imagery.", "https://www.rainviewer.com"],

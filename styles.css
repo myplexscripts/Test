@@ -318,47 +318,6 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   max-width: 60ch;
 }
 
-/* ---------- Weather alerts (Apple-style banners) ---------- */
-.alerts { display: flex; flex-direction: column; gap: var(--s-3); }
-.alerts[hidden] { display: none; }
-.alert {
-  --alert-accent: #ff8a3d;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-2);
-  width: 100%;
-  text-align: left;
-  border: 2px solid color-mix(in srgb, var(--alert-accent) 45%, var(--card-border));
-  border-left: 6px solid var(--alert-accent);
-  background: color-mix(in srgb, var(--alert-accent) 14%, var(--card-bg));
-  border-radius: var(--r-md);
-  padding: var(--s-4);
-  cursor: default;
-  transition: background var(--dur-fast);
-}
-.alert:has(.alert-desc) { cursor: pointer; }
-.alert:has(.alert-desc):active { background: color-mix(in srgb, var(--alert-accent) 20%, var(--card-bg)); }
-.alert-warning  { --alert-accent: #ff8a3d; }
-.alert-extreme  { --alert-accent: #ff4d4d; }
-.alert-watch    { --alert-accent: #ffbf3d; }
-.alert-advisory { --alert-accent: #4aa3ff; }
-.alert-head { display: flex; align-items: center; gap: var(--s-3); }
-.alert-ic { font-size: 1.4rem; color: var(--alert-accent); flex: 0 0 auto; }
-.alert-title { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.05rem; line-height: 1.2; flex: 1; min-width: 0; }
-.alert-chev { font-size: 1rem; color: var(--ink-soft); flex: 0 0 auto; transition: transform var(--dur-fast); }
-.alert.is-open .alert-chev { transform: rotate(180deg); }
-.alert-meta { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
-.alert-desc {
-  display: none;
-  margin-top: var(--s-1);
-  font-size: var(--t-sm);
-  line-height: 1.5;
-  font-weight: 500;
-  white-space: pre-line;
-  color: color-mix(in srgb, var(--ink) 82%, transparent);
-}
-.alert.is-open .alert-desc { display: block; }
-
 /* ---------- Surface (the black metrics box) ---------- */
 .surface {
   background: var(--surface);
