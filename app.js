@@ -2235,8 +2235,22 @@ function initGestures() {
 }
 
 /* ---------- Service worker ---------- */
+// Register with updateViaCache:"none" so the browser always fetches a fresh
+// sw.js (never from the HTTP cache), and reload once when a new worker takes
+// over an already-controlled page — so an installed PWA can't get stuck on a
+// stale cached build.
 function registerSW() {
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+  if (!("serviceWorker" in navigator)) return;
+  const hadController = !!navigator.serviceWorker.controller;
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    if (refreshing || !hadController) return; // don't reload on the first-ever install
+    refreshing = true;
+    window.location.reload();
+  });
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+    .then((reg) => reg.update())
+    .catch(() => {});
 }
 
 /* ---------- Boot (run last, after all declarations are initialized) ---------- */
