@@ -29,7 +29,7 @@ const el = {
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
   unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
   placeName: $("placeName"), datePill: $("datePill"), condition: $("condition"),
-  heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), wear: $("wear"),
+  heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), wear: $("wear"), alerts: $("alerts"),
   hero: document.querySelector(".hero"),
   miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mFeels: $("mFeels"),
@@ -177,13 +177,14 @@ async function refresh(force) {
   if (force) setStatus("Refreshing…");
   try {
     const q = `lat=${state.loc.lat}&lon=${state.loc.lon}&units=${state.units}&appid=${API_KEY}`;
-    const [current, forecast, air, hourly] = await Promise.all([
+    const [current, forecast, air, hourly, alerts] = await Promise.all([
       fetchJSON(`${API_BASE}/weather?${q}`),
       fetchJSON(`${API_BASE}/forecast?${q}`),
       fetchAir(state.loc.lat, state.loc.lon).catch(() => null),
-      fetchHourlyWx(state.loc.lat, state.loc.lon, state.units).catch(() => null)
+      fetchHourlyWx(state.loc.lat, state.loc.lon, state.units).catch(() => null),
+      fetchAlerts(state.loc.lat, state.loc.lon).catch(() => null)
     ]);
-    const data = { current, forecast, air, hourly };
+    const data = { current, forecast, air, hourly, alerts };
     state.data = data;
     saveCache(data);
     render(data);
@@ -203,6 +204,57 @@ async function fetchJSON(url) {
   try { data = JSON.parse(text); } catch { data = { message: text || res.statusText }; }
   if (!res.ok) throw new Error(data.message || res.statusText || "Request failed");
   return data;
+}
+
+const GEOMET_WMS = "https://geo.weather.gc.ca/geomet";
+const GEOMET_ALERTS_LAYER = "Current-Alerts";
+
+async function fetchAlerts(lat, lon) {
+  if (!inCanada(lat, lon)) return [];
+  const d = 0.05;
+  const params = new URLSearchParams({
+    SERVICE: "WMS", VERSION: "1.3.0", REQUEST: "GetFeatureInfo",
+    LAYERS: GEOMET_ALERTS_LAYER, QUERY_LAYERS: GEOMET_ALERTS_LAYER,
+    CRS: "EPSG:4326",
+    BBOX: `${lat - d},${lon - d},${lat + d},${lon + d}`,
+    WIDTH: "101", HEIGHT: "101", I: "50", J: "50",
+    INFO_FORMAT: "application/json", FEATURE_COUNT: "10", LANG: "en"
+  });
+  const j = await fetchJSON(`${GEOMET_WMS}?${params.toString()}`);
+  const feats = Array.isArray(j.features) ? j.features : [];
+  const seen = new Set();
+  const out = [];
+  for (const f of feats) {
+    const a = alertFromFeature(f);
+    if (!a) continue;
+    const key = `${a.event}|${a.end}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(a);
+  }
+  return out;
+}
+
+function alertFromFeature(f) {
+  const p = (f && f.properties) || {};
+  const keys = Object.keys(p);
+  if (!keys.length) return null;
+  const pick = (re) => {
+    const k = keys.find((k) => re.test(k) && p[k] != null && String(p[k]).trim() !== "");
+    return k ? String(p[k]).trim() : null;
+  };
+  const event = pick(/headline|^event$|alert_?type|^type$|^name$|title/i) || "Weather alert";
+  const description = pick(/descrip|summary|detail|instruction|^text$/i) || "";
+  const start = parseWhen(pick(/effective|onset|sent|issue|^start/i));
+  const end = parseWhen(pick(/expire|^end|until/i));
+  const level = pick(/severity|priority/i) || "";
+  return { event, description, start, end, sender_name: "Environment Canada", tags: [level].filter(Boolean) };
+}
+
+function parseWhen(s) {
+  if (!s) return null;
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? Math.floor(t / 1000) : null;
 }
 
 async function fetchAir(lat, lon) {
@@ -347,6 +399,7 @@ function render(data) {
   el.temp.classList.remove("is-loading");
   el.summary.textContent = buildSummary(current, state.daily);
   if (el.wear) el.wear.innerHTML = `<span class="wear-label">What to wear</span><p class="wear-text">${buildWear(current, state.daily)}</p>`;
+  renderAlerts(data.alerts, tz);
 
   if (el.miniIcon) el.miniIcon.className = `mini-ic ${iconClass(w.main, isNight)}`;
   if (el.miniPlace) el.miniPlace.textContent = el.placeName.textContent;
@@ -883,6 +936,56 @@ function buildWear(current, daily) {
   const kmh = state.units === "imperial" ? spd * 1.609 : spd * 3.6;
   if (kmh >= 30) extras.push("A windbreaker helps against the wind.");
   return base + (extras.length ? " " + extras.join(" ") : "");
+}
+
+function escapeHTML(s) {
+  return String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+
+function alertLevel(a) {
+  const s = `${a.event || ""} ${(a.tags || []).join(" ")}`.toLowerCase();
+  if (/tornado|hurricane|extreme|emergency|tsunami|red/.test(s)) return "extreme";
+  if (/warning/.test(s)) return "warning";
+  if (/watch/.test(s)) return "watch";
+  return "advisory";
+}
+
+function alertWhen(a, tz) {
+  const now = Math.floor(Date.now() / 1000);
+  if (a.end && a.end > now) return `Until ${dayLabel(a.end, tz)} ${fmtHour(a.end, tz)}`;
+  if (a.start && a.start > now) return `From ${dayLabel(a.start, tz)} ${fmtHour(a.start, tz)}`;
+  if (a.start) return `Since ${dayLabel(a.start, tz)} ${fmtHour(a.start, tz)}`;
+  return "";
+}
+
+function renderAlerts(alerts, tz) {
+  const host = el.alerts;
+  if (!host) return;
+  const list = (alerts || []).filter((a) => a && a.event);
+  if (!list.length) { host.hidden = true; host.innerHTML = ""; return; }
+  host.hidden = false;
+  host.innerHTML = list.map((a) => {
+    const level = alertLevel(a);
+    const when = alertWhen(a, tz);
+    const meta = [when, a.sender_name].filter(Boolean).map(escapeHTML).join(" · ");
+    const desc = (a.description || "").trim();
+    return `<button class="alert alert-${level}" type="button" aria-expanded="false">
+      <span class="alert-head">
+        <i class="ph-fill ph-warning-octagon alert-ic" aria-hidden="true"></i>
+        <span class="alert-title">${escapeHTML(a.event)}</span>
+        ${desc ? '<i class="ph ph-caret-down alert-chev" aria-hidden="true"></i>' : ""}
+      </span>
+      ${meta ? `<span class="alert-meta">${meta}</span>` : ""}
+      ${desc ? `<span class="alert-desc">${escapeHTML(desc)}</span>` : ""}
+    </button>`;
+  }).join("");
+  host.querySelectorAll(".alert").forEach((btn) => {
+    if (!btn.querySelector(".alert-desc")) return;
+    btn.onclick = () => {
+      const open = btn.classList.toggle("is-open");
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+  });
 }
 
 function applyPalette(kind) {
