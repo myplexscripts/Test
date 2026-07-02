@@ -473,8 +473,10 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .d-sub { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 /* hPa sits alongside the pressure value, sized down like a unit. */
 .d-unit { font-size: 0.72em; font-weight: 700; color: var(--ink-soft); margin-left: 0.35em; }
-/* Flat low→high pressure scale with a marker (matches the sun-arc aesthetic). */
-.p-meter { display: block; margin-top: 2px; }
+/* Flat low→high scale with a marker (matches the sun-arc aesthetic). Pinned to
+   the bottom of the card so meters line up across a row regardless of how much
+   text sits above them. */
+.p-meter { display: block; margin-top: auto; padding-top: var(--s-3); }
 .p-track {
   position: relative;
   display: block;

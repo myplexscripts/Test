@@ -745,7 +745,7 @@ function renderDetails(current, forecast) {
     items.push(["visibility", "ph-eye", "Visibility", "—", ""]);
   }
   if (m.pressure != null) {
-    items.push(["pressure", "ph-gauge", "Pressure", `${m.pressure}<span class="d-unit">hPa</span>`, pressureMeter(m.pressure)]);
+    items.push(["pressure", "ph-gauge", "Pressure", `${m.pressure}<span class="d-unit">hPa</span>`, "", null, pressureMeter(m.pressure)]);
   } else {
     items.push(["pressure", "ph-gauge", "Pressure", "—", ""]);
   }
