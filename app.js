@@ -716,27 +716,29 @@ function renderDetails(current, forecast) {
   const actual = Math.round(m.temp ?? feels);
   const fd = feels - actual;
   const fSub = Math.abs(fd) < 1 ? "Similar to the actual temperature." : fd < 0 ? `${Math.abs(fd)}° colder than actual.` : `${fd}° warmer than actual.`;
-  items.push(["feels", "ph-thermometer-simple", "Feels like", `${feels}°`, fSub]);
+  items.push(["feels", "ph-thermometer-simple", "Feels like", `${feels}°`, fSub, null, hourlySpark((p) => p.main?.feels_like)]);
 
-  if (today) items.push(["temp", "ph-arrows-vertical", "High / Low", `${Math.round(today.max)}° / ${Math.round(today.min)}°`, "Today", "daily"]);
+  if (today) items.push(["temp", "ph-arrows-vertical", "High / Low", `${Math.round(today.max)}° / ${Math.round(today.min)}°`, "Today", "daily", sparkline((state.daily || []).map((d) => d.max), { marker: 0 })]);
 
   if (m.humidity != null) {
     const dp = dewPointDisplay(m.temp, m.humidity);
-    items.push(["humidity", "ph-drop", "Humidity", `${m.humidity}%`, dp != null ? `Dew point ${dp}°` : ""]);
+    items.push(["humidity", "ph-drop", "Humidity", `${m.humidity}%`, dp != null ? `Dew point ${dp}°` : "", null, hourlySpark((p) => p.main?.humidity, { min: 0, max: 100 })]);
   } else {
     items.push(["humidity", "ph-drop", "Humidity", "—", ""]);
   }
 
-  items.push(precipDetail(current, forecast, tz));
+  const pd = precipDetail(current, forecast, tz);
+  pd[6] = hourlySpark((p) => (p.pop || 0) * 100, { min: 0, max: 100 });
+  items.push(pd);
 
   const air = state.data?.air;
   if (air && air.us_aqi != null) {
     const b = aqiBand(air.us_aqi);
-    items.push(["aqi", "ph-waves", "Air quality", `${Math.round(air.us_aqi)}`, b.label]);
+    items.push(["aqi", "ph-waves", "Air quality", `${Math.round(air.us_aqi)}`, b.label, null, airSpark("us_aqi", { min: 0 })]);
   }
   if (air && air.uv_index != null) {
     const u = uvBand(air.uv_index);
-    items.push(["uv", "ph-sun", "UV index", `${Math.round(air.uv_index)}`, u.label]);
+    items.push(["uv", "ph-sun", "UV index", `${Math.round(air.uv_index)}`, u.label, null, airSpark("uv_index", { min: 0 })]);
   }
 
   items.push(["visibility", "ph-eye", "Visibility", visibilityText(current.visibility), visDescriptor(current.visibility)]);
@@ -745,14 +747,15 @@ function renderDetails(current, forecast) {
   } else {
     items.push(["pressure", "ph-gauge", "Pressure", "—", ""]);
   }
-  items.push(["clouds", "ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "—", cloudDescriptor(clouds.all)]);
+  items.push(["clouds", "ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "—", cloudDescriptor(clouds.all), null, hourlySpark((p) => p.clouds?.all, { min: 0, max: 100 })]);
 
-  el.detailGrid.innerHTML = items.map(([metric, icon, label, value, sub, range]) => `
+  el.detailGrid.innerHTML = items.map(([metric, icon, label, value, sub, range, spark]) => `
     <button class="detail" data-metric="${metric}"${range ? ` data-range="${range}"` : ""}>
       <i class="ph-duotone ${icon}"></i>
       <span class="d-label">${label}</span>
       <strong class="d-value">${value}</strong>
       ${sub ? `<span class="d-sub">${sub}</span>` : ""}
+      ${spark || ""}
       <i class="ph ph-caret-right d-go"></i>
     </button>`).join("");
 }
@@ -766,6 +769,51 @@ function pressureMeter(p) {
     <span class="p-track"><span class="p-fill" style="width:${pct}%"></span><span class="p-dot" style="left:${pct}%"></span></span>
     <span class="p-scale"><span>Low</span><span>High</span></span>
   </span>`;
+}
+
+// Flat mini line graph (sparkline) for a metric card: a faint area under a
+// solid --ink line, with a dot marking "now". Matches the pressure meter's
+// no-colour, no-gradient aesthetic. Returns "" when there isn't enough data.
+function sparkline(values, opts = {}) {
+  const pts = (values || []).filter((v) => Number.isFinite(v));
+  if (pts.length < 2) return "";
+  const W = 120, H = 40, pad = 4;
+  let lo = opts.min != null ? opts.min : Math.min(...pts);
+  let hi = opts.max != null ? opts.max : Math.max(...pts);
+  if (hi - lo < 1e-6) { lo -= 1; hi += 1; } // flat series → give it a little room
+  const n = pts.length;
+  const x = (i) => pad + (i / (n - 1)) * (W - 2 * pad);
+  const y = (v) => pad + (1 - (Math.max(lo, Math.min(hi, v)) - lo) / (hi - lo)) * (H - 2 * pad);
+  const line = pts.map((v, i) => `${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ");
+  const area = `${x(0).toFixed(1)},${H - pad} ${line} ${x(n - 1).toFixed(1)},${H - pad}`;
+  const mi = opts.marker != null ? Math.max(0, Math.min(n - 1, opts.marker)) : n - 1;
+  return `<span class="d-spark" aria-hidden="true"><svg viewBox="0 0 ${W} ${H}" class="spark-svg">
+    <polygon class="spark-area" points="${area}"/>
+    <polyline class="spark-line" points="${line}" vector-effect="non-scaling-stroke"/>
+    <circle class="spark-dot" cx="${x(mi).toFixed(1)}" cy="${y(pts[mi]).toFixed(1)}" r="3"/>
+  </svg></span>`;
+}
+
+// Sparkline over the next ~12 hours from state.hourly (marker at "now" = index 0).
+function hourlySpark(getter, opts) {
+  const pts = (state.hourly || []).slice(0, 12).map(getter);
+  return sparkline(pts, { marker: 0, ...opts });
+}
+
+// Sparkline over today's air-quality/UV hourly curve, with the marker on the
+// current hour. air.hourly.time holds local ISO strings (e.g. "…T13:00").
+function airSpark(key, opts) {
+  const h = state.data?.air?.hourly;
+  if (!h || !h.time || !h[key]) return "";
+  const tz = state.tz || 0;
+  const curHour = new Date((Date.now() / 1000 + tz) * 1000).getUTCHours();
+  let mi = 0, best = Infinity;
+  h.time.forEach((t, i) => {
+    const hr = Number(String(t).slice(11, 13));
+    const d = Math.abs(hr - curHour);
+    if (Number.isFinite(hr) && d < best) { best = d; mi = i; }
+  });
+  return sparkline(h[key], { marker: mi, ...opts });
 }
 
 function precipDetail(current, forecast, tz) {
