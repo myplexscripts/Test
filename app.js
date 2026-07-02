@@ -661,7 +661,7 @@ function renderDetails(current, forecast) {
   const air = state.data?.air;
   if (air && air.us_aqi != null) {
     const b = aqiBand(air.us_aqi);
-    items.push(["aqi", "ph-waves", "Air quality", `${Math.round(air.us_aqi)}`, b.label, null, rangeMeter(air.us_aqi, 0, 300)]);
+    items.push(["aqi", "ph-waves", "Air quality", `${Math.round(air.us_aqi)}`, b.label, null, rangeMeter(air.us_aqi, 0, 300, "Good", "Poor")]);
   }
   if (air && air.uv_index != null) {
     const u = uvBand(air.uv_index);
