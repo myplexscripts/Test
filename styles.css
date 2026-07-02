@@ -495,14 +495,6 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .p-scale { display: flex; justify-content: space-between; margin-top: 5px; font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 
-/* Flat mini line graph (sparkline) on metric cards — solid --ink line over a
-   faint area, with a "now" dot. No colour, no gradient. */
-.d-spark { display: block; margin-top: var(--s-2); }
-.spark-svg { display: block; width: 100%; height: auto; overflow: visible; }
-.spark-area { fill: color-mix(in srgb, var(--ink) 9%, transparent); stroke: none; }
-.spark-line { fill: none; stroke: var(--ink); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
-.spark-dot { fill: var(--ink); stroke: var(--card-bg); stroke-width: 1.5; }
-
 /* ---------- Wind compass ---------- */
 .wind-card {
   display: grid;
