@@ -411,7 +411,7 @@ function render(data) {
   el.temp.classList.remove("is-loading");
   el.summary.textContent = buildSummary(current, state.daily);
   if (el.wear) {
-    el.wear.innerHTML = `<button class="wear-toggle" type="button" aria-expanded="true"><span class="wear-label">What to wear</span><i class="ph ph-caret-down wear-chev" aria-hidden="true"></i></button><div class="wear-content"><p class="wear-text">${buildWear(current, state.daily)}</p></div>`;
+    el.wear.innerHTML = `<button class="wear-toggle" type="button" aria-expanded="true"><span class="wear-label">What to wear</span><i class="ph ph-caret-down wear-chev" aria-hidden="true"></i></button><div class="wear-content"><div class="wear-clip"><p class="wear-text">${buildWear(current, state.daily)}</p></div></div>`;
     el.wear.classList.add("is-open");
     const wt = el.wear.querySelector(".wear-toggle");
     wt.onclick = () => {
@@ -988,7 +988,7 @@ function renderAlerts(alerts, tz) {
           ${desc ? '<i class="ph ph-caret-down alert-chev" aria-hidden="true"></i>' : ""}
         </span>
         ${meta ? `<span class="alert-meta">${meta}</span>` : ""}
-        ${desc ? `<span class="alert-desc">${escapeHTML(desc)}</span>` : ""}
+        ${desc ? `<span class="alert-desc"><span class="alert-desc-in"><span class="alert-desc-tx">${escapeHTML(desc)}</span></span></span>` : ""}
       </span>
     </button>`;
   }).join("");
