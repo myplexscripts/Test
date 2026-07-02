@@ -1,25 +1,15 @@
-/* =====================================================================
-   Home Weather — application logic
-   Data: OpenWeather 2.5 (current + 5 day / 3 hour forecast)
-   ===================================================================== */
 
 "use strict";
 
-/* ---------- Config ---------- */
-const API_KEY = "37c88f3496272531c686b0686ecfe1dd"; // personal testing key
+const API_KEY = "37c88f3496272531c686b0686ecfe1dd";
 const API_BASE = "https://api.openweathermap.org/data/2.5";
-// Air quality + UV index — free, keyless, CORS-friendly (no One Call 3.0 needed).
 const AIR_BASE = "https://air-quality-api.open-meteo.com/v1/air-quality";
-// True hourly weather (every hour on the hour) — free, keyless. OpenWeather's
-// free /forecast is only 3-hourly, so the hourly rail/detail come from here.
 const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
-const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397; // moon-math constants
+const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
 
-/* Flat per-theme palettes. The background is a single solid colour — no
-   gradients. Themes are chosen by the user only (no weather-based switching). */
 const PALETTES = {
   sunny:       { bg: "#ffe142", ink: "#0a0a0a", surface: "#0a0a0a", onSurface: "#fffdf8", accent: "#ffd83d", dark: false },
   mostlyclear: { bg: "#42c6ff", ink: "#06222f", surface: "#06222f", onSurface: "#eafaff", accent: "#5fd0ff", dark: false },
@@ -29,12 +19,9 @@ const PALETTES = {
   snow:        { bg: "#ffffff", ink: "#0b1626", surface: "#0b1626", onSurface: "#eef5ff", accent: "#79b6ff", dark: false },
   night:       { bg: "#0b132b", ink: "#e9ecff", surface: "#0a1024", onSurface: "#f4f6ff", accent: "#7e9be0", dark: true  },
   sunset:      { bg: "#ff64d4", ink: "#2b0a24", surface: "#2b0a24", onSurface: "#ffe9fa", accent: "#ff8fe0", dark: false },
-  // Monochrome dark theme — the inverse of snow: black page, white panels.
-  // statusBar stays black so the white iOS status-bar icons remain legible.
   newmoon:     { bg: "#000000", ink: "#ffffff", surface: "#ffffff", onSurface: "#0a0a0a", accent: "#0a0a0a", dark: true, statusBar: "#000000" }
 };
 
-/* ---------- DOM ---------- */
 const $ = (id) => document.getElementById(id);
 const el = {
   ptr: $("ptr"), scrim: $("scrim"),
@@ -57,7 +44,6 @@ const el = {
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList"), dayStats: $("dayStats")
 };
 
-/* ---------- State ---------- */
 const state = {
   units: "metric",
   loc: { ...HOME },
@@ -75,36 +61,26 @@ const state = {
   radarOpen: false
 };
 
-/* Radar / map (Leaflet) state.
-   mode "radar" = animated RainViewer; others = OpenWeather static layers. */
 const radar = {
   map: null, base: null, owm: null, marker: null, preview: null, previewBase: null, previewMarker: null,
   layers: [], shown: new Map(), raf: null, t0: 0, gateTimer: null, ready: false, warmScheduled: false,
   mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, ecccLayerName: "", themeDark: null,
   windLayer: null, windMoveHandler: null, windDebounce: null, windReq: 0
 };
-// Playback timing. Every frame's tiles are preloaded before play starts, so
-// these govern a rock-steady rAF clock (no network in the loop) — the source
-// of the "buttery" feel. Each step holds solid, then eases into the next.
-const FRAME_MS = 620;       // on-screen time per radar frame
-const END_HOLD_MS = 1100;   // pause on the latest frame before looping
-const RESET_MS = 520;       // fade the newest out / oldest in on loop restart
-const FADE_FRAC = 0.55;     // tail portion of each step spent crossfading
+const FRAME_MS = 620;
+const END_HOLD_MS = 1100;
+const RESET_MS = 520;
+const FADE_FRAC = 0.55;
 const RADAR_OPACITY = 0.9;
 const ECCC_FILTER = "hue-rotate(140deg) saturate(2) brightness(1.1)";
-// easeInOutQuad — soft acceleration in and out of each crossfade.
 function radarEase(t) { return t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2; }
 const RAINVIEWER_API = "https://api.rainviewer.com/public/weather-maps.json";
-const RV_COLOR = 7;    // colour scheme: Dark Sky (Apple-like blue→purple→red→yellow)
-const RV_OPTS = "1_1"; // smooth + show snow
+const RV_COLOR = 7;
+const RV_OPTS = "1_1";
 const RV_SIZE = 256;
-// Environment & Climate Change Canada radar (GeoMet WMS, time-animated).
 const ECCC_WMS          = "https://geo.weather.gc.ca/geomet";
-// GeoMet's national radar composite is published as the RADAR_1KM_* family
-// (1 km mosaic). There is no RADAR_COMPOSITE_* layer — using those names made
-// GetMap return blank tiles, so the Canada radar showed nothing.
-const ECCC_LAYER_RAIN = "RADAR_1KM_RRAI"; // national composite — rain
-const ECCC_LAYER_SNOW = "RADAR_1KM_RSNO"; // national composite — snow
+const ECCC_LAYER_RAIN = "RADAR_1KM_RRAI";
+const ECCC_LAYER_SNOW = "RADAR_1KM_RSNO";
 const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed & direction" };
 
 function ecccLayer() {
@@ -112,20 +88,13 @@ function ecccLayer() {
   return main === "snow" ? ECCC_LAYER_SNOW : ECCC_LAYER_RAIN;
 }
 
-/* ---------- Boot ---------- */
-/* init() is invoked at the very bottom of this file, after every top-level
-   declaration has initialized — otherwise a synchronous cache-path render can
-   touch a `let`/`const` that is still in its temporal dead zone. */
-
 function init() {
   loadState();
   wireEvents();
   registerSW();
   syncControls();
-  applyPalette(themeKind()); // user-chosen theme, applied immediately on load
+  applyPalette(themeKind());
 
-  // One-time entrance: stagger the forecast cards on first load, then drop the
-  // flag so later background refreshes don't re-animate them.
   const appEl = document.getElementById("app");
   if (appEl && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
     appEl.classList.add("intro");
@@ -141,7 +110,6 @@ function init() {
   refresh();
 }
 
-/* ---------- Events ---------- */
 function wireEvents() {
   el.menuBtn.onclick = openDrawer;
   el.drawerClose.onclick = closeDrawer;
@@ -183,7 +151,6 @@ function wireEvents() {
     b.onclick = () => setRange(b.dataset.tab);
   });
 
-  // Tap / drag across the detail chart to read off a point.
   let scrubbing = false;
   el.graph.addEventListener("pointerdown", (e) => { scrubbing = true; showChartPoint(e.clientX); });
   el.graph.addEventListener("pointermove", (e) => { if (scrubbing) showChartPoint(e.clientX); });
@@ -205,7 +172,6 @@ function wireEvents() {
   initGestures();
 }
 
-/* ---------- Data ---------- */
 async function refresh(force) {
   setBusy(true);
   if (force) setStatus("Refreshing…");
@@ -214,7 +180,7 @@ async function refresh(force) {
     const [current, forecast, air, hourly] = await Promise.all([
       fetchJSON(`${API_BASE}/weather?${q}`),
       fetchJSON(`${API_BASE}/forecast?${q}`),
-      fetchAir(state.loc.lat, state.loc.lon).catch(() => null), // never blocks core weather
+      fetchAir(state.loc.lat, state.loc.lon).catch(() => null),
       fetchHourlyWx(state.loc.lat, state.loc.lon, state.units).catch(() => null)
     ]);
     const data = { current, forecast, air, hourly };
@@ -239,8 +205,6 @@ async function fetchJSON(url) {
   return data;
 }
 
-// Open-Meteo air quality + UV (free, no key). Returns the `current` block with
-// today's `hourly` UV/AQI arrays attached (for the UV day-curve graph).
 async function fetchAir(lat, lon) {
   const cur = "current=us_aqi,pm2_5,pm10,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide,uv_index";
   const hourly = "hourly=uv_index,us_aqi&forecast_days=1";
@@ -250,7 +214,6 @@ async function fetchAir(lat, lon) {
   return out;
 }
 
-// WMO weather code -> an OpenWeather-style condition string (for iconClass).
 function wmoMain(code) {
   if (code == null) return "Clouds";
   if (code === 0 || code === 1) return "Clear";
@@ -263,9 +226,6 @@ function wmoMain(code) {
   return "Clouds";
 }
 
-// True hourly weather from Open-Meteo, normalised into the same item shape as
-// OpenWeather's forecast list so the rail / detail / METRICS code works as-is.
-// Units are matched to OpenWeather metric (wind in m/s) / imperial (mph).
 async function fetchHourlyWx(lat, lon, units) {
   const tu = units === "imperial" ? "fahrenheit" : "celsius";
   const wu = units === "imperial" ? "mph" : "ms";
@@ -289,8 +249,6 @@ async function fetchHourlyWx(lat, lon, units) {
   }));
 }
 
-// Pollutant reference info: friendly name + plain-English explanation + a rough
-// "concern" reference (µg/m³) used only to pick the dominant pollutant.
 const POLLUTANTS = {
   pm2_5:            { name: "PM2.5", desc: "Tiny inhalable particles from smoke, dust and combustion.", ref: 25 },
   pm10:             { name: "PM10", desc: "Coarser particles like dust, pollen and mould.", ref: 50 },
@@ -300,7 +258,6 @@ const POLLUTANTS = {
   carbon_monoxide:  { name: "Carbon monoxide (CO)", desc: "Colourless gas from incomplete combustion, e.g. engines.", ref: 4000 }
 };
 
-// The pollutant currently highest relative to its reference level.
 function primaryPollutant(air) {
   let best = null, bestRatio = -1;
   for (const key in POLLUTANTS) {
@@ -312,7 +269,6 @@ function primaryPollutant(air) {
   return best;
 }
 
-// US AQI -> band label + short guidance.
 function aqiBand(aqi) {
   if (aqi == null) return { label: "--", advice: "" };
   if (aqi <= 50)  return { label: "Good", advice: "Air quality is satisfactory." };
@@ -323,7 +279,6 @@ function aqiBand(aqi) {
   return { label: "Hazardous", advice: "Avoid outdoor activity." };
 }
 
-// UV index -> band label + short guidance.
 function uvBand(uv) {
   if (uv == null) return { label: "--", advice: "" };
   const u = Math.round(uv);
@@ -334,16 +289,13 @@ function uvBand(uv) {
   return { label: "Extreme", advice: "Avoid the sun midday." };
 }
 
-// Moon phase from a date: fraction 0..1 of the synodic cycle + name + illum.
 function moonPhase(date = new Date()) {
   const synodic = 29.530588853;
-  const ref = Date.UTC(2000, 0, 6, 18, 14) / 1000; // known new moon (s)
+  const ref = Date.UTC(2000, 0, 6, 18, 14) / 1000;
   const now = date.getTime() / 1000;
   const age = (((now - ref) / 86400) % synodic + synodic) % synodic;
-  const frac = age / synodic; // 0 = new, .5 = full
+  const frac = age / synodic;
   const illum = Math.round((1 - Math.cos(frac * 2 * Math.PI)) / 2 * 100);
-  // Narrow (~14h) windows for the four principal phases; the gibbous/crescent
-  // names cover the spans between, disambiguated by waxing (frac<.5) vs waning.
   const near = (a, b) => Math.abs(((frac - a) % 1 + 1.5) % 1 - 0.5) < b;
   let name;
   if (near(0, 0.02)) name = "New moon";
@@ -357,31 +309,22 @@ function moonPhase(date = new Date()) {
   return { name, illum, frac };
 }
 
-// Monochrome moon glyph shaped like a real moon: a light lit "surface" disk
-// with the unlit region drawn dark on top — so the dark reads as shadow. A full
-// moon is therefore the lightest, a new moon the darkest. frac: 0 new → .5 full.
 function moonSVG(frac) {
-  const r = 23, c = 26;                  // viewBox 52x52
+  const r = 23, c = 26;
   const theta = frac * 2 * Math.PI;
   const rx = Math.abs(Math.cos(theta)) * r;
-  const waxing = frac < 0.5;             // lit limb on the right when waxing
+  const waxing = frac < 0.5;
   const gibbous = frac > 0.25 && frac < 0.75;
-  const limb = waxing ? 1 : 0;           // sweep for the bright outer limb
-  const term = gibbous ? limb : 1 - limb; // terminator bulges same way if gibbous
+  const limb = waxing ? 1 : 0;
+  const term = gibbous ? limb : 1 - limb;
   const top = `${c} ${c - r}`, bot = `${c} ${c + r}`;
-  // Shadow region = the outer semicircle opposite the lit limb, closed back
-  // along the terminator ellipse. Zero-area at full moon, whole disk at new.
   const shadow = `M ${top} A ${r} ${r} 0 0 ${1 - limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
-  // Same two fills as before, just swapped: the faint disk is now the lit
-  // surface (lighter) and the solid --ink is the shadow (darker). No stroke, so
-  // edges stay crisp — a stroked outline left a soft halo around the disk.
   return `<svg viewBox="0 0 52 52" class="moon-svg" aria-hidden="true">
     <circle cx="${c}" cy="${c}" r="${r}" fill="var(--ink)" opacity="0.16"/>
     <path d="${shadow}" fill="var(--ink)"/>
   </svg>`;
 }
 
-/* ---------- Render ---------- */
 function render(data) {
   const { current, forecast } = data;
   const tz = current.timezone ?? forecast.city?.timezone ?? 0;
@@ -392,7 +335,6 @@ function render(data) {
 
   state.hourly = hourlyPoints();
   state.daily = buildDaily(forecast, tz);
-  // Set these before the render* calls below — renderMoon/renderSun read them.
   state.center = { lat: current.coord?.lat ?? state.loc.lat, lon: current.coord?.lon ?? state.loc.lon };
   state.tz = tz;
   state.placeName = current.name || state.loc.label;
@@ -406,7 +348,6 @@ function render(data) {
   el.summary.textContent = buildSummary(current, state.daily);
   if (el.wear) el.wear.innerHTML = `<span class="wear-label">What to wear</span><p class="wear-text">${buildWear(current, state.daily)}</p>`;
 
-  // compact header mirror of the current conditions
   if (el.miniIcon) el.miniIcon.className = `mini-ic ${iconClass(w.main, isNight)}`;
   if (el.miniPlace) el.miniPlace.textContent = el.placeName.textContent;
   if (el.miniCond) el.miniCond.textContent = w.description || w.main || "Weather";
@@ -429,8 +370,6 @@ function render(data) {
   if (state.sheetOpen) renderDetailSheet();
 }
 
-// Scroll choreography: a compact header that appears past the hero, plus
-// once-only reveals (sun arc draws on; the wind compass "searches" for north).
 let scrollFxReady = false;
 function setupScrollFx() {
   if (scrollFxReady || !("IntersectionObserver" in window)) return;
@@ -454,8 +393,6 @@ function setupScrollFx() {
   [el.sunCard, el.windCard].forEach((t) => t && reveal.observe(t));
 }
 
-// rAF tween helper — explicit numeric values, so no CSS-var / transform-box
-// pitfalls on iOS. Respects reduced-motion by jumping to the end.
 function tween(ms, ease, step) {
   if (matchMedia("(prefers-reduced-motion: reduce)").matches) { step(1); return; }
   const t0 = performance.now();
@@ -468,7 +405,6 @@ function tween(ms, ease, step) {
 const easeOutCubic = (p) => 1 - Math.pow(1 - p, 3);
 const easeInOutQuad = (p) => (p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2);
 
-// Sun arc draws along to the current position; the dot fades in at the end.
 function animateSun() {
   const arc = el.sunCard && el.sunCard.querySelector(".arc-fg");
   const dot = el.sunCard && el.sunCard.querySelector(".sun-dot");
@@ -476,13 +412,11 @@ function animateSun() {
   const t = Number(el.sunCard.dataset.t) || 0;
   if (dot) dot.style.opacity = "0";
   tween(1100, easeOutCubic, (p) => {
-    arc.style.strokeDashoffset = (t * (1 - p)).toFixed(4); // hidden (t) -> drawn (0)
+    arc.style.strokeDashoffset = (t * (1 - p)).toFixed(4);
     if (dot) dot.style.opacity = String(Math.max(0, (p - 0.75) / 0.25));
   });
 }
 
-// Compass arrow sweeps as if hunting for north, then settles on the wind.
-// Drives the SVG transform attribute directly (rotate around 60,60) per frame.
 function animateCompass() {
   const g = el.windCard && el.windCard.querySelector(".compass-rot");
   if (!g) return;
@@ -514,7 +448,7 @@ function renderHourly() {
       <span>${Math.round((it.pop || 0) * 100)}%</span>
     </button>`;
   }).join("");
-  if (el.hourRail.__sig === html) return; // skip identical re-render (keeps entrance once)
+  if (el.hourRail.__sig === html) return;
   el.hourRail.__sig = html;
   el.hourRail.innerHTML = html;
   el.hourRail.querySelectorAll("[data-open]").forEach((b) => b.onclick = () => openDetail("temp", "hourly"));
@@ -545,19 +479,17 @@ function renderSun(current) {
   const P0 = [24, 96], P1 = [150, -10], P2 = [276, 96];
   const x = (1 - t) ** 2 * P0[0] + 2 * (1 - t) * t * P1[0] + t ** 2 * P2[0];
   const y = (1 - t) ** 2 * P0[1] + 2 * (1 - t) * t * P1[1] + t ** 2 * P2[1];
-  el.sunCard.dataset.t = t.toFixed(3); // drives the draw-on reveal
+  el.sunCard.dataset.t = t.toFixed(3);
 
-  // Corner durations, adaptive to day vs night. ±1 day approximates the
-  // adjacent day's sun times (they shift only a couple minutes day to day).
   const rt = Math.floor(Date.now() / 1000), DAY = 86400;
   let left, right;
-  if (rt >= sys.sunrise && rt < sys.sunset) {          // daytime
+  if (rt >= sys.sunrise && rt < sys.sunset) {
     left = ["Since sunrise", rt - sys.sunrise];
     right = ["Until sunset", sys.sunset - rt];
-  } else if (rt >= sys.sunset) {                        // after sunset
+  } else if (rt >= sys.sunset) {
     left = ["Since sunset", rt - sys.sunset];
     right = ["Until sunrise", sys.sunrise + DAY - rt];
-  } else {                                              // before sunrise
+  } else {
     left = ["Since sunset", rt - (sys.sunset - DAY)];
     right = ["Until sunrise", sys.sunrise - rt];
   }
@@ -578,7 +510,6 @@ function renderSun(current) {
     </div>`;
 }
 
-// Duration in seconds -> "Xh Ym" (or just h / m when the other is 0).
 function fmtDur(s) {
   s = Math.max(0, Math.round(s));
   const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
@@ -587,9 +518,7 @@ function fmtDur(s) {
   return `${m}m`;
 }
 
-/* ---------- Moon ---------- */
-// Moon altitude (radians) at a unix time + location — compact SunCalc port.
-function moonToDays(unix) { return unix / 86400 - 10957.5; } // days since J2000
+function moonToDays(unix) { return unix / 86400 - 10957.5; }
 function moonCoords(d) {
   const L = MOON_RAD * (218.316 + 13.176396 * d),
         M = MOON_RAD * (134.963 + 13.064993 * d),
@@ -606,9 +535,8 @@ function moonAltitude(unix, lat, lon) {
   const H = (MOON_RAD * (280.16 + 360.9856235 * d) - lw) - c.ra;
   let h = Math.asin(Math.sin(phi) * Math.sin(c.dec) + Math.cos(phi) * Math.cos(c.dec) * Math.cos(H));
   const hr = h < 0 ? 0 : h;
-  return h + 0.0002967 / Math.tan(hr + 0.00312536 / (hr + 0.08901179)); // refraction
+  return h + 0.0002967 / Math.tan(hr + 0.00312536 / (hr + 0.08901179));
 }
-// Moonrise/moonset (unix UTC) for the local day starting at baseUtc.
 function moonTimes(baseUtc, lat, lon) {
   const hc = 0.133 * MOON_RAD;
   let h0 = moonAltitude(baseUtc, lat, lon) - hc, rise, set, ye;
@@ -642,14 +570,12 @@ function renderMoon(current) {
   const tz = state.tz || current?.timezone || 0;
   const c = state.center || {};
   const moon = moonPhase();
-  // UTC instant of the location's local midnight today
   const nowUnix = Math.floor(Date.now() / 1000);
   const base = Math.floor((nowUnix + tz) / 86400) * 86400 - tz;
   const mt = Number.isFinite(c.lat) ? moonTimes(base, c.lat, c.lon) : {};
-  // Days until the next full moon (frac 0=new, .5=full).
   const synodic = 29.530588853;
   let d = (((0.5 - moon.frac) % 1) + 1) % 1, days = d * synodic;
-  if (days < 0.5) days += synodic; // basically full now → next one is a cycle away
+  if (days < 0.5) days += synodic;
   days = Math.round(days);
   const rows = [
     ["Illumination", `${moon.illum}%`],
@@ -666,14 +592,13 @@ function renderMoon(current) {
     </div>`;
 }
 
-/* Wind compass dial (Apple-style data viz, flat aesthetic) */
 function renderWind(current) {
   const w = current.wind || {};
   const deg = w.deg;
   const parts = windParts(w.speed || 0);
   const gust = w.gust != null ? windText(w.gust) : "--";
   const dirTxt = deg != null ? `${Math.round(deg)}° ${direction(deg)}` : "--";
-  const rot = deg != null ? (deg + 180) % 360 : 0; // arrow points the way the wind blows
+  const rot = deg != null ? (deg + 180) % 360 : 0;
   el.windCard.innerHTML = `
     <div class="wind-stats">
       <div class="wind-row"><span>Wind</span><strong>${windText(w.speed || 0)}</strong></div>
@@ -681,7 +606,7 @@ function renderWind(current) {
       <div class="wind-row"><span>Direction</span><strong>${dirTxt}</strong></div>
     </div>
     <div class="wind-compass">${compassSVG(rot, parts.v, parts.u)}</div>`;
-  el.windCard.dataset.rot = String(rot); // used by the "searching" reveal animation
+  el.windCard.dataset.rot = String(rot);
 }
 
 function compassSVG(rot, value, unit) {
@@ -730,7 +655,7 @@ function renderDetails(current, forecast) {
 
   const pd = precipDetail(current, forecast, tz);
   const popNow = state.hourly?.[0]?.pop ?? forecast?.list?.[0]?.pop ?? 0;
-  pd[6] = rangeMeter(Math.round(popNow * 100), 0, 100); // chance of precipitation
+  pd[6] = rangeMeter(Math.round(popNow * 100), 0, 100);
   items.push(pd);
 
   const air = state.data?.air;
@@ -766,9 +691,6 @@ function renderDetails(current, forecast) {
     </button>`).join("");
 }
 
-// A flat low→high scale with a marker for where a value sits on a fixed range.
-// Faint track, a fill up to the value, a dot, and Low/High end labels — the
-// no-colour, no-gradient house style (same as the pressure card).
 function rangeMeter(value, lo, hi, loLabel = "Low", hiLabel = "High") {
   const pct = Math.max(0, Math.min(100, ((value - lo) / (hi - lo)) * 100)).toFixed(1);
   return `<span class="p-meter" aria-hidden="true">
@@ -776,7 +698,6 @@ function rangeMeter(value, lo, hi, loLabel = "Low", hiLabel = "High") {
     <span class="p-scale"><span>${loLabel}</span><span>${hiLabel}</span></span>
   </span>`;
 }
-// 980–1040 hPa spans everyday lows (stormy) to highs (settled).
 function pressureMeter(p) { return rangeMeter(p, 980, 1040); }
 
 function precipDetail(current, forecast, tz) {
@@ -828,9 +749,6 @@ function direction(deg) {
   return d[Math.round(deg / 22.5) % 16];
 }
 
-/* ---------- Builders ---------- */
-// The next 24 hours, on the hour, as OpenWeather-shaped items. Uses Open-Meteo
-// hourly when available; falls back to OWM's 3-hourly list (one day ≈ 8 points).
 function hourlyPoints() {
   const nowH = Math.floor(Date.now() / 1000 / 3600) * 3600;
   const h = state.data?.hourly;
@@ -904,7 +822,6 @@ function buildWear(current, daily) {
   return base + (extras.length ? " " + extras.join(" ") : "");
 }
 
-/* ---------- Palette (user-chosen only) ---------- */
 function applyPalette(kind) {
   const p = PALETTES[kind] || PALETTES.sunny;
   const r = document.documentElement.style;
@@ -913,14 +830,9 @@ function applyPalette(kind) {
   r.setProperty("--surface", p.surface);
   r.setProperty("--on-surface", p.onSurface);
   r.setProperty("--surface-accent", p.accent);
-  // The status-bar strip must stay dark so the white system icons stay legible
-  // (the iOS status bar is always white). It defaults to --surface, but a theme
-  // with a light surface (e.g. New Moon) can override it via statusBar.
   const sb = p.statusBar || p.surface;
   r.setProperty("--statusbar", sb);
   r.setProperty("--theme", sb);
-  // On Android the theme-color meta paints the bar; on iOS the .status-fade
-  // strip does (behind the always-translucent, white-icon status bar).
   document.querySelector('meta[name="theme-color"]').setAttribute("content", sb);
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;
@@ -949,7 +861,6 @@ function iconClass(main, isNight) {
   return isNight ? "ph-duotone ph-moon-stars" : "ph-duotone ph-sun";
 }
 
-/* ---------- Detail sheet (per-metric, Apple-style) ---------- */
 function speedUnit() { return state.units === "imperial" ? "mph" : "km/h"; }
 function visUnit() { return state.units === "imperial" ? "mi" : "km"; }
 function visVal(mtr) { if (mtr == null) return 0; return state.units === "imperial" ? mtr / 1609 : mtr / 1000; }
@@ -997,7 +908,6 @@ const METRICS = {
   }
 };
 
-// Shared sheet-open UI (classes / scroll lock).
 function openSheetUI() {
   state.sheetOpen = true;
   el.sheet.classList.add("is-open");
@@ -1011,19 +921,18 @@ function openDetail(metric, range) {
   const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits";
   if (!METRICS[metric] && !isInfo) metric = "temp";
   const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
-  state.nav = [view];          // fresh entry from the home screen
+  state.nav = [view];
   state.detail = view;
   openSheetUI();
   renderDetailSheet();
 }
 
-// Back: pop one level off the sheet's nav stack; only close to home at the root.
 function sheetBack() {
   if (state.nav && state.nav.length > 1) {
     state.nav.pop();
     state.detail = state.nav[state.nav.length - 1];
     el.sheet.classList.add("is-open");
-    el.sheet.style.transform = ""; // in case we got here from a swipe
+    el.sheet.style.transform = "";
     el.sheet.scrollTop = 0;
     renderDetailSheet();
   } else {
@@ -1069,8 +978,6 @@ function renderDetailSheet() {
   renderDetailList();
 }
 
-// Plain-language detail sheets for Air Quality and UV — written so a non-expert
-// understands what each number means (Apple-Weather style).
 function renderInfoSheet(kind) {
   const air = state.data?.air || {};
   const gc = el.graph.closest(".graph-card");
@@ -1086,8 +993,6 @@ function section(title, body) {
   return `<div class="info-section"><h3 class="info-head">${title}</h3><div class="info-card">${body}</div></div>`;
 }
 
-// Straight position bar in the sunrise/sunset style: a faint full track, a
-// solid --ink fill up to the value, and a dot. No gradient, no colour.
 function scaleBar(pos, ends) {
   const p = Math.max(0, Math.min(100, pos));
   return `
@@ -1106,16 +1011,13 @@ function renderAqiSheet(air) {
   const b = aqiBand(aqi);
   el.sheetNote.textContent = `The air quality index is ${aqi}, ${b.label.toLowerCase()}.`;
 
-  // Position-on-scale bar (0–300+), sunrise/sunset style.
   const scale = scaleBar((aqi / 300) * 100, ["0", "Good", "Unhealthy", "300+"]);
 
-  // Primary pollutant, explained in plain English.
   const pk = primaryPollutant(air);
   const primary = pk
     ? section(`Main pollutant · ${POLLUTANTS[pk].name}`, `<p class="info-text">${POLLUTANTS[pk].desc}</p>`)
     : "";
 
-  // Full breakdown — each pollutant with what it actually is.
   const breakdown = Object.keys(POLLUTANTS).filter((k) => air[k] != null).map((k) => `
     <div class="pollutant">
       <div class="pollutant-top"><span class="pollutant-name">${POLLUTANTS[k].name}</span><strong class="pollutant-val">${Math.round(air[k])} µg/m³</strong></div>
@@ -1139,7 +1041,6 @@ function renderUvSheet(air) {
 
   drawUvChart(hourly);
 
-  // Grayscale severity ramp on the legend dots (no hue) — lighter = lower.
   const dotOp = { "Low": 0.25, "Moderate": 0.45, "High": 0.62, "Very high": 0.8, "Extreme": 1 };
   const scaleRows = [["Low", "0-2"], ["Moderate", "3-5"], ["High", "6-7"], ["Very high", "8-10"], ["Extreme", "11+"]]
     .map(([label, rg]) => {
@@ -1155,13 +1056,11 @@ function renderUvSheet(air) {
     section("About the UV index", `<p class="info-text">The UV index rates the strength of the sun's ultraviolet rays from 0 (low) to 11+ (extreme). Higher means skin and eyes burn faster, so sun protection matters more.</p>`);
 }
 
-// Today's hourly UV values (or [] if missing).
 function todayUv(hourly) {
   if (!hourly || !hourly.time || !hourly.uv_index) return [];
   return hourly.time.map((t, i) => ({ t, uv: hourly.uv_index[i] })).filter((p) => Number.isFinite(p.uv));
 }
 
-// Apple-style "now" sentence for the UV page.
 function uvSummary(air, hourly) {
   const cur = Math.round(air.uv_index);
   const pts = todayUv(hourly);
@@ -1174,21 +1073,16 @@ function uvSummary(air, hourly) {
   return `Currently ${uvBand(air.uv_index).label.toLowerCase()}. Moderate or higher from ${fmt(from)} to ${fmt(to)}.`;
 }
 
-/* ---------- Moon detail screen ---------- */
-// Rough Earth–Moon distance (km) from the mean anomaly — enough for a "roughly"
-// read-out. Real range is ~356,500 (perigee) to ~406,700 km (apogee).
 function moonDistanceKm(unix = Date.now() / 1000) {
   const d = moonToDays(unix);
   const M = MOON_RAD * (134.963 + 13.064993 * d);
   return Math.round(385001 - 20905 * Math.cos(M));
 }
-// Date of the next time the cycle reaches a target fraction (0 new, .25 first
-// quarter, .5 full, .75 last quarter), strictly in the future.
 function nextPhaseDate(targetFrac, from = Date.now()) {
   const synodic = 29.530588853;
   const f = moonPhase(new Date(from)).frac;
   let days = ((((targetFrac - f) % 1) + 1) % 1) * synodic;
-  if (days < 0.5) days += synodic; // essentially at it now → the following one
+  if (days < 0.5) days += synodic;
   return new Date(from + days * 86400 * 1000);
 }
 const WD_SHORT = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -1198,8 +1092,6 @@ const WD_LONG = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday
 function fmtDayDate(d) { return `${WD_SHORT[d.getDay()]}, ${MO_SHORT[d.getMonth()]} ${d.getDate()}`; }
 function groupNum(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
 
-// The eight phases of the lunar cycle, with NASA-style plain-English notes.
-// Names match moonPhase() so the current phase can be highlighted.
 const PHASE_GUIDE = [
   ["New moon", 0, "The Moon sits between Earth and the Sun, so its sunlit side faces away from us. The disk looks dark, the start of the cycle."],
   ["Waxing crescent", 0.125, "A slim sliver of light appears on the right and grows a little each night. “Waxing” means the lit share is increasing."],
@@ -1216,7 +1108,6 @@ function renderMoonSheet() {
   const moon = moonPhase(now);
   const tz = state.tz || state.data?.current?.timezone || 0;
   const c = state.center || {};
-  // Moonrise / moonset for today (same basis as the home moon card).
   const nowUnix = Math.floor(Date.now() / 1000);
   const base = Math.floor((nowUnix + tz) / 86400) * 86400 - tz;
   const mt = Number.isFinite(c.lat) ? moonTimes(base, c.lat, c.lon) : {};
@@ -1225,7 +1116,6 @@ function renderMoonSheet() {
   el.sheetTitle.textContent = "Moon";
   el.sheetNote.textContent = `${moon.name} tonight, ${moon.illum}% of the Moon's face is lit.`;
 
-  // Hero: big glyph + phase + today's date.
   const hero = `
     <div class="moon-hero">
       <div class="moon-hero-art">${moonSVG(moon.frac)}</div>
@@ -1233,7 +1123,6 @@ function renderMoonSheet() {
       <div class="moon-date">${WD_LONG[now.getDay()]}, ${MO_LONG[now.getMonth()]} ${now.getDate()}</div>
     </div>`;
 
-  // Three key figures, reference-style.
   const figs = `
     <div class="moon-figs">
       <div class="moon-fig"><span class="d-label">Illumination</span><strong>${moon.illum}%</strong></div>
@@ -1241,7 +1130,6 @@ function renderMoonSheet() {
       <div class="moon-fig"><span class="d-label">Moonset</span><strong>${mt.set != null ? fmtClock(mt.set, tz) : "--"}</strong></div>
     </div>`;
 
-  // Upcoming principal phases, soonest first, each with its little glyph.
   const phaseDefs = [["New moon", 0], ["First quarter", 0.25], ["Full moon", 0.5], ["Last quarter", 0.75]];
   const upcoming = phaseDefs
     .map(([name, t]) => ({ name, t, date: nextPhaseDate(t) }))
@@ -1253,7 +1141,6 @@ function renderMoonSheet() {
         <strong class="phase-date">${fmtDayDate(p.date)}</strong>
       </div>`).join("");
 
-  // Month calendar with a phase glyph on every day; today highlighted.
   const y = now.getFullYear(), mo = now.getMonth();
   const startDow = new Date(y, mo, 1).getDay();
   const dim = new Date(y, mo + 1, 0).getDate();
@@ -1271,7 +1158,6 @@ function renderMoonSheet() {
       <div class="cal-grid cal-days">${cells}</div>
     </div>`;
 
-  // The eight phases, with the current one highlighted.
   const guide = PHASE_GUIDE.map(([name, frac, desc]) => `
     <div class="guide-row${name === moon.name ? " is-active" : ""}">
       <span class="phase-glyph">${moonSVG(frac)}</span>
@@ -1290,8 +1176,6 @@ function renderMoonSheet() {
     section("About the Moon's distance", `<p class="info-text">The Moon follows an elliptical orbit, causing its distance from Earth to vary throughout the month between approximately 356,500 km (perigee) and 406,700 km (apogee).</p><p class="info-text info-now">Currently, the Moon is approximately ${groupNum(dist)} km away.</p>`);
 }
 
-/* ---------- Acknowledgements screen ---------- */
-// Credit to the free/open sources and tools that power the app.
 const CREDITS = [
   ["Weather data", [
     ["OpenWeather", "Current conditions and the daily forecast.", "https://openweathermap.org"],
@@ -1327,8 +1211,6 @@ function renderCreditsSheet() {
   ).join("");
 }
 
-// UV day-curve graph: hourly UV across today, monochrome ink area + line with
-// band gridlines/labels and a "now" marker (same style as the other graphs).
 function drawUvChart(hourly) {
   const canvas = el.graph;
   const ctx = canvas.getContext("2d");
@@ -1349,7 +1231,6 @@ function drawUvChart(hourly) {
   const X = (i) => padX + (w / Math.max(1, pts.length - 1)) * i;
   const Y = (v) => padTop + h - (v / yMax) * h;
 
-  // band gridlines + left labels (Low / Moderate / High / Very high)
   ctx.font = "700 10px Inter, system-ui"; ctx.textAlign = "left";
   [["Low", 2], ["Moderate", 5], ["High", 7], ["Very high", 10]].forEach(([label, v]) => {
     const gy = Y(v);
@@ -1358,8 +1239,6 @@ function drawUvChart(hourly) {
     ctx.globalAlpha = 0.4; ctx.fillStyle = ink; ctx.fillText(label, padX, gy - 4); ctx.globalAlpha = 1;
   });
 
-  // monochrome ink area + line (matches the other graphs; height vs. the
-  // band gridlines conveys the level — no colour needed)
   const grad = ctx.createLinearGradient(0, padTop, 0, padTop + h);
   grad.addColorStop(0, hexA(ink, 0.26)); grad.addColorStop(1, hexA(ink, 0));
 
@@ -1371,14 +1250,11 @@ function drawUvChart(hourly) {
     });
   };
 
-  // area fill
   ctx.beginPath(); curve();
   ctx.lineTo(X(pts.length - 1), padTop + h); ctx.lineTo(X(0), padTop + h); ctx.closePath();
   ctx.fillStyle = grad; ctx.fill();
-  // line
   ctx.beginPath(); curve(); ctx.strokeStyle = ink; ctx.lineWidth = 3.5; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
 
-  // "now" marker at the current local hour
   const nowH = new Date().getHours();
   let nowI = pts.findIndex((p) => Number(p.t.slice(11, 13)) === nowH);
   if (nowI < 0) nowI = pts.length - 1;
@@ -1390,7 +1266,6 @@ function drawUvChart(hourly) {
   ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#fff";
   ctx.beginPath(); ctx.arc(nx, ny, 2.5, 0, Math.PI * 2); ctx.fill();
 
-  // time axis labels
   ctx.fillStyle = ink; ctx.globalAlpha = 0.55; ctx.font = "700 11px Inter, system-ui"; ctx.textAlign = "center";
   [6, 12, 18].forEach((hh) => {
     const i = pts.findIndex((p) => Number(p.t.slice(11, 13)) === hh);
@@ -1398,8 +1273,6 @@ function drawUvChart(hourly) {
   });
   ctx.globalAlpha = 1;
 
-  // geometry + redraw for tap-to-read (so tapping the UV graph reads UV, not
-  // a stale chart left over from another metric)
   chartGeom = {
     xs: pts.map((_, i) => X(i)), ys: pts.map((p) => Y(p.uv)),
     rows: pts.map((p) => { const hh = Number(p.t.slice(11, 13)); return { label: `${(hh % 12) || 12}${hh < 12 ? "am" : "pm"}`, hi: p.uv }; }),
@@ -1411,8 +1284,6 @@ function drawUvChart(hourly) {
 function openDay(index) {
   if (!state.daily[index]) return;
   const view = { metric: "day", dayIndex: index, range: "hourly" };
-  // Opened from within the sheet (a daily list) → push so Back returns there;
-  // opened straight from the home day rail → it's the root.
   if (state.sheetOpen && state.nav) state.nav.push(view);
   else state.nav = [view];
   state.detail = view;
@@ -1491,7 +1362,7 @@ function detailSeries() {
 }
 
 function drawDetailChart() {
-  if (state.detail.metric === "aqi" || state.detail.metric === "uv") return; // info sheets draw their own
+  if (state.detail.metric === "aqi" || state.detail.metric === "uv") return;
   if (state.detail.metric === "day") {
     const day = state.daily[state.detail.dayIndex];
     if (!day) return;
@@ -1545,8 +1416,6 @@ function hexA(hex, a) {
   return `rgba(${r}, ${g}, ${b}, ${a})`;
 }
 
-// For tap-to-scrub: the current chart's geometry, plus a fn that re-renders it
-// cleanly (each chart type — drawChart, drawUvChart — sets its own).
 let chartGeom = null, chartRedraw = null;
 
 function drawChart(rows, m, dual, showNow) {
@@ -1573,7 +1442,6 @@ function drawChart(rows, m, dual, showNow) {
   const dec = m.decimals || 0;
   const lab = (v) => dec ? v.toFixed(dec) : (m.unit === "°" ? `${Math.round(v)}°` : `${Math.round(v)}`);
 
-  // gridlines
   ctx.strokeStyle = ink; ctx.globalAlpha = 0.12; ctx.lineWidth = 1;
   for (let i = 0; i <= 3; i++) { const gy = padTop + (h / 3) * i; ctx.beginPath(); ctx.moveTo(padX, gy); ctx.lineTo(rect.width - padX, gy); ctx.stroke(); }
   ctx.globalAlpha = 1;
@@ -1587,14 +1455,12 @@ function drawChart(rows, m, dual, showNow) {
   };
 
   if (!dual) {
-    // area fill under the line
     ctx.beginPath(); curve("hi");
     ctx.lineTo(X(rows.length - 1), padTop + h); ctx.lineTo(X(0), padTop + h); ctx.closePath();
     const g = ctx.createLinearGradient(0, padTop, 0, padTop + h);
     g.addColorStop(0, hexA(ink, 0.26)); g.addColorStop(1, hexA(ink, 0));
     ctx.fillStyle = g; ctx.fill();
   } else {
-    // band between high and low
     ctx.beginPath(); curve("hi");
     for (let i = rows.length - 1; i >= 0; i--) {
       const px = X(i), py = Y(rows[i].lo);
@@ -1608,14 +1474,12 @@ function drawChart(rows, m, dual, showNow) {
   if (dual) stroke("lo", 0.4, 3);
   stroke("hi", 1, 3.5);
 
-  // "now" marker (only when the series actually starts at the current time)
   if (showNow) {
     ctx.setLineDash([3, 4]); ctx.strokeStyle = ink; ctx.globalAlpha = 0.4; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(X(0), padTop); ctx.lineTo(X(0), padTop + h); ctx.stroke();
     ctx.setLineDash([]); ctx.globalAlpha = 1;
   }
 
-  // dots + labels only at evenly-spaced points (≤ ~8) so dense series breathe
   ctx.fillStyle = ink; ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center";
   const step = Math.max(1, Math.ceil(rows.length / 8));
   rows.forEach((r, i) => {
@@ -1627,7 +1491,6 @@ function drawChart(rows, m, dual, showNow) {
     ctx.globalAlpha = 0.55; ctx.fillText(i === 0 && showNow ? "Now" : r.label, X(i), rect.height - 10); ctx.globalAlpha = 1;
   });
 
-  // remember geometry + how to redraw so a tap can highlight the nearest point
   chartGeom = {
     xs: rows.map((_, i) => X(i)), ys: rows.map((r) => Y(r.hi)),
     rows, padTop, h, rect, dual, fmt: lab
@@ -1635,7 +1498,6 @@ function drawChart(rows, m, dual, showNow) {
   chartRedraw = () => drawChart(rows, m, dual, showNow);
 }
 
-// Highlight the data point nearest a client X — a marker + a value/time bubble.
 function showChartPoint(clientX) {
   if (!chartGeom || !chartRedraw) return;
   const rect = el.graph.getBoundingClientRect();
@@ -1643,7 +1505,7 @@ function showChartPoint(clientX) {
   const xs = chartGeom.xs;
   let idx = 0, best = Infinity;
   for (let i = 0; i < xs.length; i++) { const d = Math.abs(xs[i] - x); if (d < best) { best = d; idx = i; } }
-  chartRedraw(); // clean redraw of whatever chart is current
+  chartRedraw();
   const g = chartGeom, r = g.rows[idx];
   if (!r) return;
   const ctx = el.graph.getContext("2d");
@@ -1651,14 +1513,11 @@ function showChartPoint(clientX) {
   const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#fff";
   const px = g.xs[idx], py = g.ys[idx];
   ctx.save();
-  // vertical guide
   ctx.strokeStyle = ink; ctx.globalAlpha = 0.5; ctx.lineWidth = 1.5; ctx.setLineDash([2, 3]);
   ctx.beginPath(); ctx.moveTo(px, g.padTop); ctx.lineTo(px, g.padTop + g.h); ctx.stroke();
   ctx.setLineDash([]); ctx.globalAlpha = 1;
-  // emphasised dot
   ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
-  // bubble: time · value
   const val = g.fmt(r.hi) + (g.dual && r.lo != null ? ` / ${g.fmt(r.lo)}` : "");
   const text = `${r.label}  ${val}`;
   ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
@@ -1671,7 +1530,6 @@ function showChartPoint(clientX) {
   ctx.restore();
 }
 
-/* ---------- Drawer ---------- */
 function openDrawer() {
   state.drawerOpen = true;
   el.drawer.classList.add("is-open");
@@ -1687,9 +1545,7 @@ function closeDrawer() {
   el.drawer.style.transform = "";
 }
 
-/* ---------- Radar / map ---------- */
 function haveLeaflet() { return typeof window.L !== "undefined"; }
-// Radar maps always use the dark basemap so precipitation colours pop.
 function radarTileUrl() {
   return "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
 }
@@ -1700,8 +1556,6 @@ function rvUrl(f) {
   return `${radar.host}${f.path}/${RV_SIZE}/{z}/{x}/{y}/${RV_COLOR}/${RV_OPTS}.png`;
 }
 
-// Apple-style location pin: a rounded pill with the current temperature and a
-// condition glyph, on a short stem pointing at the spot.
 function curIsNight() {
   const c = state.data?.current, s = c?.sys;
   if (!c || !s?.sunrise || !s?.sunset) return false;
@@ -1738,7 +1592,6 @@ async function initRadarPreview() {
     radar.previewBase = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(radar.preview);
     setPinMarker(radar.preview, "previewMarker");
     requestAnimationFrame(() => radar.preview && radar.preview.invalidateSize());
-    // Overlay the latest radar frame: ECCC for Canadian locations, RainViewer elsewhere.
     if (inCanada(c.lat, c.lon)) {
       const frames = await ensureEccc().catch(() => null);
       if (radar.preview && frames && frames.length) {
@@ -1749,7 +1602,6 @@ async function initRadarPreview() {
           attribution: "&copy; Environment and Climate Change Canada (ECCC GeoMet)"
         }).addTo(radar.preview);
         ec.setParams({ time: f.iso });
-        // Match the full map: shift ECCC's green palette toward Dark Sky blues.
         const ecc = ec.getContainer && ec.getContainer();
         if (ecc) ecc.style.filter = "hue-rotate(140deg) saturate(2) brightness(1.1)";
       } else {
@@ -1773,7 +1625,6 @@ function initRadarMap() {
   const c = state.center;
   if (radar.map) { radar.map.setView([c.lat, c.lon]); return; }
   try {
-    // No on-map attribution control — sources are credited on the Acknowledgements screen.
     radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: false, preferCanvas: true, minZoom: 3, maxZoom: 12 }).setView([c.lat, c.lon], 7);
     radar.base = L.tileLayer(radarTileUrl(), {
       subdomains: "abcd", maxZoom: 19, updateWhenZooming: false, keepBuffer: 1, attribution: '&copy; OpenStreetMap &copy; CARTO'
@@ -1785,10 +1636,6 @@ function initRadarMap() {
   }
 }
 
-// Warm the full radar in the background so opening it is instant. The sheet is
-// hidden with a transform (not display:none), so its map container still has
-// full dimensions off-screen — Leaflet can init and preload every frame's tiles
-// right now. Playback stays paused (see gateLoading) until the user opens it.
 function warmRadar() {
   if (!haveLeaflet() || state.radarOpen || radar.map) return;
   initRadarMap();
@@ -1804,11 +1651,9 @@ function openRadar() {
   setTimeout(() => radar.map && radar.map.invalidateSize(), 320);
   const warmed = radar.mode === "radar" && radar.layers.length;
   if (!warmed) {
-    applyMode(radar.mode);                    // cold start (non-radar, or not yet warmed)
+    applyMode(radar.mode);
     return;
   }
-  // Warmed: reflect radar mode in the chrome without rebuilding the preloaded
-  // layers, then play immediately (or let the gate start it once tiles finish).
   el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.classList.toggle("is-active", b.dataset.layer === "radar"));
   el.radarTimeline.style.display = "";
   if (el.radarLegend) el.radarLegend.style.display = "";
@@ -1843,7 +1688,6 @@ function applyMode(mode) {
   if (isRadar) {
     loadRadar();
   } else {
-    // Wind: keep the speed heat-map faint and lay live direction arrows on top.
     const opacity = isWind ? 0.3 : 0.72;
     radar.owm = L.tileLayer(owmTileUrl(mode), { opacity, maxZoom: 12, maxNativeZoom: 9, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; OpenWeather" }).addTo(radar.map);
     if (isWind) enableWindArrows();
@@ -1856,10 +1700,6 @@ function removeRadarLayers() {
   radar.shown.clear();
 }
 
-/* ---------- Wind field (Apple-style direction arrows) ---------- */
-// A grid of little arrows over the map, each pointing the way the wind is
-// blowing and coloured by speed. The grid follows the viewport (re-sampled on
-// pan/zoom) and the wind is fetched from Open-Meteo in one batched request.
 function enableWindArrows() {
   if (!radar.map) return;
   if (!radar.windLayer) radar.windLayer = L.layerGroup().addTo(radar.map);
@@ -1876,7 +1716,7 @@ function disableWindArrows() {
   if (radar.windDebounce) { clearTimeout(radar.windDebounce); radar.windDebounce = null; }
   if (radar.map && radar.windLayer) { radar.map.removeLayer(radar.windLayer); }
   radar.windLayer = null;
-  radar.windReq++; // invalidate any in-flight fetch
+  radar.windReq++;
 }
 
 function scheduleWindArrows() {
@@ -1906,8 +1746,6 @@ async function drawWindArrows() {
   });
 }
 
-// Batched wind sample: Open-Meteo accepts comma-separated coordinate lists and
-// returns one result per point. Speed comes back already in display units.
 async function fetchWindGrid(pts) {
   const wu = state.units === "imperial" ? "mph" : "kmh";
   const lat = pts.map((p) => p[0].toFixed(3)).join(",");
@@ -1918,8 +1756,6 @@ async function fetchWindGrid(pts) {
   return arr.map((o) => ({ speed: o.current?.wind_speed_10m, dir: o.current?.wind_direction_10m }));
 }
 
-// Speed → colour, on a calm→strong ramp (thresholds in km/h). Matches the
-// #windLegend gradient so the colours actually mean something at a glance.
 const WIND_STOPS = [
   [0, "#7db8e8"], [12, "#63d9c8"], [24, "#7fe38a"], [40, "#ffd23f"], [58, "#ff9f43"], [80, "#ff5a5a"]
 ];
@@ -1930,15 +1766,12 @@ function windColor(speed) {
   return c;
 }
 
-// One bold, uniform-length arrow per grid point: same size everywhere so the
-// map reads as a clean flow field. Direction = arrow; speed = colour + the
-// little number in its tail. A pill background keeps it legible over the map.
 function windArrowIcon(speed, dir) {
   const kmh = state.units === "imperial" ? speed * 1.609 : speed;
-  const rot = (dir + 180) % 360;          // point the way the wind blows
+  const rot = (dir + 180) % 360;
   const color = windColor(speed);
   const val = Math.round(speed);
-  const S = 44, c = S / 2, half = 13;      // fixed shaft length
+  const S = 44, c = S / 2, half = 13;
   const arrow = `<g transform="rotate(${rot.toFixed(1)} ${c} ${c})">
       <g stroke="${color}" stroke-width="3.4" stroke-linecap="round" stroke-linejoin="round" fill="none">
         <line x1="${c}" y1="${c + half}" x2="${c}" y2="${c - half}"/>
@@ -1953,7 +1786,6 @@ function inCanada(lat, lon) {
   return lat >= 41 && lat <= 84 && lon >= -141 && lon <= -52;
 }
 
-// RainViewer frames (global fallback): { t, path, kind }
 async function ensureFrames() {
   if (!radar.loaded) {
     const j = await (await fetch(RAINVIEWER_API, { cache: "no-store" })).json();
@@ -1970,8 +1802,6 @@ async function ensureFrames() {
   return radar.frames;
 }
 
-// Environment Canada frames (primary over Canada): read the WMS time
-// dimension from GetCapabilities and build a list of observed timestamps.
 async function ensureEccc() {
   const now = Date.now();
   const layer = ecccLayer();
@@ -1990,7 +1820,7 @@ async function ensureEccc() {
   radar.source = "eccc";
   radar.ecccLayerName = layer;
   radar.ecccAt = now;
-  radar.idx = frames.length - 1; // latest observed
+  radar.idx = frames.length - 1;
   return frames;
 }
 
@@ -2011,9 +1841,6 @@ function ecccFrames(dimText) {
     .filter((f) => Number.isFinite(f.t));
 }
 
-// Two crossfaded overlay layers. Source picked per location: Environment
-// Canada when the map is over Canada, RainViewer everywhere else (and as a
-// fallback if ECCC can't be reached).
 async function loadRadar() {
   if (!haveLeaflet() || !radar.map) return;
   try {
@@ -2024,18 +1851,15 @@ async function loadRadar() {
     if (!frames.length || !radar.map || radar.mode !== "radar") { el.radarTimeline.style.display = "none"; return; }
     el.radarTimeline.style.display = "";
     el.radarScrub.max = String(frames.length - 1);
-    buildRadarLayers();     // one preloaded layer per frame
-    renderSolid(radar.idx); // show the latest frame while tiles preload
-    gateLoading();          // start playing once tiles are in
+    buildRadarLayers();
+    renderSolid(radar.idx);
+    gateLoading();
     updateRadarNote();
   } catch {
     el.radarTimeline.style.display = "none";
   }
 }
 
-// Build one tile layer per frame, all stacked and transparent, each pinned to
-// its own timestamp so every frame's tiles download up front. Playback then
-// only toggles opacity — no tile requests in the loop, so nothing stutters.
 function buildRadarLayers() {
   removeRadarLayers();
   radar.layers = radar.frames.map((f) => {
@@ -2056,18 +1880,13 @@ function buildRadarLayers() {
     layer.addTo(radar.map);
     const c = layer.getContainer && layer.getContainer();
     if (c) {
-      c.style.transition = "none"; // opacity is driven per-frame by rAF, not CSS
-      // Shift ECCC's green/yellow palette toward the Dark Sky blue→red scale.
+      c.style.transition = "none";
       if (radar.source === "eccc") c.style.filter = ECCC_FILTER;
     }
     return layer;
   });
 }
 
-// Hold play until every frame's tiles have loaded (with a hard fallback so a
-// slow tile never hangs playback), showing a progress read-out meanwhile.
-// When warming in the background (sheet still closed) we preload the tiles and
-// just mark ready — playback kicks off the moment the user opens the radar.
 function gateLoading() {
   const layers = radar.layers, need = layers.length;
   if (!need) return;
@@ -2077,8 +1896,8 @@ function gateLoading() {
     if (started) return;
     started = true;
     if (radar.gateTimer) { clearTimeout(radar.gateTimer); radar.gateTimer = null; }
-    radar.ready = true;                       // tiles are warm and ready
-    if (state.radarOpen) { radar.idx = 0; startRadarPlay(); } // sweep oldest → newest
+    radar.ready = true;
+    if (state.radarOpen) { radar.idx = 0; startRadarPlay(); }
   };
   el.radarTime.textContent = "Loading radar… 0%";
   layers.forEach((l) => l.once("load", () => {
@@ -2089,8 +1908,6 @@ function gateLoading() {
   radar.gateTimer = setTimeout(begin, 6000);
 }
 
-// Set opacities from an { idx: opacity } map, only touching layers that
-// changed and zeroing any that dropped out of the active set.
 function setLayerOpacities(target) {
   radar.shown.forEach((_, idx) => {
     if (!(idx in target)) { const l = radar.layers[idx]; if (l) l.setOpacity(0); radar.shown.delete(idx); }
@@ -2101,7 +1918,6 @@ function setLayerOpacities(target) {
   }
 }
 
-// Show a single frame fully opaque (used while loading and when scrubbing).
 function renderSolid(i) {
   if (!radar.layers.length) return;
   const N = radar.frames.length;
@@ -2111,9 +1927,6 @@ function renderSolid(i) {
   el.radarTime.textContent = relTime(radar.frames[radar.idx]);
 }
 
-// Continuous playhead p ∈ [0, N-1): frame floor(p) held solid, then eased into
-// the next over the tail FADE_FRAC of the step. That crisp hold-then-dissolve
-// reads as motion rather than a muddy full-length crossfade.
 function renderCrossfade(p) {
   const N = radar.frames.length;
   const i = Math.min(N - 1, Math.floor(p));
@@ -2130,8 +1943,6 @@ function renderCrossfade(p) {
   }
 }
 
-// rAF clock: sweep, hold on the newest frame, then a quick fade-out/fade-in
-// back to the oldest so the loop restart feels deliberate, not like a skip.
 function tickRadar(now) {
   if (!radar.playing) return;
   const N = radar.frames.length;
@@ -2143,7 +1954,7 @@ function tickRadar(now) {
   } else if (e < PLAY + END_HOLD_MS) {
     renderSolid(N - 1);
   } else {
-    const u = (e - PLAY - END_HOLD_MS) / RESET_MS; // 0..1
+    const u = (e - PLAY - END_HOLD_MS) / RESET_MS;
     if (u < 0.5) setLayerOpacities({ [N - 1]: RADAR_OPACITY * (1 - radarEase(u * 2)) });
     else setLayerOpacities({ 0: RADAR_OPACITY * radarEase(u * 2 - 1) });
     if (radar.idx !== 0) { radar.idx = 0; el.radarScrub.value = "0"; el.radarTime.textContent = relTime(radar.frames[0]); }
@@ -2151,7 +1962,6 @@ function tickRadar(now) {
   radar.raf = requestAnimationFrame(tickRadar);
 }
 
-// Kept for the scrubber and any external callers: jump to a frame, solid.
 function showFrame(i, _immediate, onShown) {
   if (!radar.frames.length || !radar.layers.length) return;
   renderSolid(i);
@@ -2168,14 +1978,11 @@ function relTime(f) {
   return f.kind === "forecast" ? `${rel} · ${clock} forecast` : `${rel} · ${clock}`;
 }
 
-// Playback runs off a single rAF clock over preloaded frames (see tickRadar),
-// so cadence is perfectly even and no frame waits on the network.
 function startRadarPlay() {
   stopRadarPlay();
   if (!radar.frames.length || !radar.layers.length) return;
   radar.playing = true;
   el.radarPlay.innerHTML = '<i class="ph ph-pause"></i>';
-  // Anchor the clock so playback resumes from the current frame.
   radar.t0 = performance.now() - radar.idx * FRAME_MS;
   radar.raf = requestAnimationFrame(tickRadar);
 }
@@ -2208,8 +2015,6 @@ function syncMaps() {
   if (radar.preview) { radar.preview.setView([c.lat, c.lon]); setPinMarker(radar.preview, "previewMarker"); } else initRadarPreview();
   if (radar.map) { radar.map.setView([c.lat, c.lon]); setPinMarker(radar.map, "marker"); }
   if (el.radarNote) updateRadarNote();
-  // Warm the full radar once, on idle, so tapping in is instant. Deferred so it
-  // never competes with the first home-screen paint.
   if (!radar.map && !radar.warmScheduled && !state.radarOpen) {
     radar.warmScheduled = true;
     (window.requestIdleCallback || ((fn) => setTimeout(fn, 700)))(warmRadar);
@@ -2218,14 +2023,10 @@ function syncMaps() {
 
 function updateMapTheme() {
   if (!haveLeaflet()) return;
-  // Radar maps stay on the dark basemap regardless of app theme so the
-  // precipitation colours always pop; just refresh the location pins (temp +
-  // condition glyph) so they track the latest data.
   if (radar.marker) radar.marker.setIcon(locationPinIcon());
   if (radar.previewMarker) radar.previewMarker.setIcon(locationPinIcon());
 }
 
-/* ---------- Location ---------- */
 function useMyLocation() {
   if (!navigator.geolocation) { setStatus("Geolocation isn't available."); return; }
   closeDrawer();
@@ -2247,7 +2048,6 @@ function markLoc(which) {
   el.useLocation.classList.toggle("is-active", which === "loc");
 }
 
-/* ---------- Chrome ---------- */
 function setBusy(b) {
   el.temp.classList.toggle("is-loading", b && !state.data);
   el.ptr.classList.toggle("is-spinning", b);
@@ -2256,7 +2056,6 @@ function setBusy(b) {
 
 function setStatus(t) { el.status.textContent = t; }
 
-/* ---------- Formatting ---------- */
 function windText(speed) {
   return state.units === "imperial"
     ? `${Math.round(speed)} mph`
@@ -2295,7 +2094,6 @@ function fmtClock(dt, tz) {
   return `${hh}:${mm} ${ap}`;
 }
 
-/* ---------- Persistence ---------- */
 function saveState() {
   try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme })); } catch {}
 }
@@ -2305,7 +2103,6 @@ function loadState() {
     if (s) {
       state.units = s.units || "metric";
       state.loc = s.loc || { ...HOME };
-      // Fall back to the default theme if an old/unknown name was saved.
       state.theme = PALETTES[s.theme] ? s.theme : "sunny";
     }
   } catch {}
@@ -2324,7 +2121,6 @@ function syncControls() {
   markLoc(state.loc.label === HOME.label ? "home" : "loc");
 }
 
-/* ---------- Gestures ---------- */
 function showPTR(d) {
   const t = Math.min(1, d / 64);
   el.ptr.style.opacity = t;
@@ -2337,7 +2133,7 @@ function hidePTR() {
 
 function initGestures() {
   const EDGE = 26, OPEN = 55, DISMISS = 95, PTR_TRIGGER = 72;
-  let mode = null;       // "ptr" | "edge" | "drawer" | "sheet"
+  let mode = null;
   let sx = 0, sy = 0, dist = 0;
 
   document.addEventListener("touchstart", (e) => {
@@ -2410,17 +2206,12 @@ function initGestures() {
   }
 }
 
-/* ---------- Service worker ---------- */
-// Register with updateViaCache:"none" so the browser always fetches a fresh
-// sw.js (never from the HTTP cache), and reload once when a new worker takes
-// over an already-controlled page — so an installed PWA can't get stuck on a
-// stale cached build.
 function registerSW() {
   if (!("serviceWorker" in navigator)) return;
   const hadController = !!navigator.serviceWorker.controller;
   let refreshing = false;
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (refreshing || !hadController) return; // don't reload on the first-ever install
+    if (refreshing || !hadController) return;
     refreshing = true;
     window.location.reload();
   });
@@ -2429,5 +2220,4 @@ function registerSW() {
     .catch(() => {});
 }
 
-/* ---------- Boot (run last, after all declarations are initialized) ---------- */
 init();

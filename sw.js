@@ -1,4 +1,4 @@
-const CACHE_NAME = "home-weather-shell-v51";
+const CACHE_NAME = "home-weather-shell-v52";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -20,8 +20,6 @@ self.addEventListener("activate", (event) => {
   self.clients.claim();
 });
 
-// Network-first for same-origin GETs, falling back to cache when offline.
-// The worker never modifies responses — index.html/css/js are served as written.
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
