@@ -410,7 +410,15 @@ function render(data) {
   el.tempNum.textContent = `${Math.round(m.temp ?? 0)}`;
   el.temp.classList.remove("is-loading");
   el.summary.textContent = buildSummary(current, state.daily);
-  if (el.wear) el.wear.innerHTML = `<span class="wear-label">What to wear</span><p class="wear-text">${buildWear(current, state.daily)}</p>`;
+  if (el.wear) {
+    el.wear.innerHTML = `<button class="wear-toggle" type="button" aria-expanded="true"><span class="wear-label">What to wear</span><i class="ph ph-caret-down wear-chev" aria-hidden="true"></i></button><div class="wear-content"><p class="wear-text">${buildWear(current, state.daily)}</p></div>`;
+    el.wear.classList.add("is-open");
+    const wt = el.wear.querySelector(".wear-toggle");
+    wt.onclick = () => {
+      const open = el.wear.classList.toggle("is-open");
+      wt.setAttribute("aria-expanded", open ? "true" : "false");
+    };
+  }
   renderAlerts(data.alerts, tz);
 
   if (el.miniIcon) el.miniIcon.className = `mini-ic ${iconClass(w.main, isNight)}`;
@@ -954,17 +962,6 @@ function escapeHTML(s) {
   return String(s).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
 }
 
-function alertLevel(a) {
-  if (a.colour === "red") return "extreme";
-  if (a.colour === "orange") return "warning";
-  if (a.colour === "yellow") return "watch";
-  if (a.colour) return "advisory";
-  const t = a.type || "";
-  if (/warning/.test(t)) return "warning";
-  if (/watch/.test(t)) return "watch";
-  return "advisory";
-}
-
 function alertWhen(a, tz) {
   const now = Math.floor(Date.now() / 1000);
   if (a.end && a.end > now) return `Until ${dayLabel(a.end, tz)} ${fmtHour(a.end, tz)}`;
@@ -980,18 +977,19 @@ function renderAlerts(alerts, tz) {
   if (!list.length) { host.hidden = true; host.innerHTML = ""; return; }
   host.hidden = false;
   host.innerHTML = list.map((a) => {
-    const level = alertLevel(a);
     const when = alertWhen(a, tz);
     const meta = [when, a.sender_name].filter(Boolean).map(escapeHTML).join(" · ");
     const desc = (a.description || "").trim();
-    return `<button class="alert alert-${level}" type="button" aria-expanded="false">
-      <span class="alert-head">
-        <i class="ph-fill ph-warning-octagon alert-ic" aria-hidden="true"></i>
-        <span class="alert-title">${escapeHTML(a.event)}</span>
-        ${desc ? '<i class="ph ph-caret-down alert-chev" aria-hidden="true"></i>' : ""}
+    return `<button class="alert" type="button" aria-expanded="false">
+      <i class="ph-fill ph-warning-octagon alert-ic" aria-hidden="true"></i>
+      <span class="alert-body">
+        <span class="alert-head">
+          <span class="alert-title">${escapeHTML(a.event)}</span>
+          ${desc ? '<i class="ph ph-caret-down alert-chev" aria-hidden="true"></i>' : ""}
+        </span>
+        ${meta ? `<span class="alert-meta">${meta}</span>` : ""}
+        ${desc ? `<span class="alert-desc">${escapeHTML(desc)}</span>` : ""}
       </span>
-      ${meta ? `<span class="alert-meta">${meta}</span>` : ""}
-      ${desc ? `<span class="alert-desc">${escapeHTML(desc)}</span>` : ""}
     </button>`;
   }).join("");
   host.querySelectorAll(".alert").forEach((btn) => {
