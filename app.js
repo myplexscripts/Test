@@ -255,12 +255,7 @@ function titleCase(s) {
 }
 
 function alertSummary(s) {
-  const full = String(s).replace(/[\u2014\u2013]/g, "-").replace(/\r/g, "").trim();
-  if (!full) return "";
-  const paras = full.split(/\n{2,}/);
-  let out = "", i = 0;
-  while (i < paras.length && out.length < 380) { out += (out ? "\n\n" : "") + paras[i].trim(); i++; }
-  return i < paras.length ? out + "…" : out;
+  return String(s).replace(/[\u2014\u2013]/g, "-").replace(/\r/g, "").replace(/\n{3,}/g, "\n\n").trim();
 }
 
 function parseWhen(s) {
