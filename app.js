@@ -411,8 +411,8 @@ function render(data) {
   el.temp.classList.remove("is-loading");
   el.summary.textContent = buildSummary(current, state.daily);
   if (el.wear) {
-    el.wear.innerHTML = `<button class="wear-toggle" type="button" aria-expanded="true"><span class="wear-label">What to wear</span><i class="ph ph-caret-down wear-chev" aria-hidden="true"></i></button><div class="wear-content"><div class="wear-clip"><p class="wear-text">${buildWear(current, state.daily)}</p></div></div>`;
-    el.wear.classList.add("is-open");
+    el.wear.innerHTML = `<button class="wear-toggle" type="button" aria-expanded="false"><span class="wear-label">What to wear</span><i class="ph ph-caret-down wear-chev" aria-hidden="true"></i></button><div class="wear-content"><div class="wear-clip"><p class="wear-text">${buildWear(current, state.daily)}</p></div></div>`;
+    el.wear.classList.remove("is-open");
     const wt = el.wear.querySelector(".wear-toggle");
     wt.onclick = () => {
       const open = el.wear.classList.toggle("is-open");
