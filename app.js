@@ -727,7 +727,10 @@ function renderDetails(current, forecast) {
     items.push(["humidity", "ph-drop", "Humidity", "—", ""]);
   }
 
-  items.push(precipDetail(current, forecast, tz));
+  const pd = precipDetail(current, forecast, tz);
+  const popNow = state.hourly?.[0]?.pop ?? forecast?.list?.[0]?.pop ?? 0;
+  pd[6] = rangeMeter(Math.round(popNow * 100), 0, 100); // chance of precipitation
+  items.push(pd);
 
   const air = state.data?.air;
   if (air && air.us_aqi != null) {
