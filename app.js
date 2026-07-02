@@ -237,18 +237,30 @@ async function fetchAlerts(lat, lon) {
 
 function alertFromFeature(f) {
   const p = (f && f.properties) || {};
-  const keys = Object.keys(p);
-  if (!keys.length) return null;
-  const pick = (re) => {
-    const k = keys.find((k) => re.test(k) && p[k] != null && String(p[k]).trim() !== "");
-    return k ? String(p[k]).trim() : null;
+  if (!Object.keys(p).length) return null;
+  const name = p.alert_name_en || p.alert_type || "Weather alert";
+  return {
+    event: titleCase(name),
+    description: alertSummary(p.alert_text_en || ""),
+    start: parseWhen(p.validity_datetime || p.publication_datetime),
+    end: parseWhen(p.event_end_datetime || p.expiration_datetime),
+    sender_name: "Environment Canada",
+    colour: String(p.risk_colour_en || "").toLowerCase(),
+    type: String(p.alert_type || "").toLowerCase()
   };
-  const event = pick(/headline|^event$|alert_?type|^type$|^name$|title/i) || "Weather alert";
-  const description = pick(/descrip|summary|detail|instruction|^text$/i) || "";
-  const start = parseWhen(pick(/effective|onset|sent|issue|^start/i));
-  const end = parseWhen(pick(/expire|^end|until/i));
-  const level = pick(/severity|priority/i) || "";
-  return { event, description, start, end, sender_name: "Environment Canada", tags: [level].filter(Boolean) };
+}
+
+function titleCase(s) {
+  return String(s).replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1));
+}
+
+function alertSummary(s) {
+  const full = String(s).replace(/[\u2014\u2013]/g, "-").replace(/\r/g, "").trim();
+  if (!full) return "";
+  const paras = full.split(/\n{2,}/);
+  let out = "", i = 0;
+  while (i < paras.length && out.length < 380) { out += (out ? "\n\n" : "") + paras[i].trim(); i++; }
+  return i < paras.length ? out + "…" : out;
 }
 
 function parseWhen(s) {
@@ -943,10 +955,13 @@ function escapeHTML(s) {
 }
 
 function alertLevel(a) {
-  const s = `${a.event || ""} ${(a.tags || []).join(" ")}`.toLowerCase();
-  if (/tornado|hurricane|extreme|emergency|tsunami|red/.test(s)) return "extreme";
-  if (/warning/.test(s)) return "warning";
-  if (/watch/.test(s)) return "watch";
+  if (a.colour === "red") return "extreme";
+  if (a.colour === "orange") return "warning";
+  if (a.colour === "yellow") return "watch";
+  if (a.colour) return "advisory";
+  const t = a.type || "";
+  if (/warning/.test(t)) return "warning";
+  if (/watch/.test(t)) return "watch";
   return "advisory";
 }
 
