@@ -146,6 +146,14 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .mini-temp { margin-left: auto; font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: 1.5rem; flex: 0 0 auto; }
 @media (min-width: 821px) { .mini-header { display: none; } }
 
+[data-theme="newmoon"] .mini-header,
+[data-theme="newmoon"] .drawer {
+  --surface: #1c1c1e;
+  --on-surface: #ffffff;
+  --on-surface-soft: color-mix(in srgb, #ffffff 64%, transparent);
+  --surface-accent: #ffffff;
+}
+
 .ptr {
   position: fixed;
   top: calc(var(--safe-t) + 6px);

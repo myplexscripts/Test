@@ -19,7 +19,7 @@ const PALETTES = {
   snow:        { bg: "#ffffff", ink: "#0b1626", surface: "#0b1626", onSurface: "#eef5ff", accent: "#79b6ff", dark: false },
   night:       { bg: "#0b132b", ink: "#e9ecff", surface: "#0a1024", onSurface: "#f4f6ff", accent: "#7e9be0", dark: true  },
   sunset:      { bg: "#ff64d4", ink: "#2b0a24", surface: "#2b0a24", onSurface: "#ffe9fa", accent: "#ff8fe0", dark: false },
-  newmoon:     { bg: "#000000", ink: "#ffffff", surface: "#ffffff", onSurface: "#0a0a0a", accent: "#0a0a0a", dark: true, statusBar: "#000000" }
+  newmoon:     { bg: "#000000", ink: "#ffffff", surface: "#ffffff", onSurface: "#0a0a0a", accent: "#0a0a0a", dark: true, statusBar: "#1c1c1e" }
 };
 
 const $ = (id) => document.getElementById(id);
@@ -897,6 +897,7 @@ function applyPalette(kind) {
   r.setProperty("--statusbar", sb);
   r.setProperty("--theme", sb);
   document.querySelector('meta[name="theme-color"]').setAttribute("content", sb);
+  document.documentElement.setAttribute("data-theme", kind);
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;
   updateMapTheme();
