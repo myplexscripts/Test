@@ -317,6 +317,24 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   color: color-mix(in srgb, var(--ink) 84%, transparent);
   max-width: 60ch;
 }
+.wear { padding-top: var(--s-4); border-top: 2px solid var(--hairline); }
+.wear:empty { display: none; }
+.wear-label {
+  display: block;
+  font-size: var(--t-cap);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-bottom: var(--s-2);
+}
+.wear-text {
+  font-size: var(--t-body);
+  line-height: 1.5;
+  font-weight: 500;
+  color: color-mix(in srgb, var(--ink) 84%, transparent);
+  max-width: 60ch;
+}
 
 /* ---------- Surface (the black metrics box) ---------- */
 .surface {

@@ -42,7 +42,7 @@ const el = {
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
   unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
   placeName: $("placeName"), datePill: $("datePill"), condition: $("condition"),
-  heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"),
+  heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), wear: $("wear"),
   hero: document.querySelector(".hero"),
   miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mVisibility: $("mVisibility"),
@@ -223,7 +223,7 @@ async function refresh(force) {
     render(data);
     setStatus(`Updated ${fmtClock(Date.now() / 1000, current.timezone || 0)}`);
   } catch (err) {
-    if (state.data) setStatus(`Offline — showing saved weather. (${err.message})`);
+    if (state.data) setStatus(`Offline, showing saved weather. (${err.message})`);
     else setStatus(`Couldn't load weather. ${err.message}`);
   } finally {
     setBusy(false);
@@ -314,23 +314,23 @@ function primaryPollutant(air) {
 
 // US AQI -> band label + short guidance.
 function aqiBand(aqi) {
-  if (aqi == null) return { label: "—", advice: "" };
+  if (aqi == null) return { label: "--", advice: "" };
   if (aqi <= 50)  return { label: "Good", advice: "Air quality is satisfactory." };
   if (aqi <= 100) return { label: "Moderate", advice: "Acceptable; unusually sensitive people should take care." };
   if (aqi <= 150) return { label: "Unhealthy for sensitive groups", advice: "Sensitive groups may feel effects." };
   if (aqi <= 200) return { label: "Unhealthy", advice: "Everyone may begin to feel effects." };
-  if (aqi <= 300) return { label: "Very unhealthy", advice: "Health alert — limit time outdoors." };
+  if (aqi <= 300) return { label: "Very unhealthy", advice: "Health alert. Limit time outdoors." };
   return { label: "Hazardous", advice: "Avoid outdoor activity." };
 }
 
 // UV index -> band label + short guidance.
 function uvBand(uv) {
-  if (uv == null) return { label: "—", advice: "" };
+  if (uv == null) return { label: "--", advice: "" };
   const u = Math.round(uv);
   if (u <= 2)  return { label: "Low", advice: "No protection needed." };
   if (u <= 5)  return { label: "Moderate", advice: "Wear sunglasses; use SPF 30+." };
   if (u <= 7)  return { label: "High", advice: "Seek shade midday; cover up." };
-  if (u <= 10) return { label: "Very high", advice: "Extra protection — burns happen fast." };
+  if (u <= 10) return { label: "Very high", advice: "Extra protection. Burns happen fast." };
   return { label: "Extreme", advice: "Avoid the sun midday." };
 }
 
@@ -404,6 +404,7 @@ function render(data) {
   el.tempNum.textContent = `${Math.round(m.temp ?? 0)}`;
   el.temp.classList.remove("is-loading");
   el.summary.textContent = buildSummary(current, state.daily);
+  if (el.wear) el.wear.innerHTML = `<span class="wear-label">What to wear</span><p class="wear-text">${buildWear(current, state.daily)}</p>`;
 
   // compact header mirror of the current conditions
   if (el.miniIcon) el.miniIcon.className = `mini-ic ${iconClass(w.main, isNight)}`;
@@ -412,7 +413,7 @@ function render(data) {
   if (el.miniTemp) el.miniTemp.textContent = `${Math.round(m.temp ?? 0)}°`;
 
   el.mWind.textContent = windText(current.wind?.speed || 0);
-  el.mHumidity.textContent = m.humidity != null ? `${m.humidity}%` : "—";
+  el.mHumidity.textContent = m.humidity != null ? `${m.humidity}%` : "--";
   el.mVisibility.textContent = visibilityText(current.visibility);
 
   renderHourly();
@@ -652,8 +653,8 @@ function renderMoon(current) {
   days = Math.round(days);
   const rows = [
     ["Illumination", `${moon.illum}%`],
-    ["Moonrise", mt.rise != null ? fmtClock(mt.rise, tz) : "—"],
-    ["Moonset", mt.set != null ? fmtClock(mt.set, tz) : "—"],
+    ["Moonrise", mt.rise != null ? fmtClock(mt.rise, tz) : "--"],
+    ["Moonset", mt.set != null ? fmtClock(mt.set, tz) : "--"],
     ["Next full moon", `${days} ${days === 1 ? "day" : "days"}`]
   ];
   el.moonCard.innerHTML = `
@@ -670,8 +671,8 @@ function renderWind(current) {
   const w = current.wind || {};
   const deg = w.deg;
   const parts = windParts(w.speed || 0);
-  const gust = w.gust != null ? windText(w.gust) : "—";
-  const dirTxt = deg != null ? `${Math.round(deg)}° ${direction(deg)}` : "—";
+  const gust = w.gust != null ? windText(w.gust) : "--";
+  const dirTxt = deg != null ? `${Math.round(deg)}° ${direction(deg)}` : "--";
   const rot = deg != null ? (deg + 180) % 360 : 0; // arrow points the way the wind blows
   el.windCard.innerHTML = `
     <div class="wind-stats">
@@ -724,7 +725,7 @@ function renderDetails(current, forecast) {
     const dp = dewPointDisplay(m.temp, m.humidity);
     items.push(["humidity", "ph-drop", "Humidity", `${m.humidity}%`, dp != null ? `Dew point ${dp}°` : "", null, rangeMeter(m.humidity, 0, 100)]);
   } else {
-    items.push(["humidity", "ph-drop", "Humidity", "—", ""]);
+    items.push(["humidity", "ph-drop", "Humidity", "--", ""]);
   }
 
   const pd = precipDetail(current, forecast, tz);
@@ -745,14 +746,14 @@ function renderDetails(current, forecast) {
   if (current.visibility != null) {
     items.push(["visibility", "ph-eye", "Visibility", visibilityText(current.visibility), visDescriptor(current.visibility), null, rangeMeter(visVal(current.visibility), 0, 10)]);
   } else {
-    items.push(["visibility", "ph-eye", "Visibility", "—", ""]);
+    items.push(["visibility", "ph-eye", "Visibility", "--", ""]);
   }
   if (m.pressure != null) {
     items.push(["pressure", "ph-gauge", "Pressure", `${m.pressure}<span class="d-unit">hPa</span>`, "", null, pressureMeter(m.pressure)]);
   } else {
-    items.push(["pressure", "ph-gauge", "Pressure", "—", ""]);
+    items.push(["pressure", "ph-gauge", "Pressure", "--", ""]);
   }
-  items.push(["clouds", "ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "—", cloudDescriptor(clouds.all), null, clouds.all != null ? rangeMeter(clouds.all, 0, 100) : ""]);
+  items.push(["clouds", "ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "--", cloudDescriptor(clouds.all), null, clouds.all != null ? rangeMeter(clouds.all, 0, 100) : ""]);
 
   el.detailGrid.innerHTML = items.map(([metric, icon, label, value, sub, range, spark]) => `
     <button class="detail" data-metric="${metric}"${range ? ` data-range="${range}"` : ""}>
@@ -872,11 +873,35 @@ function buildSummary(current, daily) {
   const range = today ? ` Today ranges from ${Math.round(today.min)}° to ${Math.round(today.max)}°.` : "";
   const pop = today ? Math.round((today.pop || 0) * 100) : 0;
   const rain = pop > 0 ? ` There's a ${pop}% chance of precipitation.` : "";
-  const comfort = feels >= 28 ? " It feels hot — find shade and water."
-    : feels <= 0 ? " It feels freezing — bundle up."
-    : feels <= 10 ? " It feels chilly — bring a layer."
+  const comfort = feels >= 28 ? " It feels hot. Find shade and water."
+    : feels <= 0 ? " It feels freezing. Bundle up."
+    : feels <= 10 ? " It feels chilly. Bring a layer."
     : " It should feel comfortable.";
   return `It feels like ${feels}° with ${desc}.${range}${rain}${comfort}`;
+}
+
+function buildWear(current, daily) {
+  const m = current.main || {};
+  const raw = m.feels_like ?? m.temp;
+  const t = raw == null ? 15 : (state.units === "imperial" ? (raw - 32) * 5 / 9 : raw);
+  let base;
+  if (t <= -10) base = "Heavy winter gear today: an insulated coat, hat, gloves and warm boots.";
+  else if (t <= 0) base = "Dress warm with a winter coat, plus a hat and gloves.";
+  else if (t <= 8) base = "A warm jacket with a layer underneath.";
+  else if (t <= 15) base = "A light jacket or sweater should be enough.";
+  else if (t <= 21) base = "A long sleeve or light top is comfortable today.";
+  else if (t <= 27) base = "Light clothing like a t-shirt is ideal.";
+  else base = "Stay cool in light, breathable clothing, and keep water handy.";
+  const extras = [];
+  const pop = daily?.[0] ? Math.round((daily[0].pop || 0) * 100) : 0;
+  if (pop >= 50) extras.push("Bring an umbrella or a waterproof layer.");
+  else if (pop >= 25) extras.push("An umbrella may come in handy.");
+  const uv = state.data?.air?.uv_index;
+  if (uv != null && uv >= 6) extras.push("Add sunglasses and sunscreen for the strong sun.");
+  const spd = current.wind?.speed || 0;
+  const kmh = state.units === "imperial" ? spd * 1.609 : spd * 3.6;
+  if (kmh >= 30) extras.push("A windbreaker helps against the wind.");
+  return base + (extras.length ? " " + extras.join(" ") : "");
 }
 
 /* ---------- Palette (user-chosen only) ---------- */
@@ -948,12 +973,12 @@ const METRICS = {
   wind: {
     label: "Wind", unit: speedUnit(), decimals: 0,
     get: (it) => windParts(it.wind?.speed || 0).v,
-    desc: (c) => { const w = c.wind || {}; const g = w.gust != null ? `, gusting ${windText(w.gust)}` : ""; return `${windText(w.speed || 0)} from the ${w.deg != null ? direction(w.deg) : "—"}${g}.`; }
+    desc: (c) => { const w = c.wind || {}; const g = w.gust != null ? `, gusting ${windText(w.gust)}` : ""; return `${windText(w.speed || 0)} from the ${w.deg != null ? direction(w.deg) : "--"}${g}.`; }
   },
   pressure: {
     label: "Pressure", unit: "hPa", decimals: 0,
     get: (it) => it.main.pressure,
-    desc: (c) => { const p = c.main?.pressure; return p != null ? `${p} hPa — ${p >= 1013 ? "above" : "below"} the 1013 hPa average.` : "Sea-level pressure ahead."; }
+    desc: (c) => { const p = c.main?.pressure; return p != null ? `${p} hPa, ${p >= 1013 ? "above" : "below"} the 1013 hPa average.` : "Sea-level pressure ahead."; }
   },
   precip: {
     label: "Precipitation", unit: "%", decimals: 0,
@@ -1079,7 +1104,7 @@ function renderAqiSheet(air) {
   if (air.us_aqi == null) { el.sheetNote.textContent = "Air quality data is unavailable right now."; el.sheetList.innerHTML = ""; return; }
   const aqi = Math.round(air.us_aqi);
   const b = aqiBand(aqi);
-  el.sheetNote.textContent = `The air quality index is ${aqi} — ${b.label.toLowerCase()}.`;
+  el.sheetNote.textContent = `The air quality index is ${aqi}, ${b.label.toLowerCase()}.`;
 
   // Position-on-scale bar (0–300+), sunrise/sunset style.
   const scale = scaleBar((aqi / 300) * 100, ["0", "Good", "Unhealthy", "300+"]);
@@ -1116,7 +1141,7 @@ function renderUvSheet(air) {
 
   // Grayscale severity ramp on the legend dots (no hue) — lighter = lower.
   const dotOp = { "Low": 0.25, "Moderate": 0.45, "High": 0.62, "Very high": 0.8, "Extreme": 1 };
-  const scaleRows = [["Low", "0–2"], ["Moderate", "3–5"], ["High", "6–7"], ["Very high", "8–10"], ["Extreme", "11+"]]
+  const scaleRows = [["Low", "0-2"], ["Moderate", "3-5"], ["High", "6-7"], ["Very high", "8-10"], ["Extreme", "11+"]]
     .map(([label, rg]) => {
       const active = cur != null && u.label === label;
       return `<div class="uv-scale-row${active ? " is-active" : ""}"><span class="uv-dot" style="opacity:${dotOp[label]}"></span><span class="row-label">${label}</span><span class="uv-range">${rg}</span></div>`;
@@ -1140,10 +1165,10 @@ function todayUv(hourly) {
 function uvSummary(air, hourly) {
   const cur = Math.round(air.uv_index);
   const pts = todayUv(hourly);
-  if (!pts.length) return `The UV index is ${cur} right now — ${uvBand(air.uv_index).label.toLowerCase()}.`;
+  if (!pts.length) return `The UV index is ${cur} right now, ${uvBand(air.uv_index).label.toLowerCase()}.`;
   const hours = pts.map((p) => Number(p.t.slice(11, 13)));
   const modIdx = pts.map((p, i) => (p.uv >= 3 ? i : -1)).filter((i) => i >= 0);
-  if (!modIdx.length) return `The UV index stays low all day — no protection needed.`;
+  if (!modIdx.length) return `The UV index stays low all day. No protection needed.`;
   const from = hours[modIdx[0]], to = hours[modIdx[modIdx.length - 1]];
   const fmt = (h) => `${(h % 12) || 12}${h < 12 ? "am" : "pm"}`;
   return `Currently ${uvBand(air.uv_index).label.toLowerCase()}. Moderate or higher from ${fmt(from)} to ${fmt(to)}.`;
@@ -1176,13 +1201,13 @@ function groupNum(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
 // The eight phases of the lunar cycle, with NASA-style plain-English notes.
 // Names match moonPhase() so the current phase can be highlighted.
 const PHASE_GUIDE = [
-  ["New moon", 0, "The Moon sits between Earth and the Sun, so its sunlit side faces away from us. The disk looks dark — the start of the cycle."],
+  ["New moon", 0, "The Moon sits between Earth and the Sun, so its sunlit side faces away from us. The disk looks dark, the start of the cycle."],
   ["Waxing crescent", 0.125, "A slim sliver of light appears on the right and grows a little each night. “Waxing” means the lit share is increasing."],
-  ["First quarter", 0.25, "About a week in, the right half of the face is lit — a quarter of the way through the roughly 29.5-day cycle."],
+  ["First quarter", 0.25, "About a week in, the right half of the face is lit, a quarter of the way through the roughly 29.5-day cycle."],
   ["Waxing gibbous", 0.375, "More than half is lit and still growing. “Gibbous” means the bright part bulges past a half-circle."],
   ["Full moon", 0.5, "Earth lies between the Sun and Moon, so the whole near side is lit. It rises around sunset and sets around sunrise."],
   ["Waning gibbous", 0.625, "Just past full, the lit area starts to shrink, fading from the right. “Waning” means decreasing."],
-  ["Last quarter", 0.75, "Three weeks in, the left half is lit — the mirror image of the first quarter."],
+  ["Last quarter", 0.75, "Three weeks in, the left half is lit, the mirror image of the first quarter."],
   ["Waning crescent", 0.875, "A thin, shrinking sliver on the left, until the disk goes dark and a new cycle begins."]
 ];
 
@@ -1198,7 +1223,7 @@ function renderMoonSheet() {
   const dist = moonDistanceKm();
 
   el.sheetTitle.textContent = "Moon";
-  el.sheetNote.textContent = `${moon.name} tonight — ${moon.illum}% of the Moon's face is lit.`;
+  el.sheetNote.textContent = `${moon.name} tonight, ${moon.illum}% of the Moon's face is lit.`;
 
   // Hero: big glyph + phase + today's date.
   const hero = `
@@ -1212,8 +1237,8 @@ function renderMoonSheet() {
   const figs = `
     <div class="moon-figs">
       <div class="moon-fig"><span class="d-label">Illumination</span><strong>${moon.illum}%</strong></div>
-      <div class="moon-fig"><span class="d-label">Moonrise</span><strong>${mt.rise != null ? fmtClock(mt.rise, tz) : "—"}</strong></div>
-      <div class="moon-fig"><span class="d-label">Moonset</span><strong>${mt.set != null ? fmtClock(mt.set, tz) : "—"}</strong></div>
+      <div class="moon-fig"><span class="d-label">Moonrise</span><strong>${mt.rise != null ? fmtClock(mt.rise, tz) : "--"}</strong></div>
+      <div class="moon-fig"><span class="d-label">Moonset</span><strong>${mt.set != null ? fmtClock(mt.set, tz) : "--"}</strong></div>
     </div>`;
 
   // Upcoming principal phases, soonest first, each with its little glyph.
@@ -1259,7 +1284,7 @@ function renderMoonSheet() {
   el.sheetList.innerHTML =
     hero + figs +
     section("Upcoming phases", `<div class="phase-list">${upcoming}</div>`) +
-    section("The eight phases", `<p class="info-text">The Moon makes no light of its own — we see the half lit by the Sun. As it orbits Earth about every 29.5 days, the amount of that lit half we can see grows (waxing) and shrinks (waning), giving eight named phases.</p><div class="phase-guide">${guide}</div>`) +
+    section("The eight phases", `<p class="info-text">The Moon makes no light of its own, we see the half lit by the Sun. As it orbits Earth about every 29.5 days, the amount of that lit half we can see grows (waxing) and shrinks (waning), giving eight named phases.</p><div class="phase-guide">${guide}</div>`) +
     section("The month ahead", calendar) +
     section("About illumination", `<p class="info-text">Illumination represents the percentage of the Moon's Earth-facing side lit by the Sun, ranging from 0% at a new moon to 100% at a full moon. This value describes the Moon's phase regardless of your local horizon or weather conditions.</p><p class="info-text info-now">Currently, the Moon's illumination is ${moon.illum}%.</p>`) +
     section("About the Moon's distance", `<p class="info-text">The Moon follows an elliptical orbit, causing its distance from Earth to vary throughout the month between approximately 356,500 km (perigee) and 406,700 km (apogee).</p><p class="info-text info-now">Currently, the Moon is approximately ${groupNum(dist)} km away.</p>`);
@@ -1444,8 +1469,8 @@ function dayStatsHTML(day, items) {
   const windMax = winds.length ? Math.max(...winds) : 0;
   const pop = Math.round((day.pop || 0) * 100);
   const tiles = [
-    ["ph-thermometer-simple", "Feels like", fMin === fMax ? `${fMax}°` : `${fMin}–${fMax}°`],
-    ["ph-drop", "Humidity", humAvg != null ? `${humAvg}%` : "—"],
+    ["ph-thermometer-simple", "Feels like", fMin === fMax ? `${fMax}°` : `${fMin}-${fMax}°`],
+    ["ph-drop", "Humidity", humAvg != null ? `${humAvg}%` : "--"],
     ["ph-wind", "Wind", windText(windMax)],
     ["ph-umbrella", "Precipitation", `${pop}%`]
   ];
@@ -2212,7 +2237,7 @@ function useMyLocation() {
       saveState();
       refresh(true);
     },
-    () => setStatus("Location permission denied — staying on Home."),
+    () => setStatus("Location permission denied. Staying on Home."),
     { enableHighAccuracy: false, timeout: 10000, maximumAge: 600000 }
   );
 }
@@ -2238,7 +2263,7 @@ function windText(speed) {
     : `${Math.round(speed * 3.6)} km/h`;
 }
 function visibilityText(v) {
-  if (v == null) return "—";
+  if (v == null) return "--";
   return state.units === "imperial"
     ? `${Math.min(10, v / 1609).toFixed(v >= 16090 ? 0 : 1)} mi`
     : `${Math.min(10, v / 1000).toFixed(v >= 10000 ? 0 : 1)} km`;

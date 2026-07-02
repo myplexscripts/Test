@@ -39,9 +39,9 @@
       <i class="mini-ic ph-duotone ph-sun" id="miniIcon" aria-hidden="true"></i>
       <div class="mini-text">
         <span class="mini-place" id="miniPlace">London, ON</span>
-        <span class="mini-cond" id="miniCond">—</span>
+        <span class="mini-cond" id="miniCond">--</span>
       </div>
-      <span class="mini-temp" id="miniTemp">—°</span>
+      <span class="mini-temp" id="miniTemp">--°</span>
     </div>
   </div>
 
@@ -101,7 +101,7 @@
     </header>
 
     <section class="hero" aria-label="Current conditions">
-      <div class="pill" id="datePill">—</div>
+      <div class="pill" id="datePill">--</div>
       <p class="condition" id="condition">Weather</p>
       <i class="hero-icon ph-duotone ph-sun" id="heroIcon" aria-hidden="true"></i>
       <h1 class="display is-loading" id="temp"><span class="temp-num" id="tempNum">--</span><span class="temp-deg">°</span></h1>
@@ -110,6 +110,7 @@
     <section class="summary">
       <h2 class="block-title">Daily Summary</h2>
       <p class="summary-text" id="summary">Loading your local weather…</p>
+      <div class="wear" id="wear"></div>
     </section>
 
     <section class="surface metrics" id="metrics" aria-label="Key metrics">
@@ -120,7 +121,7 @@
           <path class="wind-line wl2" d="M96,64c3.39-9.15,13.67-16,24-16a24,24,0,0,1,0,48H24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
           <path class="wind-line wl3" d="M184,96c3.39-9.15,13.67-16,24-16a24,24,0,0,1,0,48H32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
         </svg>
-        <strong id="mWind">—</strong><span>Wind</span>
+        <strong id="mWind">--</strong><span>Wind</span>
       </div>
       <div class="metric">
         <svg class="cond-ic cond-drop" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
@@ -130,7 +131,7 @@
             <animateTransform attributeName="transform" attributeType="XML" type="rotate" values="-26 128 144;26 128 144;-26 128 144" keyTimes="0;0.5;1" dur="3.6s" calcMode="spline" keySplines="0.42 0 0.58 1;0.42 0 0.58 1" repeatCount="indefinite"/>
           </path>
         </svg>
-        <strong id="mHumidity">—</strong><span>Humidity</span>
+        <strong id="mHumidity">--</strong><span>Humidity</span>
       </div>
       <div class="metric">
         <svg class="cond-ic cond-eye" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
@@ -138,7 +139,7 @@
           <path class="eye-outline" d="M128,56C48,56,16,128,16,128s32,72,112,72,112-72,112-72S208,56,128,56Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
           <circle class="eye-iris" cx="128" cy="128" r="40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
         </svg>
-        <strong id="mVisibility">—</strong><span>Visibility</span>
+        <strong id="mVisibility">--</strong><span>Visibility</span>
       </div>
     </section>
 
@@ -208,7 +209,7 @@
     <div class="radar-timeline" id="radarTimeline">
       <button class="radar-play" id="radarPlay" aria-label="Play or pause radar"><i class="ph ph-pause"></i></button>
       <input class="radar-scrub" id="radarScrub" type="range" min="0" max="0" value="0" step="1" aria-label="Radar time">
-      <span class="radar-time" id="radarTime">—</span>
+      <span class="radar-time" id="radarTime">--</span>
     </div>
     <div class="radar-legend" id="radarLegend"><span>Light</span><div class="legend-bar"></div><span>Heavy</span></div>
     <div class="radar-legend wind-legend" id="windLegend" style="display:none"><span>Calm</span><div class="legend-bar wind-bar"></div><span>Strong</span></div>
