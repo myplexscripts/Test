@@ -30,6 +30,7 @@ const el = {
   unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
   placeName: $("placeName"), datePill: $("datePill"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), wear: $("wear"), alerts: $("alerts"),
+  alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
   hero: document.querySelector(".hero"),
   miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mFeels: $("mFeels"),
@@ -160,8 +161,11 @@ function wireEvents() {
   el.graph.addEventListener("pointerleave", endScrub);
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { closeSheet(); closeDrawer(); closeRadar(); }
+    if (e.key === "Escape") { closeAlertModal(); closeSheet(); closeDrawer(); closeRadar(); }
   });
+
+  if (el.alertModalClose) el.alertModalClose.onclick = closeAlertModal;
+  if (el.alertOverlay) el.alertOverlay.onclick = (e) => { if (e.target === el.alertOverlay) closeAlertModal(); };
 
   window.addEventListener("resize", () => {
     if (!state.sheetOpen) return;
@@ -965,6 +969,16 @@ function alertWhen(a, tz) {
   return "";
 }
 
+function alertMeta(a, tz) {
+  return [alertWhen(a, tz), a.sender_name].filter(Boolean).join(" · ");
+}
+
+function linkify(html) {
+  return html
+    .replace(/(https?:\/\/[^\s<]+?)([.,;:]?)(?=\s|$)/g, '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>$2')
+    .replace(/([A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,})/g, '<a href="mailto:$1">$1</a>');
+}
+
 function renderAlerts(alerts, tz) {
   const host = el.alerts;
   if (!host) return;
@@ -972,28 +986,37 @@ function renderAlerts(alerts, tz) {
   if (!list.length) { host.hidden = true; host.innerHTML = ""; return; }
   host.hidden = false;
   host.innerHTML = list.map((a) => {
-    const when = alertWhen(a, tz);
-    const meta = [when, a.sender_name].filter(Boolean).map(escapeHTML).join(" · ");
-    const desc = (a.description || "").trim();
-    return `<button class="alert" type="button" aria-expanded="false">
+    const meta = escapeHTML(alertMeta(a, tz));
+    return `<button class="alert" type="button">
       <i class="ph-fill ph-warning-octagon alert-ic" aria-hidden="true"></i>
       <span class="alert-body">
-        <span class="alert-head">
-          <span class="alert-title">${escapeHTML(a.event)}</span>
-          ${desc ? '<i class="ph ph-caret-down alert-chev" aria-hidden="true"></i>' : ""}
-        </span>
+        <span class="alert-title">${escapeHTML(a.event)}</span>
         ${meta ? `<span class="alert-meta">${meta}</span>` : ""}
-        ${desc ? `<span class="alert-desc"><span class="alert-desc-in"><span class="alert-desc-tx">${escapeHTML(desc)}</span></span></span>` : ""}
       </span>
+      <i class="ph ph-caret-right alert-go" aria-hidden="true"></i>
     </button>`;
   }).join("");
-  host.querySelectorAll(".alert").forEach((btn) => {
-    if (!btn.querySelector(".alert-desc")) return;
-    btn.onclick = () => {
-      const open = btn.classList.toggle("is-open");
-      btn.setAttribute("aria-expanded", open ? "true" : "false");
-    };
+  [...host.querySelectorAll(".alert")].forEach((btn, i) => {
+    btn.onclick = () => openAlertModal(list[i], tz);
   });
+}
+
+function openAlertModal(a, tz) {
+  if (!el.alertOverlay) return;
+  el.alertModalTitle.textContent = a.event;
+  el.alertModalMeta.textContent = alertMeta(a, tz);
+  el.alertModalBody.innerHTML = linkify(escapeHTML((a.description || "").trim()));
+  el.alertModalBody.scrollTop = 0;
+  el.alertOverlay.classList.add("is-open");
+  el.alertOverlay.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+}
+
+function closeAlertModal() {
+  if (!el.alertOverlay || !el.alertOverlay.classList.contains("is-open")) return;
+  el.alertOverlay.classList.remove("is-open");
+  el.alertOverlay.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
 }
 
 function applyPalette(kind) {

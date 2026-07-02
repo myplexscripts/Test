@@ -231,6 +231,19 @@
     <p class="radar-note" id="radarNote">Live precipitation radar.</p>
   </section>
 
+  <div class="alert-overlay" id="alertOverlay" aria-hidden="true">
+    <div class="alert-modal" role="dialog" aria-modal="true" aria-labelledby="alertModalTitle">
+      <div class="alert-modal-head">
+        <div class="alert-modal-heading">
+          <h2 class="alert-modal-title" id="alertModalTitle">Weather alert</h2>
+          <span class="alert-modal-meta" id="alertModalMeta"></span>
+        </div>
+        <button class="alert-modal-close" id="alertModalClose" aria-label="Close alert"><i class="ph ph-x"></i></button>
+      </div>
+      <div class="alert-modal-body" id="alertModalBody"></div>
+    </div>
+  </div>
+
   <script src="app.js" defer></script>
 </body>
 </html>

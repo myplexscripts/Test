@@ -335,41 +335,88 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .alerts[hidden] { display: none; }
 .alert {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: var(--s-4);
   width: 100%;
   text-align: left;
+  cursor: pointer;
   border: 2px solid var(--card-border);
   background: var(--card-bg);
   border-radius: var(--r-md);
   padding: var(--s-4);
-  transition: background var(--dur-fast);
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
 }
-.alert:has(.alert-desc) { cursor: pointer; }
-.alert:has(.alert-desc):active { background: var(--card-bg-hi); }
+.alert:active { transform: scale(0.98); background: var(--card-bg-hi); }
 .alert-ic { font-size: 2.2rem; color: var(--ink); flex: 0 0 auto; line-height: 1; }
 .alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s-1); }
-.alert-head { display: flex; align-items: center; gap: var(--s-3); }
-.alert-title { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.05rem; line-height: 1.2; flex: 1; min-width: 0; }
-.alert-chev { font-size: 1.8rem; color: var(--ink); flex: 0 0 auto; transition: transform var(--dur) var(--ease-out); }
-.alert.is-open .alert-chev { transform: rotate(180deg); }
+.alert-title { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.05rem; line-height: 1.2; }
 .alert-meta { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
-.alert-desc {
-  display: grid;
-  grid-template-rows: 0fr;
-  transition: grid-template-rows var(--dur) var(--ease-out);
+.alert-go { font-size: 1.8rem; color: var(--ink); flex: 0 0 auto; }
+
+.alert-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: calc(var(--safe-t) + var(--s-5)) var(--s-5) calc(var(--safe-b) + var(--s-5));
+  background: rgba(0, 0, 0, 0.5);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur) var(--ease-out);
 }
-.alert.is-open .alert-desc { grid-template-rows: 1fr; }
-.alert-desc-in { overflow: hidden; min-height: 0; }
-.alert-desc-tx {
-  display: block;
-  padding-top: var(--s-2);
-  font-size: var(--t-sm);
-  line-height: 1.5;
+.alert-overlay.is-open { opacity: 1; pointer-events: auto; }
+.alert-modal {
+  width: min(560px, 100%);
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--ink);
+  border: 2px solid var(--card-border);
+  border-radius: var(--r-lg);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  transform: translateY(14px) scale(0.98);
+  transition: transform var(--dur) var(--ease-spring);
+}
+.alert-overlay.is-open .alert-modal { transform: none; }
+.alert-modal-head {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+  padding: var(--s-5);
+  border-bottom: 2px solid var(--hairline);
+}
+.alert-modal-heading { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s-1); }
+.alert-modal-title { font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: var(--t-title); line-height: 1.15; }
+.alert-modal-meta { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
+.alert-modal-close {
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  color: var(--ink);
+  background: var(--card-bg);
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.alert-modal-close:active { transform: scale(0.9); background: var(--card-bg-hi); }
+.alert-modal-close i { font-size: 1.5rem; }
+.alert-modal-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  padding: var(--s-5);
+  font-size: var(--t-body);
+  line-height: 1.55;
   font-weight: 500;
   white-space: pre-line;
-  color: color-mix(in srgb, var(--ink) 82%, transparent);
+  color: color-mix(in srgb, var(--ink) 88%, transparent);
 }
+.alert-modal-body a { color: var(--ink); font-weight: 600; text-decoration: underline; text-underline-offset: 2px; word-break: break-word; }
 
 .surface {
   background: var(--surface);
