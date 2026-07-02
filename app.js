@@ -32,7 +32,7 @@ const el = {
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), wear: $("wear"),
   hero: document.querySelector(".hero"),
   miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
-  mWind: $("mWind"), mHumidity: $("mHumidity"), mVisibility: $("mVisibility"),
+  mWind: $("mWind"), mHumidity: $("mHumidity"), mFeels: $("mFeels"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
@@ -355,7 +355,7 @@ function render(data) {
 
   el.mWind.textContent = windText(current.wind?.speed || 0);
   el.mHumidity.textContent = m.humidity != null ? `${m.humidity}%` : "--";
-  el.mVisibility.textContent = visibilityText(current.visibility);
+  el.mFeels.textContent = `${Math.round(m.feels_like ?? m.temp ?? 0)}°`;
 
   renderHourly();
   renderDaily();

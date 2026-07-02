@@ -133,6 +133,20 @@
         <strong id="mHumidity">--</strong><span>Humidity</span>
       </div>
       <div class="metric">
+        <svg class="cond-ic cond-therm" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+          <path d="M160,138V48a32,32,0,0,0-64,0v90a56,56,0,1,0,64,0Z" opacity="0.2"/>
+          <path d="M96,48a32,32,0,0,1,64,0v90a56,56,0,1,1-64,0Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+          <circle cx="128" cy="184" r="24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+          <line class="therm-fill" x1="128" y1="160" x2="128" y2="88" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16">
+            <animate attributeName="y2" values="104;88;104" keyTimes="0;0.5;1" dur="3.4s" calcMode="spline" keySplines="0.42 0 0.58 1;0.42 0 0.58 1" repeatCount="indefinite"/>
+          </line>
+        </svg>
+        <strong id="mFeels">--</strong><span>Feels like</span>
+      </div>
+    </section>
+
+    <template id="tplVisibility">
+      <div class="metric">
         <svg class="cond-ic cond-eye" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
           <path d="M128,56C48,56,16,128,16,128s32,72,112,72,112-72,112-72S208,56,128,56Zm0,112a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z" opacity="0.2"/>
           <path class="eye-outline" d="M128,56C48,56,16,128,16,128s32,72,112,72,112-72,112-72S208,56,128,56Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
@@ -140,7 +154,7 @@
         </svg>
         <strong id="mVisibility">--</strong><span>Visibility</span>
       </div>
-    </section>
+    </template>
 
     <section class="block" aria-label="Hourly forecast">
       <div class="block-head">
