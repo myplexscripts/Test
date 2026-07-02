@@ -783,19 +783,82 @@ function buildDaily(forecast, tz) {
 }
 
 function buildSummary(current, daily) {
-  const m = current.main || {};
-  const w = current.weather?.[0] || {};
-  const feels = Math.round(m.feels_like ?? m.temp ?? 0);
-  const desc = w.description || w.main || "current conditions";
-  const today = daily[0];
-  const range = today ? ` Today ranges from ${Math.round(today.min)}° to ${Math.round(today.max)}°.` : "";
-  const pop = today ? Math.round((today.pop || 0) * 100) : 0;
-  const rain = pop > 0 ? ` There's a ${pop}% chance of precipitation.` : "";
-  const comfort = feels >= 28 ? " It feels hot. Find shade and water."
-    : feels <= 0 ? " It feels freezing. Bundle up."
-    : feels <= 10 ? " It feels chilly. Bring a layer."
-    : " It should feel comfortable.";
-  return `It feels like ${feels}° with ${desc}.${range}${rain}${comfort}`;
+  const tz = state.tz || current.timezone || 0;
+  const today = daily && daily[0];
+  const hrs = restOfToday(tz);
+  const parts = [];
+  const lead = dayLead(current, hrs, today);
+  if (today) parts.push(`${lead}, with a high of ${Math.round(today.max)}° and a low of ${Math.round(today.min)}°.`);
+  else parts.push(`${lead}.`);
+  const precip = precipOutlook(hrs, today, tz);
+  if (precip) parts.push(precip);
+  for (const note of summaryNotes(current, hrs)) parts.push(note);
+  return parts.join(" ");
+}
+
+function restOfToday(tz) {
+  const now = Math.floor(Date.now() / 1000);
+  const key = (t) => new Date((t + tz) * 1000).toISOString().slice(0, 10);
+  const today = key(now);
+  return (state.hourly || []).filter((h) => h.dt >= now - 1800 && key(h.dt) === today);
+}
+
+function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
+
+function dayLead(current, hrs, today) {
+  const mains = (hrs.length ? hrs.map((h) => h.weather?.[0]?.main) : [today && today.main]).filter(Boolean);
+  const any = (re) => mains.some((m) => re.test(m));
+  if (any(/thunder/i)) return "Thunderstorms are possible";
+  if (any(/snow/i)) return "Snow at times";
+  if (any(/rain|drizzle/i)) return "Cloudy with rain at times";
+  if (any(/mist|fog|haze|smoke/i)) return "Areas of fog and haze";
+  const n = mains.length || 1;
+  const cloud = mains.filter((m) => /cloud/i.test(m)).length;
+  const clear = mains.filter((m) => /clear/i.test(m)).length;
+  if (clear >= n * 0.6) return "Clear and sunny";
+  if (cloud >= n * 0.6) return "Cloudy";
+  if (clear && cloud) return "A mix of sun and cloud";
+  const d = current.weather?.[0]?.description || current.weather?.[0]?.main;
+  return d ? cap(d) : "A mixed day";
+}
+
+function precipOutlook(hrs, today, tz) {
+  if (!hrs.length) {
+    const p = today ? Math.round((today.pop || 0) * 100) : 0;
+    if (p >= 40) return `There is a ${p}% chance of precipitation.`;
+    return p > 0 ? "Mostly dry." : "Staying dry.";
+  }
+  const wet = hrs.filter((h) => (h.pop || 0) >= 0.5 || /rain|drizzle|snow|thunder/i.test(h.weather?.[0]?.main || ""));
+  if (!wet.length) {
+    const maxPop = Math.max(...hrs.map((h) => h.pop || 0));
+    return maxPop >= 0.3 ? "A slight chance of a shower later." : "Staying dry.";
+  }
+  const snowy = wet.some((h) => /snow/i.test(h.weather?.[0]?.main || "")) || wet.every((h) => (h.main?.temp ?? 5) <= 0);
+  const type = snowy ? "snow" : "rain";
+  if (wet.length >= hrs.length * 0.6) return `Periods of ${type} through the day.`;
+  return `${cap(type)} likely from around ${fmtHour(wet[0].dt, tz)}.`;
+}
+
+function summaryNotes(current, hrs) {
+  const out = [];
+  const toC = (t) => t == null ? null : (state.units === "imperial" ? (t - 32) * 5 / 9 : t);
+  const feels = (hrs.length ? hrs.map((h) => h.main?.feels_like ?? h.main?.temp) : [current.main?.feels_like ?? current.main?.temp]).filter((v) => v != null);
+  if (feels.length) {
+    const hi = toC(Math.max(...feels)), lo = toC(Math.min(...feels));
+    if (hi >= 32) out.push("It stays hot through the afternoon, so keep water handy.");
+    else if (lo <= -12) out.push("It stays bitterly cold, so dress in warm layers.");
+  }
+  const winds = hrs.length ? hrs.map((h) => h.wind?.gust ?? h.wind?.speed ?? 0) : [current.wind?.gust ?? current.wind?.speed ?? 0];
+  const mw = Math.max(...winds);
+  const kmh = state.units === "imperial" ? mw * 1.609 : mw * 3.6;
+  if (kmh >= 45) out.push(`Winds pick up, gusting to ${windText(mw)}.`);
+  const uvArr = state.data?.air?.hourly?.uv_index;
+  const uvMax = uvArr && uvArr.length ? Math.max(...uvArr.filter(Number.isFinite)) : (state.data?.air?.uv_index ?? 0);
+  if (uvMax >= 8) out.push("UV climbs to very high near midday, so sun protection matters.");
+  else if (uvMax >= 6) out.push("UV is high near midday, so wear sunscreen.");
+  const aqi = state.data?.air?.us_aqi;
+  if (aqi != null && aqi > 150) out.push("Air quality is unhealthy today.");
+  return out.slice(0, 2);
 }
 
 function buildWear(current, daily) {
