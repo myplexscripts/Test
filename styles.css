@@ -193,6 +193,21 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   transition: transform var(--dur) var(--ease-spring);
 }
 
+.app-cols { display: flex; flex-direction: column; gap: var(--s-8); }
+.col { display: flex; flex-direction: column; gap: var(--s-8); min-width: 0; }
+
+@media (min-width: 980px) {
+  .app { width: min(1180px, 100%); }
+  .app-cols {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+    align-items: start;
+    gap: var(--s-10);
+  }
+  .col-now .display { font-size: clamp(6rem, 11vw, 9rem); }
+  .col-now .hero-icon { font-size: clamp(3.25rem, 6vw, 5rem); }
+}
+
 .topbar {
   display: grid;
   grid-template-columns: 48px 1fr 48px;
