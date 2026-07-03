@@ -2,12 +2,12 @@
 :root {
   color-scheme: light;
 
-  --bg: #ffd83d;
-  --ink: #0a0a0a;
-  --surface: #0a0a0a;
-  --on-surface: #fffdf8;
-  --surface-accent: #ffd83d;
-  --theme: #ffd83d;
+  --bg: #F3E17B;
+  --ink: #231c06;
+  --surface: #231c06;
+  --on-surface: #fffbe9;
+  --surface-accent: #f6e788;
+  --theme: #231c06;
 
   --ink-soft: color-mix(in srgb, var(--ink) 60%, transparent);
   --ink-faint: color-mix(in srgb, var(--ink) 38%, transparent);

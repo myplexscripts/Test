@@ -11,15 +11,20 @@ const CACHE_KEY = "hw_cache_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
 
 const PALETTES = {
-  sunny:       { bg: "#ffe142", ink: "#0a0a0a", surface: "#0a0a0a", onSurface: "#fffdf8", accent: "#ffd83d", dark: false },
-  mostlyclear: { bg: "#42c6ff", ink: "#06222f", surface: "#06222f", onSurface: "#eafaff", accent: "#5fd0ff", dark: false },
-  cloudy:      { bg: "#b8d7ff", ink: "#0b1f3a", surface: "#0b1f3a", onSurface: "#eef5ff", accent: "#7fb4ff", dark: false },
-  rain:        { bg: "#4a90e2", ink: "#05203b", surface: "#05203b", onSurface: "#eaf2ff", accent: "#8fc8ff", dark: false },
-  storm:       { bg: "#243b6b", ink: "#eef2ff", surface: "#0d1733", onSurface: "#f4f6ff", accent: "#8aa6ee", dark: true  },
-  snow:        { bg: "#ffffff", ink: "#0b1626", surface: "#0b1626", onSurface: "#eef5ff", accent: "#79b6ff", dark: false },
-  night:       { bg: "#0b132b", ink: "#e9ecff", surface: "#0a1024", onSurface: "#f4f6ff", accent: "#7e9be0", dark: true  },
-  sunset:      { bg: "#ff64d4", ink: "#2b0a24", surface: "#2b0a24", onSurface: "#ffe9fa", accent: "#ff8fe0", dark: false },
-  newmoon:     { bg: "#000000", ink: "#ffffff", surface: "#ffffff", onSurface: "#0a0a0a", accent: "#0a0a0a", dark: true, statusBar: "#1c1c1e" }
+  lemon:   { bg: "#F3E17B", ink: "#231c06", surface: "#231c06", onSurface: "#fffbe9", accent: "#f6e788", dark: false },
+  rose:    { bg: "#D94E62", ink: "#2e070f", surface: "#2e070f", onSurface: "#ffedf0", accent: "#e56f80", dark: false },
+  sand:    { bg: "#BF9370", ink: "#271608", surface: "#271608", onSurface: "#f9f0e7", accent: "#cfa67f", dark: false },
+  sage:    { bg: "#9ACF77", ink: "#16260c", surface: "#16260c", onSurface: "#f3fbeb", accent: "#a8dc85", dark: false },
+  ocean:   { bg: "#3982AD", ink: "#062231", surface: "#062231", onSurface: "#e9f4fb", accent: "#5ea6cd", dark: false },
+  lilac:   { bg: "#B4A1E3", ink: "#1b1233", surface: "#1b1233", onSurface: "#f5f1fd", accent: "#c2b1ec", dark: false },
+  orchid:  { bg: "#C975CF", ink: "#2a0b2d", surface: "#2a0b2d", onSurface: "#fbeffc", accent: "#d78ddc", dark: false },
+  slate:   { bg: "#8B8D9C", ink: "#14151b", surface: "#14151b", onSurface: "#f2f3f6", accent: "#a4a6b4", dark: false },
+  newmoon: { bg: "#000000", ink: "#ffffff", surface: "#ffffff", onSurface: "#0a0a0a", accent: "#0a0a0a", dark: true, statusBar: "#1c1c1e" }
+};
+
+const THEME_REMAP = {
+  sunny: "lemon", mostlyclear: "ocean", cloudy: "slate", rain: "ocean",
+  storm: "slate", snow: "lilac", night: "newmoon", sunset: "rose"
 };
 
 const $ = (id) => document.getElementById(id);
@@ -52,7 +57,7 @@ const state = {
   hourly: [],
   daily: [],
   detail: { metric: "temp", range: "hourly" },
-  theme: "sunny",
+  theme: "lemon",
   center: { ...HOME },
   tz: 0,
   placeName: "",
@@ -1030,7 +1035,7 @@ function closeAlertModal() {
 }
 
 function applyPalette(kind) {
-  const p = PALETTES[kind] || PALETTES.sunny;
+  const p = PALETTES[kind] || PALETTES.lemon;
   const r = document.documentElement.style;
   r.setProperty("--bg", p.bg);
   r.setProperty("--ink", p.ink);
@@ -1048,11 +1053,11 @@ function applyPalette(kind) {
 }
 
 function themeKind() {
-  return PALETTES[state.theme] ? state.theme : "sunny";
+  return PALETTES[state.theme] ? state.theme : "lemon";
 }
 
 function setTheme(theme) {
-  state.theme = PALETTES[theme] ? theme : "sunny";
+  state.theme = PALETTES[theme] ? theme : "lemon";
   saveState();
   el.themeGrid.querySelectorAll("[data-theme]").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.theme === state.theme));
@@ -2311,7 +2316,7 @@ function loadState() {
     if (s) {
       state.units = s.units || "metric";
       state.loc = s.loc || { ...HOME };
-      state.theme = PALETTES[s.theme] ? s.theme : "sunny";
+      state.theme = PALETTES[s.theme] ? s.theme : (THEME_REMAP[s.theme] || "lemon");
     }
   } catch {}
 }
