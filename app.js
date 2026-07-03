@@ -41,6 +41,7 @@ const el = {
   miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mFeels: $("mFeels"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
+  trendGraph: $("trendGraph"), trendCard: $("trendCard"), trendMore: $("trendMore"),
   sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
@@ -141,6 +142,8 @@ function wireEvents() {
 
   el.hourlyMore.onclick = () => openDetail("temp", "hourly");
   el.dailyMore.onclick = () => openDetail("temp", "daily");
+  if (el.trendMore) el.trendMore.onclick = () => openDetail("temp", "daily");
+  if (el.trendCard) el.trendCard.onclick = () => openDetail("temp", "daily");
   el.sheetBack.onclick = sheetBack;
   el.windCard.onclick = () => openDetail("wind");
   if (el.moonCard) el.moonCard.onclick = () => openDetail("moon");
@@ -175,6 +178,7 @@ function wireEvents() {
 
   window.addEventListener("resize", () => {
     if (radar.preview) radar.preview.invalidateSize();
+    if (state.data) drawTrend();
     if (!state.sheetOpen) return;
     if (state.detail.metric === "uv") drawUvChart(state.data?.air?.hourly);
     else if (state.detail.metric !== "aqi") drawDetailChart();
@@ -448,6 +452,7 @@ function render(data) {
 
   renderHourly();
   renderDaily();
+  drawTrend();
   renderWind(current);
   renderSun(current);
   renderMoon(current);
@@ -1054,6 +1059,7 @@ function applyPalette(kind) {
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;
   updateMapTheme();
+  if (state.data) drawTrend();
 }
 
 function themeKind() {
@@ -1634,6 +1640,134 @@ function hexA(hex, a) {
 }
 
 let chartGeom = null, chartRedraw = null;
+
+// Large daily-trend tile: temperature line + precipitation bars across the
+// coming days, drawn in the theme ink to match the flat monochrome look.
+function drawTrend() {
+  const canvas = el.trendGraph;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.max(1, Math.round(rect.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+
+  const list = state.data?.forecast?.list || [];
+  const tz = state.tz || 0;
+  const pts = list
+    .map((it) => ({
+      t: it.dt,
+      temp: it.main?.temp,
+      precip: (it.rain?.["3h"] || 0) + (it.snow?.["3h"] || 0)
+    }))
+    .filter((p) => Number.isFinite(p.temp))
+    .slice(0, 40);
+  if (pts.length < 2) return;
+
+  const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#050505";
+  const font = "Inter, system-ui, sans-serif";
+
+  const temps = pts.map((p) => p.temp);
+  let tMin = Math.min(...temps), tMax = Math.max(...temps);
+  if (tMin === tMax) { tMin -= 1; tMax += 1; }
+  const tPad = (tMax - tMin) * 0.28 || 1;
+  tMin -= tPad; tMax += tPad;
+  const maxPrecip = Math.max(0.1, ...pts.map((p) => p.precip));
+
+  const padL = 34, padR = 12, padTop = 18, padB = 26;
+  const W = rect.width, H = rect.height;
+  const x0 = padL, x1 = W - padR;
+  const y0 = padTop, y1 = H - padB, plotH = y1 - y0;
+  const slotW = (x1 - x0) / (pts.length - 1);
+  const X = (i) => x0 + slotW * i;
+  const Y = (v) => y1 - ((v - tMin) / (tMax - tMin)) * plotH;
+  const barMaxH = plotH * 0.42;
+
+  // group consecutive points into local days
+  const days = [];
+  pts.forEach((p, i) => {
+    const d = new Date((p.t + tz) * 1000);
+    const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
+    const last = days[days.length - 1];
+    if (!last || last.key !== key) days.push({ key, i0: i, i1: i, t: p.t });
+    else last.i1 = i;
+  });
+
+  // horizontal gridlines + temperature axis labels
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "right";
+  ctx.font = `600 11px ${font}`;
+  const lines = 4;
+  for (let i = 0; i < lines; i++) {
+    const v = tMax - ((tMax - tMin) / (lines - 1)) * i;
+    const gy = Y(v);
+    ctx.strokeStyle = hexA(ink, 0.1); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0, gy); ctx.lineTo(x1, gy); ctx.stroke();
+    ctx.fillStyle = hexA(ink, 0.5);
+    ctx.fillText(`${Math.round(v)}°`, x0 - 8, gy);
+  }
+
+  // day dividers
+  ctx.strokeStyle = hexA(ink, 0.14); ctx.lineWidth = 1;
+  days.forEach((dg) => {
+    if (dg.i0 === 0) return;
+    const gx = X(dg.i0) - slotW / 2;
+    ctx.beginPath(); ctx.moveTo(gx, y0); ctx.lineTo(gx, y1); ctx.stroke();
+  });
+
+  // precipitation bars
+  const barW = Math.min(slotW * 0.6, 12);
+  pts.forEach((p, i) => {
+    if (p.precip <= 0) return;
+    const bh = (p.precip / maxPrecip) * barMaxH;
+    ctx.fillStyle = hexA(ink, 0.22);
+    ctx.fillRect(X(i) - barW / 2, y1 - bh, barW, bh);
+  });
+
+  // temperature area fill
+  const curve = () => {
+    pts.forEach((p, i) => {
+      const px = X(i), py = Y(p.temp);
+      if (i === 0) ctx.moveTo(px, py);
+      else { const cx = (X(i - 1) + px) / 2; ctx.bezierCurveTo(cx, Y(pts[i - 1].temp), cx, py, px, py); }
+    });
+  };
+  ctx.beginPath(); curve();
+  ctx.lineTo(X(pts.length - 1), y1); ctx.lineTo(X(0), y1); ctx.closePath();
+  const grad = ctx.createLinearGradient(0, y0, 0, y1);
+  grad.addColorStop(0, hexA(ink, 0.2)); grad.addColorStop(1, hexA(ink, 0));
+  ctx.fillStyle = grad; ctx.fill();
+
+  // temperature line
+  ctx.beginPath(); curve();
+  ctx.strokeStyle = ink; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round";
+  ctx.stroke();
+
+  // per-day high markers + labels
+  ctx.fillStyle = ink;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "alphabetic";
+  ctx.font = `700 11px ${font}`;
+  days.forEach((dg) => {
+    let hiIdx = dg.i0, hiV = -Infinity;
+    for (let i = dg.i0; i <= dg.i1; i++) { if (pts[i].temp > hiV) { hiV = pts[i].temp; hiIdx = i; } }
+    const px = X(hiIdx), py = Y(hiV);
+    ctx.fillStyle = ink;
+    ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
+    ctx.fillText(`${Math.round(hiV)}°`, Math.max(x0 + 12, Math.min(x1 - 12, px)), py - 9);
+  });
+
+  // bottom day labels, centred over each day's span
+  ctx.fillStyle = hexA(ink, 0.55);
+  ctx.font = `700 11px ${font}`;
+  days.forEach((dg) => {
+    const cx = (X(dg.i0) + X(dg.i1)) / 2;
+    ctx.fillText(dayLabel(dg.t, tz), Math.max(x0 + 14, Math.min(x1 - 14, cx)), H - 8);
+  });
+}
 
 function drawChart(rows, m, dual, showNow) {
   const canvas = el.graph;

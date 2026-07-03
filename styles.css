@@ -220,8 +220,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   .app-cols {
     display: grid;
     grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-    grid-template-rows: auto auto auto 1fr;
+    grid-template-rows: auto auto auto auto 1fr;
     grid-template-areas:
+      "now trend"
       "now hourly"
       "now daily"
       "now radar"
@@ -236,6 +237,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
     position: sticky;
     top: var(--s-6);
   }
+  .b-trend { grid-area: trend; }
   .b-hourly { grid-area: hourly; }
   .b-daily { grid-area: daily; }
   .b-radar { grid-area: radar; }
@@ -264,8 +266,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 @media (min-width: 1240px) {
   .app-cols {
     grid-template-columns: minmax(280px, 350px) minmax(0, 1fr) minmax(250px, 320px);
-    grid-template-rows: auto auto 1fr;
+    grid-template-rows: auto auto auto 1fr;
     grid-template-areas:
+      "now trend  daily"
       "now hourly daily"
       "now radar  daily"
       "now today  daily";
@@ -844,6 +847,23 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .radar-preview:active { transform: scale(0.98); }
 .radar-map { position: absolute; inset: 0; }
+
+.trend-card {
+  display: block;
+  width: 100%;
+  padding: var(--s-4) var(--s-3) var(--s-3);
+  border: 2px solid var(--card-border);
+  border-radius: var(--r-lg);
+  background: var(--card-bg);
+  color: var(--ink);
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+.trend-card:active { transform: scale(0.98); }
+.trend-card #trendGraph {
+  display: block;
+  width: 100%;
+  height: clamp(190px, 30vh, 240px);
+}
 
 .radar-sheet {
   display: flex;
