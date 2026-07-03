@@ -168,6 +168,7 @@ function wireEvents() {
   if (el.alertOverlay) el.alertOverlay.onclick = (e) => { if (e.target === el.alertOverlay) closeAlertModal(); };
 
   window.addEventListener("resize", () => {
+    if (radar.preview) radar.preview.invalidateSize();
     if (!state.sheetOpen) return;
     if (state.detail.metric === "uv") drawUvChart(state.data?.air?.hourly);
     else if (state.detail.metric !== "aqi") drawDetailChart();
@@ -201,8 +202,17 @@ async function refresh(force) {
   }
 }
 
-async function fetchJSON(url) {
-  const res = await fetch(url, { cache: "no-store" });
+async function fetchJSON(url, timeoutMs = 15000) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetch(url, { cache: "no-store", signal: ctl.signal });
+  } catch (err) {
+    throw err.name === "AbortError" ? new Error("Request timed out") : err;
+  } finally {
+    clearTimeout(timer);
+  }
   const text = await res.text();
   let data;
   try { data = JSON.parse(text); } catch { data = { message: text || res.statusText }; }
