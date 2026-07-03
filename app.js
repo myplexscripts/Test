@@ -705,24 +705,27 @@ function renderWind(current) {
 }
 
 function compassSVG(rot, value, unit) {
+  // Radii (viewBox 0..120, centre 60): centre text < ~18, arrow band 20-30,
+  // tick ring 34-42, cardinal labels at 51 — each in its own gap so nothing
+  // overlaps at any rotation.
   let ticks = "";
   for (let i = 0; i < 72; i++) {
     const major = i % 9 === 0;
     const a = (i * 5) * Math.PI / 180;
-    const r1 = 47, r2 = major ? 38 : 43;
+    const r1 = 42, r2 = major ? 34 : 38;
     const x1 = (60 + r1 * Math.sin(a)).toFixed(1), y1 = (60 - r1 * Math.cos(a)).toFixed(1);
     const x2 = (60 + r2 * Math.sin(a)).toFixed(1), y2 = (60 - r2 * Math.cos(a)).toFixed(1);
     ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke-width="${major ? 2 : 1}"/>`;
   }
   return `<svg viewBox="0 0 120 120" class="compass-svg" aria-hidden="true">
-    <g class="compass-ticks" stroke="var(--ink)" opacity="0.45">${ticks}</g>
-    <text x="60" y="15" class="compass-card">N</text>
-    <text x="106" y="60" class="compass-card">E</text>
-    <text x="60" y="106" class="compass-card">S</text>
-    <text x="14" y="60" class="compass-card">W</text>
-    <g class="compass-rot" transform="rotate(${rot} 60 60)"><path class="compass-arrow" d="M60 28 L66 45 L60 40 L54 45 Z"/></g>
-    <text x="60" y="59" class="compass-value">${value}</text>
-    <text x="60" y="73" class="compass-unit">${unit}</text>
+    <g class="compass-ticks" stroke="var(--ink)" opacity="0.4">${ticks}</g>
+    <text x="60" y="9" class="compass-card">N</text>
+    <text x="111" y="60" class="compass-card">E</text>
+    <text x="60" y="111" class="compass-card">S</text>
+    <text x="9" y="60" class="compass-card">W</text>
+    <g class="compass-rot" transform="rotate(${rot} 60 60)"><path class="compass-arrow" d="M60 30 L66 40 L60 36 L54 40 Z"/></g>
+    <text x="60" y="58" class="compass-value">${value}</text>
+    <text x="60" y="72" class="compass-unit">${unit}</text>
   </svg>`;
 }
 

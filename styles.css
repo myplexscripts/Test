@@ -646,7 +646,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .card strong { font-size: 1.3rem; font-weight: 700; line-height: 1; }
 .card span { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); line-height: 1.2; }
 
-.hour-card { width: 104px; }
+.hour-card { width: 116px; }
 .day-card { width: 116px; }
 .day-card .hi { font-size: 1.45rem; }
 .day-card .lo { color: var(--ink-soft); font-weight: 700; }
@@ -738,7 +738,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .wind-row strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
 .wind-compass { width: 124px; height: 124px; flex: 0 0 auto; }
 .compass-svg { width: 100%; height: 100%; display: block; }
-.compass-card { fill: var(--ink-soft); font-size: 9px; font-weight: 700; text-anchor: middle; dominant-baseline: middle; font-family: Inter, sans-serif; }
+.compass-card { fill: var(--ink-soft); font-size: 10px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; font-family: Inter, sans-serif; }
 .compass-arrow { fill: var(--ink); }
 .compass-value { fill: var(--ink); font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: 19px; text-anchor: middle; }
 .compass-unit { fill: var(--ink-soft); font-size: 8px; font-weight: 700; text-anchor: middle; letter-spacing: 0.04em; }
@@ -1394,7 +1394,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
   :root { --gutter: 18px; }
   .icon-btn i { font-size: 2.2rem; }
   .metric i { font-size: 2.1rem; }
-  .hour-card { width: 92px; }
+  .hour-card { width: 104px; }
   .day-card { width: 104px; }
 }
 
