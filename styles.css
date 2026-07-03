@@ -61,11 +61,16 @@ html, body {
   min-height: 100%;
   width: 100%;
   overflow-x: hidden;
-  scrollbar-width: none;
-  -ms-overflow-style: none;
 }
-html::-webkit-scrollbar, body::-webkit-scrollbar, .sheet::-webkit-scrollbar { display: none; }
+/* Hide the page scrollbar on touch / small screens for a clean, app-like feel.
+   On desktop keep the native scrollbar so mouse users have a visible, draggable
+   scroll affordance — hiding it globally made the desktop layout feel unscrollable. */
+@media (max-width: 999px) {
+  html, body { scrollbar-width: none; -ms-overflow-style: none; }
+  html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
+}
 .sheet { scrollbar-width: none; -ms-overflow-style: none; }
+.sheet::-webkit-scrollbar { display: none; }
 
 html {
   background: var(--bg);
