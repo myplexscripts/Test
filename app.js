@@ -10,21 +10,22 @@ const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
 
+// Every theme follows one rule: surface = ink, on-surface = bg, accent = bg.
+// Light themes paint text/surfaces in solid black (#050505); Night inverts it to
+// #fafafa. No dynamically-tinted inks — just the base colour and black (or its
+// inverse for Night).
 const PALETTES = {
-  lemon:   { bg: "#F3E17B", ink: "#231c06", surface: "#231c06", onSurface: "#fffbe9", accent: "#f6e788", dark: false },
-  rose:    { bg: "#D94E62", ink: "#2e070f", surface: "#2e070f", onSurface: "#ffedf0", accent: "#e56f80", dark: false },
-  sand:    { bg: "#BF9370", ink: "#271608", surface: "#271608", onSurface: "#f9f0e7", accent: "#cfa67f", dark: false },
-  sage:    { bg: "#9ACF77", ink: "#16260c", surface: "#16260c", onSurface: "#f3fbeb", accent: "#a8dc85", dark: false },
-  ocean:   { bg: "#3982AD", ink: "#062231", surface: "#062231", onSurface: "#e9f4fb", accent: "#5ea6cd", dark: false },
-  lilac:   { bg: "#B4A1E3", ink: "#1b1233", surface: "#1b1233", onSurface: "#f5f1fd", accent: "#c2b1ec", dark: false },
-  orchid:  { bg: "#C975CF", ink: "#2a0b2d", surface: "#2a0b2d", onSurface: "#fbeffc", accent: "#d78ddc", dark: false },
-  slate:   { bg: "#8B8D9C", ink: "#14151b", surface: "#14151b", onSurface: "#f2f3f6", accent: "#a4a6b4", dark: false },
-  newmoon: { bg: "#000000", ink: "#ffffff", surface: "#ffffff", onSurface: "#0a0a0a", accent: "#0a0a0a", dark: true, statusBar: "#1c1c1e" }
+  lemon:  { bg: "#ffe442", ink: "#050505", surface: "#050505", onSurface: "#ffe442", accent: "#ffe442", dark: false },
+  sand:   { bg: "#f3bf7b", ink: "#050505", surface: "#050505", onSurface: "#f3bf7b", accent: "#f3bf7b", dark: false },
+  orchid: { bg: "#d37bf3", ink: "#050505", surface: "#050505", onSurface: "#d37bf3", accent: "#d37bf3", dark: false },
+  sage:   { bg: "#99f37b", ink: "#050505", surface: "#050505", onSurface: "#99f37b", accent: "#99f37b", dark: false },
+  night:  { bg: "#050505", ink: "#fafafa", surface: "#fafafa", onSurface: "#050505", accent: "#050505", dark: true, statusBar: "#050505" }
 };
 
+// Migrate any theme key that no longer exists (from older saved state) onto one
+// of the five current themes.
 const THEME_REMAP = {
-  sunny: "lemon", mostlyclear: "ocean", cloudy: "slate", rain: "ocean",
-  storm: "slate", snow: "lilac", night: "newmoon", sunset: "rose"
+  rose: "orchid", ocean: "orchid", lilac: "orchid", slate: "night", newmoon: "night"
 };
 
 const $ = (id) => document.getElementById(id);

@@ -2,12 +2,12 @@
 :root {
   color-scheme: light;
 
-  --bg: #F3E17B;
-  --ink: #231c06;
-  --surface: #231c06;
-  --on-surface: #fffbe9;
-  --surface-accent: #f6e788;
-  --theme: #231c06;
+  --bg: #ffe442;
+  --ink: #050505;
+  --surface: #050505;
+  --on-surface: #ffe442;
+  --surface-accent: #ffe442;
+  --theme: #050505;
   --moon-lit: var(--bg);
   --moon-shadow: var(--ink);
 
@@ -162,12 +162,14 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .mini-temp { margin-left: auto; font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: 1.5rem; flex: 0 0 auto; }
 @media (min-width: 821px) { .mini-header { display: none; } }
 
-[data-theme="newmoon"] .mini-header,
-[data-theme="newmoon"] .drawer {
+/* In Night mode the card surface is light (#fafafa); keep the mini-header and
+   drawer dark so the app chrome still reads as night. */
+[data-theme="night"] .mini-header,
+[data-theme="night"] .drawer {
   --surface: #1c1c1e;
-  --on-surface: #ffffff;
-  --on-surface-soft: color-mix(in srgb, #ffffff 64%, transparent);
-  --surface-accent: #ffffff;
+  --on-surface: #fafafa;
+  --on-surface-soft: color-mix(in srgb, #fafafa 64%, transparent);
+  --surface-accent: #fafafa;
 }
 
 .ptr {
