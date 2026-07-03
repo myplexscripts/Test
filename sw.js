@@ -1,11 +1,13 @@
-const CACHE_NAME = "home-weather-shell-v71";
+const CACHE_NAME = "home-weather-shell-v72";
 const SHELL_FILES = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
   "./manifest.json",
-  "./icon.svg"
+  "./icon.svg",
+  "./vendor/leaflet/leaflet.js",
+  "./vendor/leaflet/leaflet.css"
 ];
 
 self.addEventListener("install", (event) => {

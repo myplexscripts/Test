@@ -1975,6 +1975,7 @@ async function initRadarPreview() {
   // be parsed yet. Retry until it is, instead of giving up until the next render.
   if (!haveLeaflet()) {
     if ((radar._previewTries = (radar._previewTries || 0) + 1) <= 60) setTimeout(initRadarPreview, 200);
+    else if (el.radarPreviewMap) el.radarPreviewMap.innerHTML = '<div class="map-fallback">Map unavailable right now.</div>';
     return;
   }
   try {
@@ -1984,6 +1985,12 @@ async function initRadarPreview() {
       doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, tap: false
     }).setView([c.lat, c.lon], 9);
     radar.previewBase = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(radar.preview);
+    // If the basemap CDN fails, fall back to OpenStreetMap so the preview never
+    // stays a black box.
+    let previewTileErrs = 0;
+    radar.previewBase.on("tileerror", () => {
+      if (++previewTileErrs === 8 && radar.previewBase) radar.previewBase.setUrl("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+    });
     setPinMarker(radar.preview, "previewMarker");
     // Recompute size on rAF, a few delays, and whenever the container's box
     // changes — this fixes the occasional blank/black map that appears when it
@@ -2031,6 +2038,10 @@ function initRadarMap() {
     radar.base = L.tileLayer(radarTileUrl(), {
       subdomains: "abcd", maxZoom: 19, updateWhenZooming: false, keepBuffer: 1, attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(radar.map);
+    let baseTileErrs = 0;
+    radar.base.on("tileerror", () => {
+      if (++baseTileErrs === 8 && radar.base) radar.base.setUrl("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+    });
     setPinMarker(radar.map, "marker");
   } catch {
     el.radarMap.innerHTML = '<div class="map-fallback">The map could not be loaded.</div>';
