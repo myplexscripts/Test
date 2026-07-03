@@ -396,10 +396,10 @@ function moonSVG(frac) {
   const limb = waxing ? 1 : 0;
   const term = gibbous ? limb : 1 - limb;
   const top = `${c} ${c - r}`, bot = `${c} ${c + r}`;
-  const shadow = `M ${top} A ${r} ${r} 0 0 ${1 - limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
+  const lit = `M ${top} A ${r} ${r} 0 0 ${limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
   return `<svg viewBox="0 0 52 52" class="moon-svg" aria-hidden="true">
     <circle cx="${c}" cy="${c}" r="${r}" fill="var(--ink)" opacity="0.16"/>
-    <path d="${shadow}" fill="var(--ink)"/>
+    <path d="${lit}" fill="var(--ink)"/>
   </svg>`;
 }
 
