@@ -432,7 +432,7 @@ function render(data) {
   el.temp.classList.remove("is-loading");
   el.summary.textContent = buildSummary(current, state.daily);
   if (el.wear) {
-    el.wear.innerHTML = `<button class="wear-toggle" type="button" aria-expanded="false"><span class="wear-label">What to wear</span><i class="ph ph-caret-down wear-chev" aria-hidden="true"></i></button><div class="wear-content"><div class="wear-clip"><p class="wear-text">${buildWear(current, state.daily)}</p></div></div>`;
+    el.wear.innerHTML = `<button class="wear-toggle" type="button" aria-expanded="false"><span class="wear-head"><i class="ph ph-coat-hanger wear-ic" aria-hidden="true"></i><span class="wear-label">What to wear</span></span><i class="ph ph-caret-down wear-chev" aria-hidden="true"></i></button><div class="wear-content"><div class="wear-clip"><p class="wear-text">${buildWear(current, state.daily)}</p></div></div>`;
     el.wear.classList.remove("is-open");
     const wt = el.wear.querySelector(".wear-toggle");
     wt.onclick = () => {
@@ -1967,16 +1967,31 @@ function setPinMarker(map, ref) {
 }
 
 async function initRadarPreview() {
-  if (!haveLeaflet() || radar.preview) return;
+  if (radar.preview) return;
+  // The Leaflet script is deferred, so on the first (cached) render it may not
+  // be parsed yet. Retry until it is, instead of giving up until the next render.
+  if (!haveLeaflet()) {
+    if ((radar._previewTries = (radar._previewTries || 0) + 1) <= 60) setTimeout(initRadarPreview, 200);
+    return;
+  }
   try {
     const c = state.center;
     radar.preview = L.map(el.radarPreviewMap, {
       zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false,
       doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, tap: false
-    }).setView([c.lat, c.lon], 6);
+    }).setView([c.lat, c.lon], 9);
     radar.previewBase = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(radar.preview);
     setPinMarker(radar.preview, "previewMarker");
-    requestAnimationFrame(() => radar.preview && radar.preview.invalidateSize());
+    // Recompute size on rAF, a few delays, and whenever the container's box
+    // changes — this fixes the occasional blank/black map that appears when it
+    // initialises before the layout has settled.
+    const invalidate = () => radar.preview && radar.preview.invalidateSize();
+    requestAnimationFrame(invalidate);
+    [120, 500, 1000].forEach((d) => setTimeout(invalidate, d));
+    if ("ResizeObserver" in window && !radar._previewRO) {
+      radar._previewRO = new ResizeObserver(invalidate);
+      radar._previewRO.observe(el.radarPreviewMap);
+    }
     if (inCanada(c.lat, c.lon)) {
       const frames = await ensureEccc().catch(() => null);
       if (radar.preview && frames && frames.length) {
@@ -2001,7 +2016,6 @@ async function initRadarPreview() {
         L.tileLayer(rvUrl(frames[radar.idx]), { opacity: 0.8, tileSize: RV_SIZE }).addTo(radar.preview);
       }
     }
-    setTimeout(() => radar.preview && radar.preview.invalidateSize(), 400);
   } catch {}
 }
 
@@ -2010,7 +2024,7 @@ function initRadarMap() {
   const c = state.center;
   if (radar.map) { radar.map.setView([c.lat, c.lon]); return; }
   try {
-    radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: false, preferCanvas: true, minZoom: 3, maxZoom: 12 }).setView([c.lat, c.lon], 7);
+    radar.map = L.map(el.radarMap, { zoomControl: true, attributionControl: false, preferCanvas: true, minZoom: 3, maxZoom: 12 }).setView([c.lat, c.lon], 9);
     radar.base = L.tileLayer(radarTileUrl(), {
       subdomains: "abcd", maxZoom: 19, updateWhenZooming: false, keepBuffer: 1, attribution: '&copy; OpenStreetMap &copy; CARTO'
     }).addTo(radar.map);
@@ -2520,6 +2534,12 @@ function initGestures() {
   const EDGE = 26, OPEN = 55, DISMISS = 95, PTR_TRIGGER = 72;
   let mode = null;
   let sx = 0, sy = 0, dist = 0;
+
+  // Block Safari's pinch-to-zoom of the page. Leaflet maps zoom via their own
+  // touch handling, so map pinch still works. (Double-tap zoom is blocked via
+  // touch-action: manipulation in CSS.)
+  ["gesturestart", "gesturechange", "gestureend"].forEach((ev) =>
+    document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
 
   document.addEventListener("touchstart", (e) => {
     if (e.touches.length !== 1) { mode = null; return; }

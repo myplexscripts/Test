@@ -53,7 +53,18 @@
 }
 
 * { box-sizing: border-box; }
-*::selection { background: var(--ink); color: var(--bg); }
+
+/* App-like feel: no text selection / long-press callout / copy-paste menus.
+   Inputs stay selectable so typing still works. */
+html {
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+input, textarea, [contenteditable="true"] {
+  -webkit-user-select: text;
+  user-select: text;
+}
 
 html, body {
   margin: 0;
@@ -93,6 +104,7 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
   transition: color var(--dur-slow) var(--ease-out);
 }
 
@@ -422,6 +434,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   width: 100%;
   text-align: left;
 }
+.wear-head { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
+.wear-ic { font-size: 1.2rem; color: var(--ink-soft); flex: 0 0 auto; }
 .wear-label {
   font-size: var(--t-cap);
   font-weight: 700;
