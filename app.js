@@ -1652,8 +1652,8 @@ function hexA(hex, a) {
 
 let chartGeom = null, chartRedraw = null;
 
-// Large daily-trend tile: temperature line + precipitation bars across the
-// coming days, drawn in the theme ink to match the flat monochrome look.
+// Today's trend tile: temperature line + precipitation bars across the current
+// day only, at hourly resolution, drawn in the theme ink to match the flat look.
 function drawTrend() {
   const canvas = el.trendGraph;
   if (!canvas) return;
@@ -1666,16 +1666,28 @@ function drawTrend() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, rect.width, rect.height);
 
-  const list = state.data?.forecast?.list || [];
   const tz = state.tz || 0;
-  const pts = list
-    .map((it) => ({
-      t: it.dt,
-      temp: it.main?.temp,
-      precip: (it.rain?.["3h"] || 0) + (it.snow?.["3h"] || 0)
-    }))
-    .filter((p) => Number.isFinite(p.temp))
-    .slice(0, 40);
+  const nowSec = Math.floor(Date.now() / 1000);
+  const localDay = (sec) => { const d = new Date((sec + tz) * 1000); return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`; };
+  const today = localDay(nowSec);
+
+  // Hourly resolution (open-meteo) is preferred; fall back to the 3-hourly OWM
+  // forecast. Both are filtered to the current local day.
+  const fromHourly = (state.data?.hourly || [])
+    .map((it) => ({ t: it.dt, temp: it.main?.temp, precip: it.precip || 0 }))
+    .filter((p) => Number.isFinite(p.temp));
+  const fromForecast = (state.data?.forecast?.list || [])
+    .map((it) => ({ t: it.dt, temp: it.main?.temp, precip: (it.rain?.["3h"] || 0) + (it.snow?.["3h"] || 0) }))
+    .filter((p) => Number.isFinite(p.temp));
+
+  let pts = fromHourly.filter((p) => localDay(p.t) === today);
+  if (pts.length < 3) pts = fromForecast.filter((p) => localDay(p.t) === today);
+  // Late-day safety net so the tile is never near-empty: fall back to the next
+  // ~24h if today has almost no points left.
+  if (pts.length < 3) {
+    const base = fromHourly.length ? fromHourly : fromForecast;
+    pts = base.filter((p) => p.t >= nowSec - 3600).slice(0, fromHourly.length ? 24 : 8);
+  }
   if (pts.length < 2) return;
 
   const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#050505";
@@ -1698,16 +1710,6 @@ function drawTrend() {
   const Y = (v) => y1 - ((v - tMin) / (tMax - tMin)) * plotH;
   const barMaxH = plotH * 0.42;
 
-  // group consecutive points into local days
-  const days = [];
-  pts.forEach((p, i) => {
-    const d = new Date((p.t + tz) * 1000);
-    const key = `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`;
-    const last = days[days.length - 1];
-    if (!last || last.key !== key) days.push({ key, i0: i, i1: i, t: p.t });
-    else last.i1 = i;
-  });
-
   // horizontal gridlines + temperature axis labels
   ctx.textBaseline = "middle";
   ctx.textAlign = "right";
@@ -1721,14 +1723,6 @@ function drawTrend() {
     ctx.fillStyle = hexA(ink, 0.5);
     ctx.fillText(`${Math.round(v)}°`, x0 - 8, gy);
   }
-
-  // day dividers
-  ctx.strokeStyle = hexA(ink, 0.14); ctx.lineWidth = 1;
-  days.forEach((dg) => {
-    if (dg.i0 === 0) return;
-    const gx = X(dg.i0) - slotW / 2;
-    ctx.beginPath(); ctx.moveTo(gx, y0); ctx.lineTo(gx, y1); ctx.stroke();
-  });
 
   // precipitation bars (bottom band) + right-hand mm axis
   const barW = Math.min(slotW * 0.6, 12);
@@ -1767,26 +1761,45 @@ function drawTrend() {
   ctx.strokeStyle = ink; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round";
   ctx.stroke();
 
-  // per-day high markers + labels
+  // "Now" marker (dashed vertical line at the current time)
+  if (nowSec >= pts[0].t && nowSec <= pts[pts.length - 1].t) {
+    let ni = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      if (nowSec >= pts[i].t && nowSec <= pts[i + 1].t) {
+        ni = i + (nowSec - pts[i].t) / Math.max(1, pts[i + 1].t - pts[i].t);
+        break;
+      }
+    }
+    const nx = X(ni);
+    ctx.setLineDash([3, 4]); ctx.strokeStyle = hexA(ink, 0.45); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(nx, y0); ctx.lineTo(nx, y1); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = hexA(ink, 0.55); ctx.font = `700 10px ${font}`;
+    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.fillText("Now", Math.max(x0 + 12, Math.min(x1 - 12, nx)), y0 - 6);
+  }
+
+  // day high / low markers + labels
+  let hiIdx = 0, loIdx = 0;
+  pts.forEach((p, i) => { if (p.temp > pts[hiIdx].temp) hiIdx = i; if (p.temp < pts[loIdx].temp) loIdx = i; });
   ctx.fillStyle = ink;
   ctx.textAlign = "center";
   ctx.textBaseline = "alphabetic";
   ctx.font = `700 11px ${font}`;
-  days.forEach((dg) => {
-    let hiIdx = dg.i0, hiV = -Infinity;
-    for (let i = dg.i0; i <= dg.i1; i++) { if (pts[i].temp > hiV) { hiV = pts[i].temp; hiIdx = i; } }
-    const px = X(hiIdx), py = Y(hiV);
-    ctx.fillStyle = ink;
+  const marks = hiIdx === loIdx ? [[hiIdx, -9]] : [[hiIdx, -9], [loIdx, 16]];
+  marks.forEach(([idx, dy]) => {
+    const px = X(idx), py = Y(pts[idx].temp);
     ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillText(`${Math.round(hiV)}°`, Math.max(x0 + 12, Math.min(x1 - 12, px)), py - 9);
+    ctx.fillText(`${Math.round(pts[idx].temp)}°`, Math.max(x0 + 12, Math.min(x1 - 12, px)), py + dy);
   });
 
-  // bottom day labels, centred over each day's span
+  // bottom hour labels
   ctx.fillStyle = hexA(ink, 0.55);
   ctx.font = `700 11px ${font}`;
-  days.forEach((dg) => {
-    const cx = (X(dg.i0) + X(dg.i1)) / 2;
-    ctx.fillText(dayLabel(dg.t, tz), Math.max(x0 + 14, Math.min(x1 - 14, cx)), H - 8);
+  const labelStep = Math.max(1, Math.round(pts.length / 5));
+  pts.forEach((p, i) => {
+    if (i % labelStep !== 0) return;
+    ctx.fillText(fmtHour(p.t, tz), Math.max(x0 + 16, Math.min(x1 - 16, X(i))), H - 8);
   });
 }
 
