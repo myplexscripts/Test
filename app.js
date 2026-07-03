@@ -142,8 +142,8 @@ function wireEvents() {
 
   el.hourlyMore.onclick = () => openDetail("temp", "hourly");
   el.dailyMore.onclick = () => openDetail("temp", "daily");
-  if (el.trendMore) el.trendMore.onclick = () => openDetail("temp", "daily");
-  if (el.trendCard) el.trendCard.onclick = () => openDetail("temp", "daily");
+  if (el.trendMore) el.trendMore.onclick = () => openDetail("temp", "hourly");
+  if (el.trendCard) el.trendCard.onclick = () => openDetail("temp", "hourly");
   el.sheetBack.onclick = sheetBack;
   el.windCard.onclick = () => openDetail("wind");
   if (el.moonCard) el.moonCard.onclick = () => openDetail("moon");
@@ -312,7 +312,7 @@ function wmoMain(code) {
 async function fetchHourlyWx(lat, lon, units) {
   const tu = units === "imperial" ? "fahrenheit" : "celsius";
   const wu = units === "imperial" ? "mph" : "ms";
-  const fields = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,surface_pressure,cloud_cover,visibility";
+  const fields = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,surface_pressure,cloud_cover,visibility";
   const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&hourly=${fields}&temperature_unit=${tu}&wind_speed_unit=${wu}&timeformat=unixtime&timezone=auto&forecast_days=2`;
   const h = (await fetchJSON(url)).hourly;
   if (!h || !h.time) return null;
@@ -327,6 +327,7 @@ async function fetchHourlyWx(lat, lon, units) {
     weather: [{ main: wmoMain(h.weather_code?.[i]) }],
     wind: { speed: h.wind_speed_10m?.[i] ?? 0, gust: h.wind_gusts_10m?.[i], deg: h.wind_direction_10m?.[i] },
     pop: (h.precipitation_probability?.[i] ?? 0) / 100,
+    precip: h.precipitation?.[i] ?? 0,
     clouds: { all: h.cloud_cover?.[i] },
     visibility: h.visibility?.[i]
   }));
@@ -1621,12 +1622,22 @@ function renderDetailList() {
     const n = dec ? v.toFixed(dec) : `${Math.round(v)}`;
     return unit === "°" ? `${n}°` : `${n} ${unit}`;
   };
+  // On the hourly temperature screen, spell out both precipitation values so the
+  // "chance" (%) and "amount" (mm) are never conflated.
+  const showWx = state.detail.metric === "temp";
   el.sheetList.innerHTML = (state.hourly || []).map((it) => {
     const hh = new Date((it.dt + tz) * 1000).getUTCHours();
+    const pop = Math.round((it.pop || 0) * 100);
+    const mm = it.precip != null ? it.precip : (it.rain?.["3h"] || 0) + (it.snow?.["3h"] || 0);
+    const mmTxt = mm > 0 ? (mm >= 10 ? Math.round(mm) : Math.round(mm * 10) / 10) : 0;
+    const wx = showWx
+      ? `<span class="row-precip"><i class="ph-fill ph-drop"></i><span class="rp-chance">${pop}%</span>${mmTxt ? `<span class="rp-amt">${mmTxt} mm</span>` : ""}</span>`
+      : "";
     return `
-    <div class="row">
+    <div class="row${showWx ? " row-wx" : ""}">
       <span class="row-label">${fmtHour(it.dt, tz)}</span>
       <i class="row-icon ${iconClass(it.weather?.[0]?.main, hh < 6 || hh >= 20)}"></i>
+      ${wx}
       <span class="row-temp">${valTxt(m.get(it))}</span>
     </div>`;
   }).join("");
@@ -1677,7 +1688,8 @@ function drawTrend() {
   tMin -= tPad; tMax += tPad;
   const maxPrecip = Math.max(0.1, ...pts.map((p) => p.precip));
 
-  const padL = 34, padR = 12, padTop = 18, padB = 26;
+  const anyPrecip = pts.some((p) => p.precip > 0);
+  const padL = 36, padR = anyPrecip ? 48 : 14, padTop = 18, padB = 26;
   const W = rect.width, H = rect.height;
   const x0 = padL, x1 = W - padR;
   const y0 = padTop, y1 = H - padB, plotH = y1 - y0;
@@ -1718,7 +1730,7 @@ function drawTrend() {
     ctx.beginPath(); ctx.moveTo(gx, y0); ctx.lineTo(gx, y1); ctx.stroke();
   });
 
-  // precipitation bars
+  // precipitation bars (bottom band) + right-hand mm axis
   const barW = Math.min(slotW * 0.6, 12);
   pts.forEach((p, i) => {
     if (p.precip <= 0) return;
@@ -1726,6 +1738,15 @@ function drawTrend() {
     ctx.fillStyle = hexA(ink, 0.22);
     ctx.fillRect(X(i) - barW / 2, y1 - bh, barW, bh);
   });
+  if (anyPrecip) {
+    const mmMax = maxPrecip >= 10 ? Math.round(maxPrecip) : Math.round(maxPrecip * 10) / 10;
+    ctx.textAlign = "right";
+    ctx.textBaseline = "middle";
+    ctx.font = `600 11px ${font}`;
+    ctx.fillStyle = hexA(ink, 0.5);
+    ctx.fillText(`${mmMax} mm`, W - 4, y1 - barMaxH);
+    ctx.fillText("0", W - 4, y1);
+  }
 
   // temperature area fill
   const curve = () => {
