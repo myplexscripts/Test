@@ -60,8 +60,16 @@ html, body {
   padding: 0;
   min-height: 100%;
   width: 100%;
-  overflow-x: hidden;
 }
+/* The viewport (<html>) is the single scroll container. Keep horizontal overflow
+   clipped, but never let <body> become its own scroll container: setting
+   overflow-x:hidden on <body> forces overflow-y to compute to `auto`, turning the
+   body into a scroll box. Combined with overscroll-behavior:contain that silently
+   swallowed mouse-wheel scrolling on desktop — the wheel hit the body scroll box
+   (which has no scroll range) and containment blocked it from chaining to the
+   viewport. `clip` prevents horizontal overflow without creating a scroll box. */
+html { overflow-x: hidden; overscroll-behavior-y: contain; }
+body { overflow-x: hidden; overflow-x: clip; }
 /* Hide the page scrollbar on touch / small screens for a clean, app-like feel.
    On desktop keep the native scrollbar so mouse users have a visible, draggable
    scroll affordance — hiding it globally made the desktop layout feel unscrollable. */
@@ -85,7 +93,6 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
-  overscroll-behavior-y: contain;
   transition: color var(--dur-slow) var(--ease-out);
 }
 
