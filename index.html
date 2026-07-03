@@ -91,7 +91,6 @@
     <header class="topbar">
       <button class="icon-btn" id="menuBtn" aria-label="Open settings"><i class="ph ph-list"></i></button>
       <div class="place">
-        <span class="place-label">Weather</span>
         <span class="place-name" id="placeName">London, Ontario</span>
       </div>
       <button class="icon-btn badge" id="locBtn" aria-label="Use my location"><i class="ph ph-crosshair"></i></button>
@@ -101,12 +100,9 @@
       <div class="col col-now">
 
     <section class="hero" aria-label="Current conditions">
-      <div class="pill" id="datePill">--</div>
+      <i class="hero-icon ph-duotone ph-sun" id="heroIcon" aria-hidden="true"></i>
       <p class="condition" id="condition">Weather</p>
-      <div class="hero-main">
-        <i class="hero-icon ph-duotone ph-sun" id="heroIcon" aria-hidden="true"></i>
-        <h1 class="display is-loading" id="temp"><span class="temp-num" id="tempNum">--</span><span class="temp-deg">°</span></h1>
-      </div>
+      <h1 class="display is-loading" id="temp"><span class="temp-num" id="tempNum">--</span><span class="temp-deg">°</span></h1>
     </section>
 
     <section class="alerts" id="alerts" aria-label="Weather alerts" hidden></section>
@@ -165,10 +161,6 @@
     </template>
 
     <section class="block b-trend" aria-label="Today's temperature and precipitation trend">
-      <div class="block-head">
-        <h2>Today</h2>
-        <button class="arrow-btn" id="trendMore" aria-label="Open hourly graph"><svg class="arrow-ic" viewBox="-144 0 368 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" aria-hidden="true"><line x1="-136" y1="128" x2="216" y2="128"/><polyline points="144 56 216 128 144 200"/></svg></button>
-      </div>
       <button class="trend-card" id="trendCard" aria-label="Open hourly graph">
         <div class="trend-legend">
           <span class="tl-item"><span class="tl-line"></span>Temp (°)</span>

@@ -34,14 +34,14 @@ const el = {
   drawer: $("drawer"), drawerClose: $("drawerClose"),
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
   unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
-  placeName: $("placeName"), datePill: $("datePill"), condition: $("condition"),
+  placeName: $("placeName"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), wear: $("wear"), alerts: $("alerts"),
   alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
   hero: document.querySelector(".hero"),
   miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mFeels: $("mFeels"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
-  trendGraph: $("trendGraph"), trendCard: $("trendCard"), trendMore: $("trendMore"),
+  trendGraph: $("trendGraph"), trendCard: $("trendCard"),
   sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
@@ -142,7 +142,6 @@ function wireEvents() {
 
   el.hourlyMore.onclick = () => openDetail("temp", "hourly");
   el.dailyMore.onclick = () => openDetail("temp", "daily");
-  if (el.trendMore) el.trendMore.onclick = () => openDetail("temp", "hourly");
   if (el.trendCard) el.trendCard.onclick = () => openDetail("temp", "hourly");
   el.sheetBack.onclick = sheetBack;
   el.windCard.onclick = () => openDetail("wind");
@@ -426,7 +425,6 @@ function render(data) {
 
   el.heroIcon.className = `hero-icon ${iconClass(w.main, isNight)}`;
   el.placeName.textContent = current.name ? `${current.name}${sys.country ? ", " + sys.country : ""}` : state.loc.label;
-  el.datePill.textContent = fmtDate(tz);
   el.condition.textContent = w.description || w.main || "Weather";
   el.tempNum.textContent = `${Math.round(m.temp ?? 0)}`;
   el.temp.classList.remove("is-loading");

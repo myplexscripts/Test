@@ -260,10 +260,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
     text-align: left;
     padding-top: var(--s-2);
   }
-  .col-now .pill { align-self: flex-start; }
-  .col-now .hero-main { justify-content: flex-start; gap: var(--s-5); }
   .col-now .display { font-size: 7.5rem; }
-  .col-now .hero-icon { font-size: 4.5rem; }
+  .col-now .hero-icon { font-size: 6rem; }
 
   .app-cols .rail {
     margin-left: 0;
@@ -386,20 +384,13 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   font-weight: 800;
   letter-spacing: 0.01em;
   text-transform: capitalize;
-  margin-top: var(--s-2);
 }
 
-.hero-main {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--s-4);
-  margin-top: var(--s-2);
-}
 .hero-icon {
-  font-size: clamp(4rem, 15vw, 7rem);
+  font-size: clamp(6.5rem, 32vw, 10rem);
   color: var(--ink);
   flex: 0 0 auto;
+  line-height: 1;
 }
 
 .display {
@@ -1399,7 +1390,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 }
 
 @media (min-width: 680px) {
-  .hero-icon { font-size: 8rem; }
+  .hero-icon { font-size: 9.5rem; }
   .display { font-size: clamp(9rem, 22vw, 12rem); }
 }
 
