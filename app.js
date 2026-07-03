@@ -396,10 +396,11 @@ function moonSVG(frac) {
   const limb = waxing ? 1 : 0;
   const term = gibbous ? limb : 1 - limb;
   const top = `${c} ${c - r}`, bot = `${c} ${c + r}`;
-  const lit = `M ${top} A ${r} ${r} 0 0 ${limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
+  const shadow = `M ${top} A ${r} ${r} 0 0 ${1 - limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
   return `<svg viewBox="0 0 52 52" class="moon-svg" aria-hidden="true">
-    <circle cx="${c}" cy="${c}" r="${r}" fill="var(--ink)" opacity="0.16"/>
-    <path d="${lit}" fill="var(--ink)"/>
+    <circle cx="${c}" cy="${c}" r="${r}" fill="var(--moon-lit)"/>
+    <path d="${shadow}" fill="var(--moon-shadow)"/>
+    <circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="var(--ink)" stroke-width="1.4" opacity="0.32"/>
   </svg>`;
 }
 
@@ -1042,6 +1043,8 @@ function applyPalette(kind) {
   r.setProperty("--surface", p.surface);
   r.setProperty("--on-surface", p.onSurface);
   r.setProperty("--surface-accent", p.accent);
+  r.setProperty("--moon-lit", p.dark ? "var(--ink)" : "var(--bg)");
+  r.setProperty("--moon-shadow", p.dark ? "var(--bg)" : "var(--ink)");
   const sb = p.statusBar || p.surface;
   r.setProperty("--statusbar", sb);
   r.setProperty("--theme", sb);
