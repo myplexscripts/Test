@@ -1389,6 +1389,42 @@ function moonGlyph(cx, cy, r, frac) {
   return `<circle cx="${cx}" cy="${cy}" r="${(r + 3).toFixed(1)}" fill="var(--bg)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--bg)"/><path d="${shadow}" fill="var(--ink)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`;
 }
 
+function sunMapSVG(lat, lon) {
+  if (typeof WORLD_MAP === "undefined" || !Number.isFinite(lat)) return "";
+  const W = WORLD_MAP.w, H = WORLD_MAP.h;
+  const dd = moonToDays(Math.floor(Date.now() / 1000));
+  const M = sunMeanAnomaly(dd), Lsun = sunEclipticLon(M);
+  const dec = Math.asin(Math.sin(ECL) * Math.sin(Lsun));
+  const ra = Math.atan2(Math.cos(ECL) * Math.sin(Lsun), Math.cos(Lsun));
+  const gmst = (280.16 + 360.9856235 * dd) * MOON_RAD;
+  let subLon = (ra - gmst) / MOON_RAD; subLon = ((subLon % 360) + 540) % 360 - 180;
+  const subLat = dec / MOON_RAD;
+  const X = (lo) => (lo + 180) / 360 * W;
+  const Y = (la) => (90 - la) / 180 * H;
+  const decR = Math.abs(dec) < 1e-4 ? 1e-4 : dec;
+  let term = "";
+  for (let lo = -180; lo <= 180; lo += 2) {
+    const tl = Math.atan(-Math.cos((lo - subLon) * MOON_RAD) / Math.tan(decR)) / MOON_RAD;
+    term += `${lo === -180 ? "M" : "L"}${X(lo).toFixed(1)},${Y(tl).toFixed(1)}`;
+  }
+  const nightY = subLat >= 0 ? H : 0;
+  const nightPath = `${term}L${W},${nightY}L0,${nightY}Z`;
+  const sx = X(subLon), sy = Y(subLat), lx = X(lon), ly = Y(lat);
+  let rays = "";
+  for (let i = 0; i < 8; i++) { const a = i / 8 * 2 * Math.PI; rays += `<line x1="${(sx + Math.cos(a) * 8).toFixed(1)}" y1="${(sy + Math.sin(a) * 8).toFixed(1)}" x2="${(sx + Math.cos(a) * 12).toFixed(1)}" y2="${(sy + Math.sin(a) * 12).toFixed(1)}"/>`; }
+  return `<svg viewBox="0 0 ${W} ${H}" class="sunmap" role="img" aria-label="World map showing day and night right now">
+    <clipPath id="smclip"><rect x="0" y="0" width="${W}" height="${H}" rx="18"/></clipPath>
+    <g clip-path="url(#smclip)">
+      <path d="${WORLD_MAP.land}" class="sm-land"/>
+      <path d="${nightPath}" class="sm-night"/>
+      <path d="${term}" class="sm-term"/>
+    </g>
+    <rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="18" class="sm-frame"/>
+    <g class="sm-sun"><circle cx="${sx}" cy="${sy}" r="13" class="sm-halo"/><g class="sm-rays">${rays}</g><circle cx="${sx}" cy="${sy}" r="6" class="sm-disc"/></g>
+    <g class="sm-loc"><circle cx="${lx}" cy="${ly}" r="9" class="sm-halo"/><circle cx="${lx}" cy="${ly}" r="5" class="sm-ring"/><circle cx="${lx}" cy="${ly}" r="2" class="sm-dot"/></g>
+  </svg>`;
+}
+
 function renderSunSheet() {
   el.sheetTitle.textContent = "Sun Clock";
   const tz = state.tz || state.data?.current?.timezone || 0;
@@ -1476,7 +1512,9 @@ function renderSunSheet() {
   const goldenPm = t.golden.down != null && t.sunrise.down != null ? `${fmtClock(t.golden.down, tz)} to ${fmtClock(t.sunrise.down, tz)}` : "--";
   const sectionD = (title, desc, body) => `<div class="info-section"><h3 class="info-head">${title}</h3><p class="info-desc">${desc}</p><div class="info-card">${body}</div></div>`;
   const intro = `<p class="sun-intro">A 24-hour map of light for your location. Midnight sits at the bottom and noon at the top; the hand shows where the sun is <em>right now</em>. Each shaded band is a stage of light, from bright <strong>day</strong> at the pale end down to full <strong>night</strong> at the dark end, so you can see daylight and darkness fall across the whole day. The little moons mark when the moon rises and sets. Tap any band, the sun, the moon, or the centre to read its exact times.</p>`;
-  const list = intro +
+  const sunMap = sunMapSVG(lat, lon);
+  const mapSection = sunMap ? `<div class="info-section"><h3 class="info-head">Sun map</h3><p class="info-desc">Day and night across the world right now. The sun sits where it is directly overhead; the pin is your location.</p>${sunMap}</div>` : "";
+  const list = intro + mapSection +
     `<div class="sun-key">` + Object.entries(SUN_BANDS).map(([k, v]) => `<span class="sun-key-item"><span class="sun-swatch" style="background:${v.color}"></span>${v.name}</span>`).join("") + `</div>` +
     sectionD("Sun", "The sun's key moments today. Solar noon is when the sun is highest in the sky, the true middle of the day.", [
       row("ph-sun-horizon", "Sunrise", fmtOrDash(t.sunrise.up)),
@@ -1501,7 +1539,7 @@ function renderSunSheet() {
       row("ph-moon", moonPhase().name, `${moonPhase().illum}%`),
       row("ph-arrow-up", "Moonrise", fmtOrDash(mt.rise)),
       row("ph-arrow-down", "Moonset", fmtOrDash(mt.set))
-    ].join(""));
+    ].join("") + `<button class="sun-link" data-open="moon"><span>Moon details</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`);
 
   el.sheetNote.textContent = sunUp
     ? `Daylight now. Sunset at ${fmtOrDash(t.sunrise.down)}.`
@@ -1519,6 +1557,14 @@ function renderSunSheet() {
   el.sheetList.querySelectorAll("[data-cap]").forEach((n) => n.addEventListener("click", () => setCap(n.dataset.cap)));
   el.sheetList.querySelectorAll(".sun-fmt [data-fmt]").forEach((b) => {
     b.addEventListener("click", () => { state.clock24 = b.dataset.fmt === "24"; saveState(); renderSunSheet(); });
+  });
+  const moonLink = el.sheetList.querySelector('.sun-link[data-open="moon"]');
+  if (moonLink) moonLink.addEventListener("click", () => {
+    const v = { metric: "moon", range: "hourly" };
+    if (state.sheetOpen && state.nav) state.nav.push(v); else state.nav = [v];
+    state.detail = v;
+    el.sheet.scrollTop = 0;
+    renderDetailSheet();
   });
 }
 
@@ -1610,6 +1656,7 @@ const CREDITS = [
     ["OpenStreetMap contributors", "The underlying map data.", "https://www.openstreetmap.org/copyright"]
   ]],
   ["Icons & type", [
+    ["Meteocons", "Animated weather icons by Bas Milius.", "https://bas.dev/work/meteocons"],
     ["Phosphor Icons", "The interface icon set.", "https://phosphoricons.com"],
     ["Inter & Rubik", "Typefaces, served via Google Fonts.", "https://fonts.google.com"]
   ]],
