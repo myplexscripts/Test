@@ -419,7 +419,8 @@ function render(data) {
   state.tz = tz;
   state.placeName = current.name || state.loc.label;
 
-  el.heroIcon.className = `hero-icon ${iconClass(w.main, isNight)}`;
+  el.heroIcon.className = "hero-icon wx-icon";
+  el.heroIcon.innerHTML = wxSVG(wxResolve(w, isNight), true);
   el.placeName.textContent = current.name ? `${current.name}${sys.country ? ", " + sys.country : ""}` : state.loc.label;
   el.condition.textContent = w.description || w.main || "Weather";
   el.tempNum.textContent = `${Math.round(m.temp ?? 0)}`;
@@ -436,7 +437,7 @@ function render(data) {
   }
   renderAlerts(data.alerts, tz);
 
-  if (el.miniIcon) el.miniIcon.className = `mini-ic ${iconClass(w.main, isNight)}`;
+  if (el.miniIcon) { el.miniIcon.className = "mini-ic wx-icon"; el.miniIcon.innerHTML = wxSVG(wxResolve(w, isNight), false); }
   if (el.miniPlace) el.miniPlace.textContent = el.placeName.textContent;
   if (el.miniCond) el.miniCond.textContent = w.description || w.main || "Weather";
   if (el.miniTemp) el.miniTemp.textContent = `${Math.round(m.temp ?? 0)}°`;
@@ -532,7 +533,7 @@ function renderHourly() {
     return `
     <button class="card hour-card" data-open="hourly">
       <span>${fmtHour(it.dt, tz)}</span>
-      <i class="${iconClass(it.weather?.[0]?.main, hh < 6 || hh >= 20)}"></i>
+      ${wxIcon(it.weather?.[0], hh < 6 || hh >= 20)}
       <strong>${Math.round(it.main.temp)}°</strong>
       <span>${Math.round((it.pop || 0) * 100)}%</span>
     </button>`;
@@ -547,7 +548,7 @@ function renderDaily() {
   const html = state.daily.map((d) => `
     <button class="card day-card" data-open="daily">
       <span>${d.label}</span>
-      <i class="${iconClass(d.main, false)}"></i>
+      ${wxIcon({ main: d.main, icon: d.icon }, false)}
       <strong class="hi">${Math.round(d.max)}°</strong>
       <span class="lo">${Math.round(d.min)}°</span>
     </button>`).join("");
@@ -861,6 +862,7 @@ function buildDaily(forecast, tz) {
       max: Math.max(...temps),
       pop: Math.max(...g.items.map((it) => it.pop || 0)),
       main: rep.weather?.[0]?.main || "",
+      icon: rep.weather?.[0]?.icon,
       items: g.items
     };
   });
@@ -1064,14 +1066,33 @@ function setTheme(theme) {
   applyPalette(themeKind());
 }
 
-function iconClass(main, isNight) {
+function wxCode(main, isNight) {
   const m = String(main || "").toLowerCase();
-  if (m.includes("thunder")) return "ph-duotone ph-cloud-lightning";
-  if (m.includes("drizzle") || m.includes("rain")) return "ph-duotone ph-cloud-rain";
-  if (m.includes("snow")) return "ph-duotone ph-cloud-snow";
-  if (m.includes("mist") || m.includes("fog") || m.includes("haze") || m.includes("smoke")) return "ph-duotone ph-cloud-fog";
-  if (m.includes("cloud")) return "ph-duotone ph-cloud";
-  return isNight ? "ph-duotone ph-moon-stars" : "ph-duotone ph-sun";
+  const dn = isNight ? "n" : "d";
+  if (m.includes("thunder")) return "11" + dn;
+  if (m.includes("drizzle")) return "09" + dn;
+  if (m.includes("rain")) return "10" + dn;
+  if (m.includes("snow")) return "13" + dn;
+  if (m.includes("mist") || m.includes("fog") || m.includes("haze") || m.includes("smoke")) return "50" + dn;
+  if (m.includes("cloud")) return "03" + dn;
+  return "01" + dn;
+}
+function wxResolve(w, isNight) {
+  const code = w && w.icon;
+  if (code && typeof METEOCONS !== "undefined" && METEOCONS[code]) return code;
+  return wxCode(w && w.main, isNight);
+}
+let wxUid = 0;
+function wxSVG(code, animated) {
+  let svg = (typeof METEOCONS !== "undefined" && (METEOCONS[code] || METEOCONS["03d"])) || "";
+  if (!svg) return "";
+  if (!animated) svg = svg.replace(/<animate[^>]*\/>/g, "");
+  const uid = "w" + (wxUid++);
+  svg = svg.replace(/\bid="([^"]+)"/g, (mm, v) => `id="${v}${uid}"`).replace(/url\(#([^)]+)\)/g, (mm, v) => `url(#${v}${uid})`);
+  return svg;
+}
+function wxIcon(w, isNight, cls) {
+  return `<i class="wx-icon${cls ? " " + cls : ""}" aria-hidden="true">${wxSVG(wxResolve(w, isNight), false)}</i>`;
 }
 
 function speedUnit() { return state.units === "imperial" ? "mph" : "km/h"; }
@@ -1705,7 +1726,7 @@ function renderDaySheet() {
     return `
     <div class="row">
       <span class="row-label">${fmtHour(it.dt, tz)}</span>
-      <i class="row-icon ${iconClass(it.weather?.[0]?.main, h < 6 || h >= 20)}"></i>
+      ${wxIcon(it.weather?.[0], h < 6 || h >= 20, "row-icon")}
       <span class="row-temp">${Math.round(it.main.temp)}°<span class="row-sub"> · feels ${Math.round(it.main.feels_like)}°</span></span>
     </div>`;
   }).join("");
@@ -1783,7 +1804,7 @@ function renderDetailList() {
     el.sheetList.innerHTML = state.daily.map((d, i) => `
       <button class="row row-tap" data-day="${i}">
         <span class="row-label">${d.label}</span>
-        <i class="row-icon ${iconClass(d.main, false)}"></i>
+        ${wxIcon({ main: d.main, icon: d.icon }, false, "row-icon")}
         <span class="row-temp">${Math.round(d.max)}°<span class="row-sub"> / ${Math.round(d.min)}°</span></span>
         <i class="ph ph-caret-right row-go"></i>
       </button>`).join("");
@@ -1808,7 +1829,7 @@ function renderDetailList() {
     return `
     <div class="row${showWx ? " row-wx" : ""}">
       <span class="row-label">${fmtHour(it.dt, tz)}</span>
-      <i class="row-icon ${iconClass(it.weather?.[0]?.main, hh < 6 || hh >= 20)}"></i>
+      ${wxIcon(it.weather?.[0], hh < 6 || hh >= 20, "row-icon")}
       ${wx}
       <span class="row-temp">${valTxt(m.get(it))}</span>
     </div>`;
@@ -2108,11 +2129,10 @@ function curIsNight() {
 function locationPinIcon() {
   const t = state.data?.current?.main?.temp;
   const temp = (t == null) ? "" : `${Math.round(t)}°`;
-  const main = state.data?.current?.weather?.[0]?.main || "";
-  const glyph = iconClass(main, curIsNight()).replace("ph-duotone", "ph");
+  const svg = wxSVG(wxResolve(state.data?.current?.weather?.[0], curIsNight()), false);
   return L.divIcon({
     className: "map-pin-wrap",
-    html: `<span class="map-pin"><strong class="map-pin-temp">${temp}</strong><i class="${glyph}" aria-hidden="true"></i></span>`,
+    html: `<span class="map-pin"><strong class="map-pin-temp">${temp}</strong><i class="wx-icon" aria-hidden="true">${svg}</i></span>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0]
   });

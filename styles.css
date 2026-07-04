@@ -110,6 +110,8 @@ button {
 
 h1, h2, h3, p { margin: 0; }
 i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
+.wx-icon { display: inline-flex; align-items: center; justify-content: center; line-height: 1; color: var(--ink); }
+.wx-icon svg { width: 1em; height: 1em; display: block; }
 
 .display, .display-sm,
 .condition, .block-title, .block-head h2,
