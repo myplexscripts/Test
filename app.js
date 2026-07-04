@@ -575,33 +575,27 @@ function renderSun(current) {
   const y = (1 - t) ** 2 * P0[1] + 2 * (1 - t) * t * P1[1] + t ** 2 * P2[1];
   el.sunCard.dataset.t = t.toFixed(3);
 
-  const rt = Math.floor(Date.now() / 1000), DAY = 86400;
-  let left, right;
-  if (rt >= sys.sunrise && rt < sys.sunset) {
-    left = ["Since sunrise", rt - sys.sunrise];
-    right = ["Until sunset", sys.sunset - rt];
-  } else if (rt >= sys.sunset) {
-    left = ["Since sunset", rt - sys.sunset];
-    right = ["Until sunrise", sys.sunrise + DAY - rt];
-  } else {
-    left = ["Since sunset", rt - (sys.sunset - DAY)];
-    right = ["Until sunrise", sys.sunrise - rt];
-  }
+  const rt = Math.floor(Date.now() / 1000);
+  const rel = (eventUnix) => { const diff = rt - eventUnix; return diff >= 0 ? `${fmtDur(diff)} since` : `${fmtDur(-diff)} until`; };
 
   el.sunCard.innerHTML = `
     <i class="ph ph-caret-right card-go" aria-hidden="true"></i>
-    <div class="sun-top">
-      <div class="sun-dur"><span class="d-label">${left[0]}</span><strong>${fmtDur(left[1])}</strong></div>
-      <div class="sun-dur end"><span class="d-label">${right[0]}</span><strong>${fmtDur(right[1])}</strong></div>
-    </div>
     <svg class="sun-svg" viewBox="0 0 300 104" preserveAspectRatio="xMidYMax meet" aria-hidden="true">
       <path class="arc-bg" d="M24,96 Q150,-10 276,96" pathLength="1"/>
       <path class="arc-fg" d="M24,96 Q150,-10 276,96" pathLength="1" stroke-dasharray="${t.toFixed(3)} 1"/>
       <circle class="sun-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="7"/>
     </svg>
     <div class="sun-times">
-      <div class="sun-time"><i class="ph-duotone ph-sun-horizon"></i><span class="d-label">Sunrise</span><strong>${fmtClock(sys.sunrise, tz)}</strong></div>
-      <div class="sun-time end"><i class="ph-duotone ph-moon-stars"></i><span class="d-label">Sunset</span><strong>${fmtClock(sys.sunset, tz)}</strong></div>
+      <div class="sun-time">
+        <span class="d-label">Sunrise</span>
+        <strong>${fmtClock(sys.sunrise, tz)}</strong>
+        <span class="sun-rel">${rel(sys.sunrise)}</span>
+      </div>
+      <div class="sun-time end">
+        <span class="d-label">Sunset</span>
+        <strong>${fmtClock(sys.sunset, tz)}</strong>
+        <span class="sun-rel">${rel(sys.sunset)}</span>
+      </div>
     </div>`;
 }
 
@@ -1364,13 +1358,15 @@ function sunTimes(unix, lat, lon) {
   };
 }
 
+// Monochrome ramp: light (full day) to near-solid ink (full night), matching the
+// site's black-ink style. Each band is the theme ink mixed over the background.
 const SUN_BANDS = {
-  day:      { name: "Day",                   color: "#c9dcec" },
-  golden:   { name: "Golden hour",           color: "#f2b24a" },
-  civil:    { name: "Civil twilight",        color: "#6f83b4" },
-  nautical: { name: "Nautical twilight",     color: "#33477a" },
-  astro:    { name: "Astronomical twilight", color: "#182449" },
-  night:    { name: "Night",                 color: "#0b1022" }
+  day:      { name: "Day",                   color: "color-mix(in srgb, var(--ink) 7%, var(--bg))" },
+  golden:   { name: "Golden hour",           color: "color-mix(in srgb, var(--ink) 24%, var(--bg))" },
+  civil:    { name: "Civil twilight",        color: "color-mix(in srgb, var(--ink) 44%, var(--bg))" },
+  nautical: { name: "Nautical twilight",     color: "color-mix(in srgb, var(--ink) 62%, var(--bg))" },
+  astro:    { name: "Astronomical twilight", color: "color-mix(in srgb, var(--ink) 80%, var(--bg))" },
+  night:    { name: "Night",                 color: "color-mix(in srgb, var(--ink) 95%, var(--bg))" }
 };
 
 // Small moon disc drawn directly in the clock SVG (fixed colours so it reads on
@@ -1382,7 +1378,7 @@ function moonGlyph(cx, cy, r, frac) {
   const limb = waxing ? 1 : 0, term = gibbous ? limb : 1 - limb;
   const top = `${cx} ${cy - r}`, bot = `${cx} ${cy + r}`;
   const shadow = `M ${top} A ${r} ${r} 0 0 ${1 - limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
-  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#eef2f8"/><path d="${shadow}" fill="#222838"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#000" stroke-width="0.6" opacity="0.35"/>`;
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--bg)"/><path d="${shadow}" fill="var(--ink)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`;
 }
 
 function renderSunSheet() {
@@ -1455,7 +1451,7 @@ function renderSunSheet() {
   const nowH = toH(nowUnix);
   const [sx, sy] = pol(RO, ang(nowH));
   const sunUp = t.sunrise.up != null && nowUnix >= t.sunrise.up && nowUnix < t.sunrise.down;
-  const sunHand = `<line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand" data-cap="Now · ${fmtClock(nowUnix, tz)}"/><circle cx="${sx}" cy="${sy}" r="7" class="sc-sun"/>`;
+  const sunHand = `<line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand-casing"/><line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand" data-cap="Now · ${fmtClock(nowUnix, tz)}"/><circle cx="${sx}" cy="${sy}" r="7" class="sc-sun"/>`;
   const noonCap = t.noon != null ? `Solar noon · ${fmtClock(t.noon, tz)}` : "";
 
   const svg = `<svg viewBox="0 0 300 300" class="sunclock" role="img" aria-label="24-hour sun clock">
@@ -1469,28 +1465,30 @@ function renderSunSheet() {
   const fmtOrDash = (u) => u != null ? fmtClock(u, tz) : "--";
   const goldenAm = t.sunrise.up != null && t.golden.up != null ? `${fmtClock(t.sunrise.up, tz)} – ${fmtClock(t.golden.up, tz)}` : "--";
   const goldenPm = t.golden.down != null && t.sunrise.down != null ? `${fmtClock(t.golden.down, tz)} – ${fmtClock(t.sunrise.down, tz)}` : "--";
-  const list =
+  const sectionD = (title, desc, body) => `<div class="info-section"><h3 class="info-head">${title}</h3><p class="info-desc">${desc}</p><div class="info-card">${body}</div></div>`;
+  const intro = `<p class="sun-intro">A 24-hour map of light for your location. Midnight (0) sits at the bottom and noon (12) at the top; the hand shows where the sun is <em>right now</em>. Each shaded band is a stage of light — from bright <strong>day</strong> at the pale end down to full <strong>night</strong> at the dark end — so you can see daylight and darkness fall across the whole day. The little moons mark when the moon rises and sets. Tap any band, the sun, the moon, or the centre to read its exact times.</p>`;
+  const list = intro +
     `<div class="sun-key">` + Object.entries(SUN_BANDS).map(([k, v]) => `<span class="sun-key-item"><span class="sun-swatch" style="background:${v.color}"></span>${v.name}</span>`).join("") + `</div>` +
-    section("Sun", [
+    sectionD("Sun", "The sun's key moments today. Solar noon is when the sun is highest in the sky — the true middle of the day.", [
       row("ph-sun-horizon", "Sunrise", fmtOrDash(t.sunrise.up)),
       row("ph-sun", "Solar noon", fmtOrDash(t.noon)),
       row("ph-sun-horizon", "Sunset", fmtOrDash(t.sunrise.down))
     ].join("")) +
-    section("Golden hour", [
+    sectionD("Golden hour", "The soft, warm, low-angle light just after sunrise and just before sunset — the flattering light photographers love.", [
       row("ph-sun", "Morning", goldenAm),
       row("ph-sun", "Evening", goldenPm)
     ].join("")) +
-    section("Dawn", [
+    sectionD("Dawn", "Light building before sunrise. Civil: bright enough to be outside without lights. Nautical: the horizon is still visible and the first stars appear. Astronomical: the faint first glow — before it, the sky is fully dark.", [
       row("ph-cloud-sun", "Civil", fmtOrDash(t.civil.up)),
       row("ph-cloud-moon", "Nautical", fmtOrDash(t.nautical.up)),
       row("ph-moon-stars", "Astronomical", fmtOrDash(t.astro.up))
     ].join("")) +
-    section("Dusk", [
+    sectionD("Dusk", "The same three stages after sunset, in reverse — Civil, then Nautical, then Astronomical — after which it is fully dark (night).", [
       row("ph-cloud-sun", "Civil", fmtOrDash(t.civil.down)),
       row("ph-cloud-moon", "Nautical", fmtOrDash(t.nautical.down)),
       row("ph-moon-stars", "Astronomical", fmtOrDash(t.astro.down))
     ].join("")) +
-    section("Moon", [
+    sectionD("Moon", "Where the moon is in its cycle, how much of it is lit, and when it rises and sets.", [
       row("ph-moon", moonPhase().name, `${moonPhase().illum}%`),
       row("ph-arrow-up", "Moonrise", fmtOrDash(mt.rise)),
       row("ph-arrow-down", "Moonset", fmtOrDash(mt.set))

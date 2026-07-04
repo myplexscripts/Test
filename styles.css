@@ -764,7 +764,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .sun-time { display: flex; flex-direction: column; gap: 2px; }
 .sun-time.end { text-align: right; align-items: flex-end; }
 .sun-time i { font-size: 1.6rem; color: var(--ink); }
-.sun-time strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
+.sun-time strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.35rem; line-height: 1.05; }
+.sun-rel { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 .moon-card {
   position: relative;
   display: grid;
@@ -1333,13 +1334,16 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .sc-ring { stroke: var(--ink); opacity: 0.22; stroke-width: 2; }
 .sc-tick { stroke: var(--ink); opacity: 0.35; }
 .sc-hour { fill: var(--ink); font-size: 13px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; font-family: Inter, sans-serif; }
-.sc-hand { stroke: #ff7a1a; stroke-width: 4; stroke-linecap: round; cursor: pointer; }
-.sc-sun { fill: #ff7a1a; stroke: var(--bg); stroke-width: 2.5; }
-.sc-center { fill: #e0322f; cursor: pointer; }
+.sc-hand-casing { stroke: var(--bg); stroke-width: 7; stroke-linecap: round; }
+.sc-hand { stroke: var(--ink); stroke-width: 3.5; stroke-linecap: round; cursor: pointer; }
+.sc-sun { fill: var(--bg); stroke: var(--ink); stroke-width: 3; }
+.sc-center { fill: var(--ink); cursor: pointer; }
 .sc-mark { cursor: pointer; }
-.sun-key { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); justify-content: center; margin-bottom: var(--s-3); }
+.sun-key { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); justify-content: center; margin: var(--s-2) 0 var(--s-4); }
 .sun-key-item { display: flex; align-items: center; gap: 6px; font-size: var(--t-cap); font-weight: 700; color: var(--ink-soft); }
-.sun-swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; }
+.sun-swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; border: 1px solid color-mix(in srgb, var(--ink) 28%, transparent); }
+.sun-intro { font-size: var(--t-body); line-height: 1.55; color: color-mix(in srgb, var(--ink) 88%, transparent); margin: var(--s-2) 0 var(--s-4); }
+.info-desc { font-size: var(--t-sm); line-height: 1.5; color: var(--ink-soft); font-weight: 500; margin-bottom: var(--s-3); }
 .sun-row { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-2) 0; }
 .sun-row + .sun-row { border-top: 2px solid var(--hairline); }
 .sun-row i { font-size: 1.4rem; color: var(--ink); flex: 0 0 auto; }
