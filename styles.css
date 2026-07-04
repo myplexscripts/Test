@@ -1323,10 +1323,12 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .sm-night { fill: var(--ink); opacity: 0.24; }
 .sm-term { fill: none; stroke: var(--ink); opacity: 0.4; stroke-width: 1.5; stroke-dasharray: 5 5; }
 .sm-frame { fill: none; stroke: var(--ink); opacity: 0.18; stroke-width: 2; }
-.sm-halo { fill: var(--bg); }
-.sm-disc, .sm-dot { fill: var(--ink); }
+.sm-sunbadge { fill: var(--bg); stroke: var(--ink); stroke-width: 2; }
+.sm-disc { fill: var(--ink); }
 .sm-rays line { stroke: var(--ink); stroke-width: 4; stroke-linecap: round; }
-.sm-ring { fill: none; stroke: var(--ink); stroke-width: 4; }
+.sm-lochalo { fill: var(--bg); }
+.sm-locdisc { fill: #ff6a1a; stroke: var(--ink); stroke-width: 2.5; }
+.sm-locdot { fill: var(--bg); }
 .sunclock-wrap { display: flex; justify-content: center; padding: var(--s-3) 0 var(--s-2); }
 .sunclock { width: min(340px, 92%); height: auto; display: block; }
 .sc-band { cursor: pointer; stroke: var(--bg); stroke-width: 2; stroke-linejoin: round; transition: opacity var(--dur-fast); }
@@ -1334,7 +1336,9 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .sc-ring { stroke: var(--ink); opacity: 0.22; stroke-width: 2; }
 .sc-tick { stroke: var(--ink); opacity: 0.35; }
 .sc-hour { fill: var(--ink); font-size: 13px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; font-family: Inter, sans-serif; }
-.sc-sunray { stroke: var(--ink); stroke-width: 1.4; stroke-linecap: round; }
+.sc-divider { stroke: var(--ink); stroke-width: 2.5; opacity: 0.6; stroke-linecap: round; }
+.sc-markhalo { fill: var(--bg); }
+.sc-wxmark { color: var(--ink); }
 .sc-hand-casing { stroke: var(--bg); stroke-width: 7; stroke-linecap: round; }
 .sc-hand { stroke: var(--ink); stroke-width: 3.5; stroke-linecap: round; cursor: pointer; }
 .sc-sun { fill: var(--bg); stroke: var(--ink); stroke-width: 3; }

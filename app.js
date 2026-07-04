@@ -1389,15 +1389,6 @@ function moonGlyph(cx, cy, r, frac) {
   return `<circle cx="${cx}" cy="${cy}" r="${(r + 3).toFixed(1)}" fill="var(--bg)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--bg)"/><path d="${shadow}" fill="var(--ink)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`;
 }
 
-function sunGlyph(cx, cy, r) {
-  let rays = "";
-  for (let i = 0; i < 8; i++) {
-    const a = i / 8 * 2 * Math.PI;
-    rays += `<line x1="${(cx + Math.cos(a) * (r + 1.6)).toFixed(1)}" y1="${(cy + Math.sin(a) * (r + 1.6)).toFixed(1)}" x2="${(cx + Math.cos(a) * (r + 4.2)).toFixed(1)}" y2="${(cy + Math.sin(a) * (r + 4.2)).toFixed(1)}" class="sc-sunray"/>`;
-  }
-  return `<circle cx="${cx}" cy="${cy}" r="${r + 5.5}" fill="var(--bg)"/>${rays}<circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--ink)"/>`;
-}
-
 function sunMapSVG(lat, lon) {
   if (typeof WORLD_MAP === "undefined" || !Number.isFinite(lat)) return "";
   const W = WORLD_MAP.w, H = WORLD_MAP.h;
@@ -1429,8 +1420,8 @@ function sunMapSVG(lat, lon) {
       <path d="${term}" class="sm-term"/>
     </g>
     <rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="18" class="sm-frame"/>
-    <g class="sm-sun"><circle cx="${sx}" cy="${sy}" r="23" class="sm-halo"/><g class="sm-rays">${rays}</g><circle cx="${sx}" cy="${sy}" r="10" class="sm-disc"/></g>
-    <g class="sm-loc"><circle cx="${lx}" cy="${ly}" r="16" class="sm-halo"/><circle cx="${lx}" cy="${ly}" r="9" class="sm-ring"/><circle cx="${lx}" cy="${ly}" r="4" class="sm-dot"/></g>
+    <g class="sm-sun"><circle cx="${sx}" cy="${sy}" r="23" class="sm-sunbadge"/><g class="sm-rays">${rays}</g><circle cx="${sx}" cy="${sy}" r="10" class="sm-disc"/></g>
+    <g class="sm-loc"><circle cx="${lx}" cy="${ly}" r="16" class="sm-lochalo"/><circle cx="${lx}" cy="${ly}" r="11" class="sm-locdisc"/><circle cx="${lx}" cy="${ly}" r="4" class="sm-locdot"/></g>
   </svg>`;
 }
 
@@ -1501,11 +1492,16 @@ function renderSunSheet() {
     const [mx, my] = pol((RI + RO) / 2, ang(toH(u)));
     moonMarks += `<g class="sc-mark" data-cap="${label} · ${fmtClock(u, tz)}">${moonGlyph(+mx, +my, 9, moonFrac)}</g>`;
   });
-  let sunMarks = "";
-  [["Sunrise", t.sunrise.up], ["Sunset", t.sunrise.down]].forEach(([label, u]) => {
+  let sunMarks = "", sunDividers = "";
+  [["Sunrise", "sunrise", t.sunrise.up], ["Sunset", "sunset", t.sunrise.down]].forEach(([label, code, u]) => {
     if (u == null) return;
-    const [mx, my] = pol((RI + RO) / 2, ang(toH(u)));
-    sunMarks += `<g class="sc-mark" data-cap="${label} · ${fmtClock(u, tz)}">${sunGlyph(+mx, +my, 5)}</g>`;
+    const A = ang(toH(u));
+    const [mx, my] = pol((RI + RO) / 2, A);
+    const [dx1, dy1] = pol(RI - 6, A), [dx2, dy2] = pol(RO + 12, A);
+    sunDividers += `<line x1="${dx1}" y1="${dy1}" x2="${dx2}" y2="${dy2}" class="sc-divider"/>`;
+    const s = 26;
+    const icon = wxSVG(code, false).replace(/^<svg /, `<svg x="${(mx - s / 2).toFixed(1)}" y="${(my - s / 2).toFixed(1)}" width="${s}" height="${s}" `);
+    sunMarks += `<g class="sc-mark sc-wxmark" data-cap="${label} · ${fmtClock(u, tz)}"><circle cx="${mx}" cy="${my}" r="${s / 2 + 2}" class="sc-markhalo"/>${icon}</g>`;
   });
 
   const nowH = toH(nowUnix);
@@ -1517,7 +1513,7 @@ function renderSunSheet() {
   const svg = `<svg viewBox="0 0 300 300" class="sunclock" role="img" aria-label="24-hour sun clock">
     ${bandPaths}
     <circle cx="${CX}" cy="${CY}" r="${RO}" class="sc-ring" fill="none"/>
-    ${ticks}${hourLabels}${sunMarks}${moonMarks}${sunHand}
+    ${sunDividers}${ticks}${hourLabels}${sunMarks}${moonMarks}${sunHand}
     <circle cx="${CX}" cy="${CY}" r="5" class="sc-center" data-cap="${noonCap}"/>
   </svg>`;
 
