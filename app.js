@@ -1409,9 +1409,9 @@ function sunMapSVG(lat, lon) {
   }
   const nightY = subLat >= 0 ? H : 0;
   const nightPath = `${term}L${W},${nightY}L0,${nightY}Z`;
-  const sx = X(subLon), sy = Y(subLat), lx = X(lon), ly = Y(lat);
-  let rays = "";
-  for (let i = 0; i < 8; i++) { const a = i / 8 * 2 * Math.PI; rays += `<line x1="${(sx + Math.cos(a) * 13).toFixed(1)}" y1="${(sy + Math.sin(a) * 13).toFixed(1)}" x2="${(sx + Math.cos(a) * 21).toFixed(1)}" y2="${(sy + Math.sin(a) * 21).toFixed(1)}"/>`; }
+  const lx = X(lon), ly = Y(lat);
+  const ps = 1.9, tx = lx - 12 * ps, ty = ly - 22 * ps;
+  const pin = `<g class="sm-pin" transform="translate(${tx.toFixed(1)},${ty.toFixed(1)}) scale(${ps})"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.6" class="sm-pinhole"/></g>`;
   return `<svg viewBox="0 0 ${W} ${H}" class="sunmap" role="img" aria-label="World map showing day and night right now">
     <clipPath id="smclip"><rect x="0" y="0" width="${W}" height="${H}" rx="18"/></clipPath>
     <g clip-path="url(#smclip)">
@@ -1420,8 +1420,7 @@ function sunMapSVG(lat, lon) {
       <path d="${term}" class="sm-term"/>
     </g>
     <rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="18" class="sm-frame"/>
-    <g class="sm-sun"><circle cx="${sx}" cy="${sy}" r="23" class="sm-sunbadge"/><g class="sm-rays">${rays}</g><circle cx="${sx}" cy="${sy}" r="10" class="sm-disc"/></g>
-    <g class="sm-loc"><circle cx="${lx}" cy="${ly}" r="16" class="sm-lochalo"/><circle cx="${lx}" cy="${ly}" r="11" class="sm-locdisc"/><circle cx="${lx}" cy="${ly}" r="4" class="sm-locdot"/></g>
+    ${pin}
   </svg>`;
 }
 
@@ -1486,23 +1485,21 @@ function renderSunSheet() {
 
   const moonFrac = moonPhase().frac;
   const mt = moonTimes(localMidnight, lat, lon);
-  let moonMarks = "";
-  [["Moonrise", mt.rise], ["Moonset", mt.set]].forEach(([label, u]) => {
-    if (u == null) return;
-    const [mx, my] = pol((RI + RO) / 2, ang(toH(u)));
-    moonMarks += `<g class="sc-mark" data-cap="${label} · ${fmtClock(u, tz)}">${moonGlyph(+mx, +my, 9, moonFrac)}</g>`;
-  });
-  let sunMarks = "", sunDividers = "";
-  [["Sunrise", "sunrise", t.sunrise.up], ["Sunset", "sunset", t.sunrise.down]].forEach(([label, code, u]) => {
+  const Rb = 42, bR = 14;
+  const wxInline = (code, cx, cy, size) => wxSVG(code, false).replace(/^<svg /, `<svg x="${(cx - size / 2).toFixed(1)}" y="${(cy - size / 2).toFixed(1)}" width="${size}" height="${size}" `);
+  let connectors = "", marks = "";
+  const placeMark = (label, u, inner) => {
     if (u == null) return;
     const A = ang(toH(u));
-    const [mx, my] = pol((RI + RO) / 2, A);
-    const [dx1, dy1] = pol(RI - 6, A), [dx2, dy2] = pol(RO + 12, A);
-    sunDividers += `<line x1="${dx1}" y1="${dy1}" x2="${dx2}" y2="${dy2}" class="sc-divider"/>`;
-    const s = 26;
-    const icon = wxSVG(code, false).replace(/^<svg /, `<svg x="${(mx - s / 2).toFixed(1)}" y="${(my - s / 2).toFixed(1)}" width="${s}" height="${s}" `);
-    sunMarks += `<g class="sc-mark sc-wxmark" data-cap="${label} · ${fmtClock(u, tz)}"><circle cx="${mx}" cy="${my}" r="${s / 2 + 2}" class="sc-markhalo"/>${icon}</g>`;
-  });
+    const [bx, by] = pol(Rb, A);
+    const [c1x, c1y] = pol(Rb + bR, A), [c2x, c2y] = pol(RO, A);
+    connectors += `<line x1="${c1x}" y1="${c1y}" x2="${c2x}" y2="${c2y}" class="sc-connector"/>`;
+    marks += `<g class="sc-mark sc-wxmark" data-cap="${label} · ${fmtClock(u, tz)}"><circle cx="${bx}" cy="${by}" r="${bR}" class="sc-badge"/>${inner(+bx, +by)}</g>`;
+  };
+  placeMark("Sunrise", t.sunrise.up, (bx, by) => wxInline("sunrise", bx, by, 20));
+  placeMark("Sunset", t.sunrise.down, (bx, by) => wxInline("sunset", bx, by, 20));
+  placeMark("Moonrise", mt.rise, (bx, by) => moonGlyph(bx, by, 8, moonFrac));
+  placeMark("Moonset", mt.set, (bx, by) => moonGlyph(bx, by, 8, moonFrac));
 
   const nowH = toH(nowUnix);
   const [sx, sy] = pol(RO, ang(nowH));
@@ -1513,7 +1510,7 @@ function renderSunSheet() {
   const svg = `<svg viewBox="0 0 300 300" class="sunclock" role="img" aria-label="24-hour sun clock">
     ${bandPaths}
     <circle cx="${CX}" cy="${CY}" r="${RO}" class="sc-ring" fill="none"/>
-    ${sunDividers}${ticks}${hourLabels}${sunMarks}${moonMarks}${sunHand}
+    ${ticks}${hourLabels}${connectors}${marks}${sunHand}
     <circle cx="${CX}" cy="${CY}" r="5" class="sc-center" data-cap="${noonCap}"/>
   </svg>`;
 
@@ -1524,9 +1521,9 @@ function renderSunSheet() {
   const sectionD = (title, desc, body) => `<div class="info-section"><h3 class="info-head">${title}</h3><p class="info-desc">${desc}</p><div class="info-card">${body}</div></div>`;
   const intro = `<p class="sun-intro">A 24-hour map of light for your location. Midnight sits at the bottom and noon at the top; the hand shows where the sun is <em>right now</em>. Each shaded band is a stage of light, from bright <strong>day</strong> at the pale end down to full <strong>night</strong> at the dark end, so you can see daylight and darkness fall across the whole day. The little moons mark when the moon rises and sets. Tap any band, the sun, the moon, or the centre to read its exact times.</p>`;
   const sunMap = sunMapSVG(lat, lon);
-  const mapSection = sunMap ? `<div class="info-section"><h3 class="info-head">Sun map</h3><p class="info-desc">Day and night across the world right now. The sun sits where it is directly overhead; the pin is your location.</p>${sunMap}</div>` : "";
+  const mapSection = sunMap ? `<div class="info-section"><h3 class="info-head">Sun map</h3><p class="info-desc">Day and night across the world right now. The pin marks your location.</p>${sunMap}</div>` : "";
+  const keyRow = `<div class="sun-key">` + Object.entries(SUN_BANDS).map(([k, v]) => `<span class="sun-key-item"><span class="sun-swatch" style="background:${v.color}"></span>${v.name}</span>`).join("") + `</div>`;
   const list = intro + mapSection +
-    `<div class="sun-key">` + Object.entries(SUN_BANDS).map(([k, v]) => `<span class="sun-key-item"><span class="sun-swatch" style="background:${v.color}"></span>${v.name}</span>`).join("") + `</div>` +
     sectionD("Sun", "The sun's key moments today. Solar noon is when the sun is highest in the sky, the true middle of the day.", [
       row("ph-sun-horizon", "Sunrise", fmtOrDash(t.sunrise.up)),
       row("ph-sun", "Solar noon", fmtOrDash(t.noon)),
@@ -1559,7 +1556,7 @@ function renderSunSheet() {
       <button class="seg-item ${state.clock24 ? "" : "is-active"}" data-fmt="12">12h</button>
       <button class="seg-item ${state.clock24 ? "is-active" : ""}" data-fmt="24">24h</button>
     </div></div>`;
-  el.sheetList.innerHTML = `${toggle}<div class="sunclock-wrap">${svg}</div>${list}`;
+  el.sheetList.innerHTML = `${toggle}<div class="sunclock-wrap">${svg}</div>${keyRow}${list}`;
 
   const setCap = (txt) => { if (txt) el.sheetNote.textContent = txt; };
   el.sheetList.querySelectorAll(".sc-band").forEach((p) => {
