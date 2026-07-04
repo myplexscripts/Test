@@ -1389,6 +1389,15 @@ function moonGlyph(cx, cy, r, frac) {
   return `<circle cx="${cx}" cy="${cy}" r="${(r + 3).toFixed(1)}" fill="var(--bg)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--bg)"/><path d="${shadow}" fill="var(--ink)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`;
 }
 
+function sunGlyph(cx, cy, r) {
+  let rays = "";
+  for (let i = 0; i < 8; i++) {
+    const a = i / 8 * 2 * Math.PI;
+    rays += `<line x1="${(cx + Math.cos(a) * (r + 1.6)).toFixed(1)}" y1="${(cy + Math.sin(a) * (r + 1.6)).toFixed(1)}" x2="${(cx + Math.cos(a) * (r + 4.2)).toFixed(1)}" y2="${(cy + Math.sin(a) * (r + 4.2)).toFixed(1)}" class="sc-sunray"/>`;
+  }
+  return `<circle cx="${cx}" cy="${cy}" r="${r + 5.5}" fill="var(--bg)"/>${rays}<circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--ink)"/>`;
+}
+
 function sunMapSVG(lat, lon) {
   if (typeof WORLD_MAP === "undefined" || !Number.isFinite(lat)) return "";
   const W = WORLD_MAP.w, H = WORLD_MAP.h;
@@ -1411,7 +1420,7 @@ function sunMapSVG(lat, lon) {
   const nightPath = `${term}L${W},${nightY}L0,${nightY}Z`;
   const sx = X(subLon), sy = Y(subLat), lx = X(lon), ly = Y(lat);
   let rays = "";
-  for (let i = 0; i < 8; i++) { const a = i / 8 * 2 * Math.PI; rays += `<line x1="${(sx + Math.cos(a) * 8).toFixed(1)}" y1="${(sy + Math.sin(a) * 8).toFixed(1)}" x2="${(sx + Math.cos(a) * 12).toFixed(1)}" y2="${(sy + Math.sin(a) * 12).toFixed(1)}"/>`; }
+  for (let i = 0; i < 8; i++) { const a = i / 8 * 2 * Math.PI; rays += `<line x1="${(sx + Math.cos(a) * 13).toFixed(1)}" y1="${(sy + Math.sin(a) * 13).toFixed(1)}" x2="${(sx + Math.cos(a) * 21).toFixed(1)}" y2="${(sy + Math.sin(a) * 21).toFixed(1)}"/>`; }
   return `<svg viewBox="0 0 ${W} ${H}" class="sunmap" role="img" aria-label="World map showing day and night right now">
     <clipPath id="smclip"><rect x="0" y="0" width="${W}" height="${H}" rx="18"/></clipPath>
     <g clip-path="url(#smclip)">
@@ -1420,8 +1429,8 @@ function sunMapSVG(lat, lon) {
       <path d="${term}" class="sm-term"/>
     </g>
     <rect x="1" y="1" width="${W - 2}" height="${H - 2}" rx="18" class="sm-frame"/>
-    <g class="sm-sun"><circle cx="${sx}" cy="${sy}" r="13" class="sm-halo"/><g class="sm-rays">${rays}</g><circle cx="${sx}" cy="${sy}" r="6" class="sm-disc"/></g>
-    <g class="sm-loc"><circle cx="${lx}" cy="${ly}" r="9" class="sm-halo"/><circle cx="${lx}" cy="${ly}" r="5" class="sm-ring"/><circle cx="${lx}" cy="${ly}" r="2" class="sm-dot"/></g>
+    <g class="sm-sun"><circle cx="${sx}" cy="${sy}" r="23" class="sm-halo"/><g class="sm-rays">${rays}</g><circle cx="${sx}" cy="${sy}" r="10" class="sm-disc"/></g>
+    <g class="sm-loc"><circle cx="${lx}" cy="${ly}" r="16" class="sm-halo"/><circle cx="${lx}" cy="${ly}" r="9" class="sm-ring"/><circle cx="${lx}" cy="${ly}" r="4" class="sm-dot"/></g>
   </svg>`;
 }
 
@@ -1492,6 +1501,12 @@ function renderSunSheet() {
     const [mx, my] = pol((RI + RO) / 2, ang(toH(u)));
     moonMarks += `<g class="sc-mark" data-cap="${label} · ${fmtClock(u, tz)}">${moonGlyph(+mx, +my, 9, moonFrac)}</g>`;
   });
+  let sunMarks = "";
+  [["Sunrise", t.sunrise.up], ["Sunset", t.sunrise.down]].forEach(([label, u]) => {
+    if (u == null) return;
+    const [mx, my] = pol((RI + RO) / 2, ang(toH(u)));
+    sunMarks += `<g class="sc-mark" data-cap="${label} · ${fmtClock(u, tz)}">${sunGlyph(+mx, +my, 5)}</g>`;
+  });
 
   const nowH = toH(nowUnix);
   const [sx, sy] = pol(RO, ang(nowH));
@@ -1502,7 +1517,7 @@ function renderSunSheet() {
   const svg = `<svg viewBox="0 0 300 300" class="sunclock" role="img" aria-label="24-hour sun clock">
     ${bandPaths}
     <circle cx="${CX}" cy="${CY}" r="${RO}" class="sc-ring" fill="none"/>
-    ${ticks}${hourLabels}${moonMarks}${sunHand}
+    ${ticks}${hourLabels}${sunMarks}${moonMarks}${sunHand}
     <circle cx="${CX}" cy="${CY}" r="5" class="sc-center" data-cap="${noonCap}"/>
   </svg>`;
 
