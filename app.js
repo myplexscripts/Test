@@ -1379,16 +1379,6 @@ const SUN_BANDS = {
   night:    { name: "Night",                 color: "color-mix(in srgb, var(--ink) 100%, var(--bg))" }
 };
 
-function moonGlyph(cx, cy, r, frac) {
-  const theta = frac * 2 * Math.PI;
-  const rx = Math.abs(Math.cos(theta)) * r;
-  const waxing = frac < 0.5, gibbous = frac > 0.25 && frac < 0.75;
-  const limb = waxing ? 1 : 0, term = gibbous ? limb : 1 - limb;
-  const top = `${cx} ${cy - r}`, bot = `${cx} ${cy + r}`;
-  const shadow = `M ${top} A ${r} ${r} 0 0 ${1 - limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
-  return `<circle cx="${cx}" cy="${cy}" r="${(r + 3).toFixed(1)}" fill="var(--bg)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--bg)"/><path d="${shadow}" fill="var(--ink)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`;
-}
-
 function sunMapSVG(lat, lon) {
   if (typeof WORLD_MAP === "undefined" || !Number.isFinite(lat)) return "";
   const W = WORLD_MAP.w, H = WORLD_MAP.h;
@@ -1483,7 +1473,6 @@ function renderSunSheet() {
     return `<text x="${x}" y="${y}" class="sc-hour">${hourText(h)}</text>`;
   }).join("");
 
-  const moonFrac = moonPhase().frac;
   const mt = moonTimes(localMidnight, lat, lon);
   const Rb = 42, bR = 14;
   const wxInline = (code, cx, cy, size) => wxSVG(code, false).replace(/^<svg /, `<svg x="${(cx - size / 2).toFixed(1)}" y="${(cy - size / 2).toFixed(1)}" width="${size}" height="${size}" `);
@@ -1492,14 +1481,14 @@ function renderSunSheet() {
     if (u == null) return;
     const A = ang(toH(u));
     const [bx, by] = pol(Rb, A);
-    const [c1x, c1y] = pol(Rb + bR, A), [c2x, c2y] = pol(RO, A);
-    connectors += `<line x1="${c1x}" y1="${c1y}" x2="${c2x}" y2="${c2y}" class="sc-connector"/>`;
+    const [c1x, c1y] = pol(Rb + bR, A), [c2x, c2y] = pol(RO + 8, A);
+    connectors += `<line x1="${c1x}" y1="${c1y}" x2="${c2x}" y2="${c2y}" class="sc-connector-casing"/><line x1="${c1x}" y1="${c1y}" x2="${c2x}" y2="${c2y}" class="sc-connector"/>`;
     marks += `<g class="sc-mark sc-wxmark" data-cap="${label} · ${fmtClock(u, tz)}"><circle cx="${bx}" cy="${by}" r="${bR}" class="sc-badge"/>${inner(+bx, +by)}</g>`;
   };
   placeMark("Sunrise", t.sunrise.up, (bx, by) => wxInline("sunrise", bx, by, 20));
   placeMark("Sunset", t.sunrise.down, (bx, by) => wxInline("sunset", bx, by, 20));
-  placeMark("Moonrise", mt.rise, (bx, by) => moonGlyph(bx, by, 8, moonFrac));
-  placeMark("Moonset", mt.set, (bx, by) => moonGlyph(bx, by, 8, moonFrac));
+  placeMark("Moonrise", mt.rise, (bx, by) => wxInline("moonrise", bx, by, 20));
+  placeMark("Moonset", mt.set, (bx, by) => wxInline("moonset", bx, by, 20));
 
   const nowH = toH(nowUnix);
   const [sx, sy] = pol(RO, ang(nowH));

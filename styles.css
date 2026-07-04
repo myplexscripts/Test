@@ -1332,7 +1332,8 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .sc-ring { stroke: var(--ink); opacity: 0.22; stroke-width: 2; }
 .sc-tick { stroke: var(--ink); opacity: 0.35; }
 .sc-hour { fill: var(--ink); font-size: 13px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; font-family: Inter, sans-serif; }
-.sc-connector { stroke: var(--ink); stroke-width: 2; opacity: 0.5; stroke-linecap: round; }
+.sc-connector-casing { stroke: var(--bg); stroke-width: 5.5; stroke-linecap: round; }
+.sc-connector { stroke: var(--ink); stroke-width: 2; stroke-linecap: round; }
 .sc-badge { fill: var(--bg); stroke: var(--ink); stroke-width: 2; }
 .sc-wxmark { color: var(--ink); }
 .sc-hand-casing { stroke: var(--bg); stroke-width: 7; stroke-linecap: round; }
