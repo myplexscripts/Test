@@ -58,6 +58,7 @@ const state = {
   tz: 0,
   placeName: "",
   dark: false,
+  clock24: false,
   drawerOpen: false,
   sheetOpen: false,
   radarOpen: false
@@ -1364,7 +1365,7 @@ function moonGlyph(cx, cy, r, frac) {
   const limb = waxing ? 1 : 0, term = gibbous ? limb : 1 - limb;
   const top = `${cx} ${cy - r}`, bot = `${cx} ${cy + r}`;
   const shadow = `M ${top} A ${r} ${r} 0 0 ${1 - limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
-  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--bg)"/><path d="${shadow}" fill="var(--ink)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`;
+  return `<circle cx="${cx}" cy="${cy}" r="${(r + 3).toFixed(1)}" fill="var(--bg)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="var(--bg)"/><path d="${shadow}" fill="var(--ink)"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--ink)" stroke-width="0.8"/>`;
 }
 
 function renderSunSheet() {
@@ -1420,9 +1421,10 @@ function renderSunSheet() {
     const [x1, y1] = pol(RO, ang(h)), [x2, y2] = pol(RO + (h % 6 === 0 ? 8 : 4), ang(h));
     ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="sc-tick" stroke-width="${h % 6 === 0 ? 2 : 1}"/>`;
   }
+  const hourText = (h) => { if (state.clock24) return String(h); const hh = h % 12 || 12; return `${hh}${h < 12 ? "a" : "p"}`; };
   const hourLabels = [0, 3, 6, 9, 12, 15, 18, 21].map((h) => {
     const [x, y] = pol(RO + 20, ang(h));
-    return `<text x="${x}" y="${y}" class="sc-hour">${h}</text>`;
+    return `<text x="${x}" y="${y}" class="sc-hour">${hourText(h)}</text>`;
   }).join("");
 
   const moonFrac = moonPhase().frac;
@@ -1452,7 +1454,7 @@ function renderSunSheet() {
   const goldenAm = t.sunrise.up != null && t.golden.up != null ? `${fmtClock(t.sunrise.up, tz)} to ${fmtClock(t.golden.up, tz)}` : "--";
   const goldenPm = t.golden.down != null && t.sunrise.down != null ? `${fmtClock(t.golden.down, tz)} to ${fmtClock(t.sunrise.down, tz)}` : "--";
   const sectionD = (title, desc, body) => `<div class="info-section"><h3 class="info-head">${title}</h3><p class="info-desc">${desc}</p><div class="info-card">${body}</div></div>`;
-  const intro = `<p class="sun-intro">A 24-hour map of light for your location. Midnight (0) sits at the bottom and noon (12) at the top; the hand shows where the sun is <em>right now</em>. Each shaded band is a stage of light, from bright <strong>day</strong> at the pale end down to full <strong>night</strong> at the dark end, so you can see daylight and darkness fall across the whole day. The little moons mark when the moon rises and sets. Tap any band, the sun, the moon, or the centre to read its exact times.</p>`;
+  const intro = `<p class="sun-intro">A 24-hour map of light for your location. Midnight sits at the bottom and noon at the top; the hand shows where the sun is <em>right now</em>. Each shaded band is a stage of light, from bright <strong>day</strong> at the pale end down to full <strong>night</strong> at the dark end, so you can see daylight and darkness fall across the whole day. The little moons mark when the moon rises and sets. Tap any band, the sun, the moon, or the centre to read its exact times.</p>`;
   const list = intro +
     `<div class="sun-key">` + Object.entries(SUN_BANDS).map(([k, v]) => `<span class="sun-key-item"><span class="sun-swatch" style="background:${v.color}"></span>${v.name}</span>`).join("") + `</div>` +
     sectionD("Sun", "The sun's key moments today. Solar noon is when the sun is highest in the sky, the true middle of the day.", [
@@ -1483,13 +1485,20 @@ function renderSunSheet() {
   el.sheetNote.textContent = sunUp
     ? `Daylight now. Sunset at ${fmtOrDash(t.sunrise.down)}.`
     : `Nighttime now. Sunrise at ${fmtOrDash(t.sunrise.up)}.`;
-  el.sheetList.innerHTML = `<div class="sunclock-wrap">${svg}</div>${list}`;
+  const toggle = `<div class="sun-fmt-wrap"><div class="segmented small sun-fmt" role="group" aria-label="Clock format">
+      <button class="seg-item ${state.clock24 ? "" : "is-active"}" data-fmt="12">12h</button>
+      <button class="seg-item ${state.clock24 ? "is-active" : ""}" data-fmt="24">24h</button>
+    </div></div>`;
+  el.sheetList.innerHTML = `${toggle}<div class="sunclock-wrap">${svg}</div>${list}`;
 
   const setCap = (txt) => { if (txt) el.sheetNote.textContent = txt; };
   el.sheetList.querySelectorAll(".sc-band").forEach((p) => {
     p.addEventListener("click", () => { const b = bandInfo[+p.dataset.i]; setCap(`${b.name} · ${b.from} to ${b.to}`); });
   });
   el.sheetList.querySelectorAll("[data-cap]").forEach((n) => n.addEventListener("click", () => setCap(n.dataset.cap)));
+  el.sheetList.querySelectorAll(".sun-fmt [data-fmt]").forEach((b) => {
+    b.addEventListener("click", () => { state.clock24 = b.dataset.fmt === "24"; saveState(); renderSunSheet(); });
+  });
 }
 
 function renderMoonSheet() {
@@ -2648,7 +2657,7 @@ function fmtClock(dt, tz) {
 }
 
 function saveState() {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme })); } catch {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, clock24: state.clock24 })); } catch {}
 }
 function loadState() {
   try {
@@ -2657,6 +2666,7 @@ function loadState() {
       state.units = s.units || "metric";
       state.loc = s.loc || { ...HOME };
       state.theme = PALETTES[s.theme] ? s.theme : (THEME_REMAP[s.theme] || "lemon");
+      state.clock24 = !!s.clock24;
     }
   } catch {}
 }
