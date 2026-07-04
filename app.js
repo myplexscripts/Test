@@ -10,10 +10,6 @@ const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
 
-// Every theme follows one rule: surface = ink, on-surface = bg, accent = bg.
-// Light themes paint text/surfaces in solid black (#050505); Night inverts it to
-// #fafafa. No dynamically-tinted inks — just the base colour and black (or its
-// inverse for Night).
 const PALETTES = {
   lemon:  { bg: "#ffe442", ink: "#050505", surface: "#050505", onSurface: "#ffe442", accent: "#ffe442", dark: false },
   sand:   { bg: "#f3bf7b", ink: "#050505", surface: "#050505", onSurface: "#f3bf7b", accent: "#f3bf7b", dark: false },
@@ -22,8 +18,6 @@ const PALETTES = {
   night:  { bg: "#050505", ink: "#fafafa", surface: "#fafafa", onSurface: "#050505", accent: "#050505", dark: true, statusBar: "#050505" }
 };
 
-// Migrate any theme key that no longer exists (from older saved state) onto one
-// of the five current themes.
 const THEME_REMAP = {
   rose: "orchid", ocean: "orchid", lilac: "orchid", slate: "night", newmoon: "night"
 };
@@ -699,9 +693,6 @@ function renderWind(current) {
 }
 
 function compassSVG(rot, value, unit) {
-  // Radii (viewBox 0..120, centre 60): centre text < ~18, arrow band 20-30,
-  // tick ring 34-42, cardinal labels at 51 — each in its own gap so nothing
-  // overlaps at any rotation.
   let ticks = "";
   for (let i = 0; i < 72; i++) {
     const major = i % 9 === 0;
@@ -1325,7 +1316,6 @@ const PHASE_GUIDE = [
   ["Waning crescent", 0.875, "A thin, shrinking sliver on the left, until the disk goes dark and a new cycle begins."]
 ];
 
-// ---- Sun position / twilight times (SunCalc-style, matching the moon math) ----
 const SUN_J1970 = 2440588, SUN_J2000 = 2451545, SUN_J0 = 0.0009;
 function sunFromJulian(j) { return (j + 0.5 - SUN_J1970) * 86400; }
 function sunMeanAnomaly(d) { return MOON_RAD * (357.5291 + 0.98560028 * d); }
@@ -1358,19 +1348,15 @@ function sunTimes(unix, lat, lon) {
   };
 }
 
-// Monochrome ramp: light (full day) to near-solid ink (full night), matching the
-// site's black-ink style. Each band is the theme ink mixed over the background.
 const SUN_BANDS = {
-  day:      { name: "Day",                   color: "color-mix(in srgb, var(--ink) 7%, var(--bg))" },
-  golden:   { name: "Golden hour",           color: "color-mix(in srgb, var(--ink) 24%, var(--bg))" },
-  civil:    { name: "Civil twilight",        color: "color-mix(in srgb, var(--ink) 44%, var(--bg))" },
-  nautical: { name: "Nautical twilight",     color: "color-mix(in srgb, var(--ink) 62%, var(--bg))" },
-  astro:    { name: "Astronomical twilight", color: "color-mix(in srgb, var(--ink) 80%, var(--bg))" },
-  night:    { name: "Night",                 color: "color-mix(in srgb, var(--ink) 95%, var(--bg))" }
+  day:      { name: "Day",                   color: "color-mix(in srgb, var(--ink) 5%, var(--bg))" },
+  golden:   { name: "Golden hour",           color: "color-mix(in srgb, var(--ink) 28%, var(--bg))" },
+  civil:    { name: "Civil twilight",        color: "color-mix(in srgb, var(--ink) 50%, var(--bg))" },
+  nautical: { name: "Nautical twilight",     color: "color-mix(in srgb, var(--ink) 72%, var(--bg))" },
+  astro:    { name: "Astronomical twilight", color: "color-mix(in srgb, var(--ink) 89%, var(--bg))" },
+  night:    { name: "Night",                 color: "color-mix(in srgb, var(--ink) 100%, var(--bg))" }
 };
 
-// Small moon disc drawn directly in the clock SVG (fixed colours so it reads on
-// any band).
 function moonGlyph(cx, cy, r, frac) {
   const theta = frac * 2 * Math.PI;
   const rx = Math.abs(Math.cos(theta)) * r;
@@ -1463,27 +1449,27 @@ function renderSunSheet() {
 
   const row = (icon, label, value) => `<div class="sun-row"><i class="ph-duotone ${icon}"></i><span class="sun-row-label">${label}</span><strong class="sun-row-val">${value}</strong></div>`;
   const fmtOrDash = (u) => u != null ? fmtClock(u, tz) : "--";
-  const goldenAm = t.sunrise.up != null && t.golden.up != null ? `${fmtClock(t.sunrise.up, tz)} – ${fmtClock(t.golden.up, tz)}` : "--";
-  const goldenPm = t.golden.down != null && t.sunrise.down != null ? `${fmtClock(t.golden.down, tz)} – ${fmtClock(t.sunrise.down, tz)}` : "--";
+  const goldenAm = t.sunrise.up != null && t.golden.up != null ? `${fmtClock(t.sunrise.up, tz)} to ${fmtClock(t.golden.up, tz)}` : "--";
+  const goldenPm = t.golden.down != null && t.sunrise.down != null ? `${fmtClock(t.golden.down, tz)} to ${fmtClock(t.sunrise.down, tz)}` : "--";
   const sectionD = (title, desc, body) => `<div class="info-section"><h3 class="info-head">${title}</h3><p class="info-desc">${desc}</p><div class="info-card">${body}</div></div>`;
-  const intro = `<p class="sun-intro">A 24-hour map of light for your location. Midnight (0) sits at the bottom and noon (12) at the top; the hand shows where the sun is <em>right now</em>. Each shaded band is a stage of light — from bright <strong>day</strong> at the pale end down to full <strong>night</strong> at the dark end — so you can see daylight and darkness fall across the whole day. The little moons mark when the moon rises and sets. Tap any band, the sun, the moon, or the centre to read its exact times.</p>`;
+  const intro = `<p class="sun-intro">A 24-hour map of light for your location. Midnight (0) sits at the bottom and noon (12) at the top; the hand shows where the sun is <em>right now</em>. Each shaded band is a stage of light, from bright <strong>day</strong> at the pale end down to full <strong>night</strong> at the dark end, so you can see daylight and darkness fall across the whole day. The little moons mark when the moon rises and sets. Tap any band, the sun, the moon, or the centre to read its exact times.</p>`;
   const list = intro +
     `<div class="sun-key">` + Object.entries(SUN_BANDS).map(([k, v]) => `<span class="sun-key-item"><span class="sun-swatch" style="background:${v.color}"></span>${v.name}</span>`).join("") + `</div>` +
-    sectionD("Sun", "The sun's key moments today. Solar noon is when the sun is highest in the sky — the true middle of the day.", [
+    sectionD("Sun", "The sun's key moments today. Solar noon is when the sun is highest in the sky, the true middle of the day.", [
       row("ph-sun-horizon", "Sunrise", fmtOrDash(t.sunrise.up)),
       row("ph-sun", "Solar noon", fmtOrDash(t.noon)),
       row("ph-sun-horizon", "Sunset", fmtOrDash(t.sunrise.down))
     ].join("")) +
-    sectionD("Golden hour", "The soft, warm, low-angle light just after sunrise and just before sunset — the flattering light photographers love.", [
+    sectionD("Golden hour", "The soft, warm, low-angle light just after sunrise and just before sunset. It is the flattering light photographers love.", [
       row("ph-sun", "Morning", goldenAm),
       row("ph-sun", "Evening", goldenPm)
     ].join("")) +
-    sectionD("Dawn", "Light building before sunrise. Civil: bright enough to be outside without lights. Nautical: the horizon is still visible and the first stars appear. Astronomical: the faint first glow — before it, the sky is fully dark.", [
+    sectionD("Dawn", "Light building before sunrise. Civil: bright enough to be outside without lights. Nautical: the horizon is still visible and the first stars appear. Astronomical: the faint first glow, before which the sky is fully dark.", [
       row("ph-cloud-sun", "Civil", fmtOrDash(t.civil.up)),
       row("ph-cloud-moon", "Nautical", fmtOrDash(t.nautical.up)),
       row("ph-moon-stars", "Astronomical", fmtOrDash(t.astro.up))
     ].join("")) +
-    sectionD("Dusk", "The same three stages after sunset, in reverse — Civil, then Nautical, then Astronomical — after which it is fully dark (night).", [
+    sectionD("Dusk", "The same three stages after sunset, in reverse: Civil, then Nautical, then Astronomical, after which it is fully dark (night).", [
       row("ph-cloud-sun", "Civil", fmtOrDash(t.civil.down)),
       row("ph-cloud-moon", "Nautical", fmtOrDash(t.nautical.down)),
       row("ph-moon-stars", "Astronomical", fmtOrDash(t.astro.down))
@@ -1495,13 +1481,13 @@ function renderSunSheet() {
     ].join(""));
 
   el.sheetNote.textContent = sunUp
-    ? `Daylight now — sunset at ${fmtOrDash(t.sunrise.down)}.`
-    : `Nighttime now — sunrise at ${fmtOrDash(t.sunrise.up)}.`;
+    ? `Daylight now. Sunset at ${fmtOrDash(t.sunrise.down)}.`
+    : `Nighttime now. Sunrise at ${fmtOrDash(t.sunrise.up)}.`;
   el.sheetList.innerHTML = `<div class="sunclock-wrap">${svg}</div>${list}`;
 
   const setCap = (txt) => { if (txt) el.sheetNote.textContent = txt; };
   el.sheetList.querySelectorAll(".sc-band").forEach((p) => {
-    p.addEventListener("click", () => { const b = bandInfo[+p.dataset.i]; setCap(`${b.name} · ${b.from} – ${b.to}`); });
+    p.addEventListener("click", () => { const b = bandInfo[+p.dataset.i]; setCap(`${b.name} · ${b.from} to ${b.to}`); });
   });
   el.sheetList.querySelectorAll("[data-cap]").forEach((n) => n.addEventListener("click", () => setCap(n.dataset.cap)));
 }
@@ -1801,8 +1787,6 @@ function renderDetailList() {
     const n = dec ? v.toFixed(dec) : `${Math.round(v)}`;
     return unit === "°" ? `${n}°` : `${n} ${unit}`;
   };
-  // On the hourly temperature screen, spell out both precipitation values so the
-  // "chance" (%) and "amount" (mm) are never conflated.
   const showWx = state.detail.metric === "temp";
   el.sheetList.innerHTML = (state.hourly || []).map((it) => {
     const hh = new Date((it.dt + tz) * 1000).getUTCHours();
@@ -1831,8 +1815,6 @@ function hexA(hex, a) {
 
 let chartGeom = null, chartRedraw = null;
 
-// Today's trend tile: temperature line + precipitation bars across the current
-// day only, at hourly resolution, drawn in the theme ink to match the flat look.
 function drawTrend() {
   const canvas = el.trendGraph;
   if (!canvas) return;
@@ -1850,8 +1832,6 @@ function drawTrend() {
   const localDay = (sec) => { const d = new Date((sec + tz) * 1000); return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`; };
   const today = localDay(nowSec);
 
-  // Hourly resolution (open-meteo) is preferred; fall back to the 3-hourly OWM
-  // forecast. Both are filtered to the current local day.
   const fromHourly = (state.data?.hourly || [])
     .map((it) => ({ t: it.dt, temp: it.main?.temp, precip: it.precip || 0 }))
     .filter((p) => Number.isFinite(p.temp));
@@ -1861,8 +1841,6 @@ function drawTrend() {
 
   let pts = fromHourly.filter((p) => localDay(p.t) === today);
   if (pts.length < 3) pts = fromForecast.filter((p) => localDay(p.t) === today);
-  // Late-day safety net so the tile is never near-empty: fall back to the next
-  // ~24h if today has almost no points left.
   if (pts.length < 3) {
     const base = fromHourly.length ? fromHourly : fromForecast;
     pts = base.filter((p) => p.t >= nowSec - 3600).slice(0, fromHourly.length ? 24 : 8);
@@ -1889,7 +1867,6 @@ function drawTrend() {
   const Y = (v) => y1 - ((v - tMin) / (tMax - tMin)) * plotH;
   const barMaxH = plotH * 0.42;
 
-  // horizontal gridlines + temperature axis labels
   ctx.textBaseline = "middle";
   ctx.textAlign = "right";
   ctx.font = `600 11px ${font}`;
@@ -1903,7 +1880,6 @@ function drawTrend() {
     ctx.fillText(`${Math.round(v)}°`, x0 - 8, gy);
   }
 
-  // precipitation bars (bottom band) + right-hand mm axis
   const barW = Math.min(slotW * 0.6, 12);
   pts.forEach((p, i) => {
     if (p.precip <= 0) return;
@@ -1921,7 +1897,6 @@ function drawTrend() {
     ctx.fillText("0", W - 4, y1);
   }
 
-  // temperature area fill
   const curve = () => {
     pts.forEach((p, i) => {
       const px = X(i), py = Y(p.temp);
@@ -1935,12 +1910,10 @@ function drawTrend() {
   grad.addColorStop(0, hexA(ink, 0.2)); grad.addColorStop(1, hexA(ink, 0));
   ctx.fillStyle = grad; ctx.fill();
 
-  // temperature line
   ctx.beginPath(); curve();
   ctx.strokeStyle = ink; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round";
   ctx.stroke();
 
-  // "Now" marker (dashed vertical line at the current time)
   if (nowSec >= pts[0].t && nowSec <= pts[pts.length - 1].t) {
     let ni = 0;
     for (let i = 0; i < pts.length - 1; i++) {
@@ -1958,7 +1931,6 @@ function drawTrend() {
     ctx.fillText("Now", Math.max(x0 + 12, Math.min(x1 - 12, nx)), y0 - 6);
   }
 
-  // day high / low markers + labels
   let hiIdx = 0, loIdx = 0;
   pts.forEach((p, i) => { if (p.temp > pts[hiIdx].temp) hiIdx = i; if (p.temp < pts[loIdx].temp) loIdx = i; });
   ctx.fillStyle = ink;
@@ -1972,7 +1944,6 @@ function drawTrend() {
     ctx.fillText(`${Math.round(pts[idx].temp)}°`, Math.max(x0 + 12, Math.min(x1 - 12, px)), py + dy);
   });
 
-  // bottom hour labels
   ctx.fillStyle = hexA(ink, 0.55);
   ctx.font = `700 11px ${font}`;
   const labelStep = Math.max(1, Math.round(pts.length / 5));
@@ -2147,8 +2118,6 @@ function setPinMarker(map, ref) {
 
 async function initRadarPreview() {
   if (radar.preview) return;
-  // The Leaflet script is deferred, so on the first (cached) render it may not
-  // be parsed yet. Retry until it is, instead of giving up until the next render.
   if (!haveLeaflet()) {
     if ((radar._previewTries = (radar._previewTries || 0) + 1) <= 60) setTimeout(initRadarPreview, 200);
     else if (el.radarPreviewMap) el.radarPreviewMap.innerHTML = '<div class="map-fallback">Map unavailable right now.</div>';
@@ -2161,16 +2130,11 @@ async function initRadarPreview() {
       doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, tap: false
     }).setView([c.lat, c.lon], 9);
     radar.previewBase = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(radar.preview);
-    // If the basemap CDN fails, fall back to OpenStreetMap so the preview never
-    // stays a black box.
     let previewTileErrs = 0;
     radar.previewBase.on("tileerror", () => {
       if (++previewTileErrs === 8 && radar.previewBase) radar.previewBase.setUrl("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
     });
     setPinMarker(radar.preview, "previewMarker");
-    // Recompute size on rAF, a few delays, and whenever the container's box
-    // changes — this fixes the occasional blank/black map that appears when it
-    // initialises before the layout has settled.
     const invalidate = () => radar.preview && radar.preview.invalidateSize();
     requestAnimationFrame(invalidate);
     [120, 500, 1000].forEach((d) => setTimeout(invalidate, d));
@@ -2725,9 +2689,6 @@ function initGestures() {
   let mode = null;
   let sx = 0, sy = 0, dist = 0;
 
-  // Block Safari's pinch-to-zoom of the page. Leaflet maps zoom via their own
-  // touch handling, so map pinch still works. (Double-tap zoom is blocked via
-  // touch-action: manipulation in CSS.)
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) =>
     document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
 

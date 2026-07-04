@@ -54,8 +54,6 @@
 
 * { box-sizing: border-box; }
 
-/* App-like feel: no text selection / long-press callout / copy-paste menus.
-   Inputs stay selectable so typing still works. */
 html {
   -webkit-user-select: none;
   user-select: none;
@@ -72,18 +70,8 @@ html, body {
   min-height: 100%;
   width: 100%;
 }
-/* The viewport (<html>) is the single scroll container. Keep horizontal overflow
-   clipped, but never let <body> become its own scroll container: setting
-   overflow-x:hidden on <body> forces overflow-y to compute to `auto`, turning the
-   body into a scroll box. Combined with overscroll-behavior:contain that silently
-   swallowed mouse-wheel scrolling on desktop — the wheel hit the body scroll box
-   (which has no scroll range) and containment blocked it from chaining to the
-   viewport. `clip` prevents horizontal overflow without creating a scroll box. */
 html { overflow-x: hidden; overscroll-behavior-y: contain; }
 body { overflow-x: hidden; overflow-x: clip; }
-/* Hide the page scrollbar on touch / small screens for a clean, app-like feel.
-   On desktop keep the native scrollbar so mouse users have a visible, draggable
-   scroll affordance — hiding it globally made the desktop layout feel unscrollable. */
 @media (max-width: 999px) {
   html, body { scrollbar-width: none; -ms-overflow-style: none; }
   html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
@@ -174,8 +162,6 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .mini-temp { margin-left: auto; font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: 1.5rem; flex: 0 0 auto; }
 @media (min-width: 821px) { .mini-header { display: none; } }
 
-/* In Night mode the card surface is light (#fafafa); keep the mini-header and
-   drawer dark so the app chrome still reads as night. */
 [data-theme="night"] .mini-header,
 [data-theme="night"] .drawer {
   --surface: #1c1c1e;
@@ -1326,10 +1312,9 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .info-head { font-family: Rubik, Inter, sans-serif; font-size: 1.15rem; font-weight: 700; margin-bottom: var(--s-2); }
 .info-card { background: var(--card-bg); border: 2px solid var(--card-border); border-radius: var(--r-md); padding: var(--s-4); }
 
-/* Sun Clock */
 .sunclock-wrap { display: flex; justify-content: center; padding: var(--s-3) 0 var(--s-2); }
 .sunclock { width: min(340px, 92%); height: auto; display: block; }
-.sc-band { cursor: pointer; transition: opacity var(--dur-fast); }
+.sc-band { cursor: pointer; stroke: var(--bg); stroke-width: 2; stroke-linejoin: round; transition: opacity var(--dur-fast); }
 .sc-band:hover { opacity: 0.82; }
 .sc-ring { stroke: var(--ink); opacity: 0.22; stroke-width: 2; }
 .sc-tick { stroke: var(--ink); opacity: 0.35; }
