@@ -146,6 +146,7 @@ function wireEvents() {
   el.sheetBack.onclick = sheetBack;
   el.windCard.onclick = () => openDetail("wind");
   if (el.moonCard) el.moonCard.onclick = () => openDetail("moon");
+  if (el.sunCard) el.sunCard.onclick = () => openDetail("sun");
   el.detailGrid.addEventListener("click", (e) => {
     const card = e.target.closest("[data-metric]");
     if (card) openDetail(card.dataset.metric, card.dataset.range || "hourly");
@@ -588,6 +589,7 @@ function renderSun(current) {
   }
 
   el.sunCard.innerHTML = `
+    <i class="ph ph-caret-right card-go" aria-hidden="true"></i>
     <div class="sun-top">
       <div class="sun-dur"><span class="d-label">${left[0]}</span><strong>${fmtDur(left[1])}</strong></div>
       <div class="sun-dur end"><span class="d-label">${right[0]}</span><strong>${fmtDur(right[1])}</strong></div>
@@ -1143,7 +1145,7 @@ function openSheetUI() {
 }
 
 function openDetail(metric, range) {
-  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits";
+  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun";
   if (!METRICS[metric] && !isInfo) metric = "temp";
   const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
   state.nav = [view];
@@ -1189,7 +1191,7 @@ function syncRange() {
 
 function renderDetailSheet() {
   const gc = el.graph.closest(".graph-card");
-  if (["aqi", "uv", "moon", "credits"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
+  if (["aqi", "uv", "moon", "credits", "sun"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
   if (gc) gc.style.display = "";
   if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
@@ -1209,6 +1211,7 @@ function renderInfoSheet(kind) {
   el.dayStats.style.display = "none";
   el.tabSeg.style.display = "none";
   if (kind === "moon") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderMoonSheet(); }
+  else if (kind === "sun") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderSunSheet(); }
   else if (kind === "credits") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderCreditsSheet(); }
   else if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
@@ -1327,6 +1330,183 @@ const PHASE_GUIDE = [
   ["Last quarter", 0.75, "Three weeks in, the left half is lit, the mirror image of the first quarter."],
   ["Waning crescent", 0.875, "A thin, shrinking sliver on the left, until the disk goes dark and a new cycle begins."]
 ];
+
+// ---- Sun position / twilight times (SunCalc-style, matching the moon math) ----
+const SUN_J1970 = 2440588, SUN_J2000 = 2451545, SUN_J0 = 0.0009;
+function sunFromJulian(j) { return (j + 0.5 - SUN_J1970) * 86400; }
+function sunMeanAnomaly(d) { return MOON_RAD * (357.5291 + 0.98560028 * d); }
+function sunEclipticLon(M) {
+  const C = MOON_RAD * (1.9148 * Math.sin(M) + 0.02 * Math.sin(2 * M) + 0.0003 * Math.sin(3 * M));
+  return M + C + MOON_RAD * 102.9372 + Math.PI;
+}
+function sunTimes(unix, lat, lon) {
+  const lw = MOON_RAD * -lon, phi = MOON_RAD * lat;
+  const d = moonToDays(unix);
+  const n = Math.round(d - SUN_J0 - lw / (2 * Math.PI));
+  const ds = SUN_J0 + lw / (2 * Math.PI) + n;
+  const M = sunMeanAnomaly(ds);
+  const L = sunEclipticLon(M);
+  const dec = Math.asin(Math.sin(ECL) * Math.sin(L));
+  const Jnoon = SUN_J2000 + ds + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L);
+  const event = (angleDeg) => {
+    const h = angleDeg * MOON_RAD;
+    const cosH = (Math.sin(h) - Math.sin(phi) * Math.sin(dec)) / (Math.cos(phi) * Math.cos(dec));
+    if (cosH >= 1 || cosH <= -1) return { up: null, down: null };
+    const w = Math.acos(cosH);
+    const a = SUN_J0 + (w + lw) / (2 * Math.PI) + n;
+    const Jset = SUN_J2000 + a + 0.0053 * Math.sin(M) - 0.0069 * Math.sin(2 * L);
+    return { up: sunFromJulian(Jnoon - (Jset - Jnoon)), down: sunFromJulian(Jset) };
+  };
+  return {
+    noon: sunFromJulian(Jnoon),
+    maxAlt: Math.PI / 2 - Math.abs(phi - dec),
+    golden: event(6), sunrise: event(-0.833), civil: event(-6), nautical: event(-12), astro: event(-18)
+  };
+}
+
+const SUN_BANDS = {
+  day:      { name: "Day",                   color: "#c9dcec" },
+  golden:   { name: "Golden hour",           color: "#f2b24a" },
+  civil:    { name: "Civil twilight",        color: "#6f83b4" },
+  nautical: { name: "Nautical twilight",     color: "#33477a" },
+  astro:    { name: "Astronomical twilight", color: "#182449" },
+  night:    { name: "Night",                 color: "#0b1022" }
+};
+
+// Small moon disc drawn directly in the clock SVG (fixed colours so it reads on
+// any band).
+function moonGlyph(cx, cy, r, frac) {
+  const theta = frac * 2 * Math.PI;
+  const rx = Math.abs(Math.cos(theta)) * r;
+  const waxing = frac < 0.5, gibbous = frac > 0.25 && frac < 0.75;
+  const limb = waxing ? 1 : 0, term = gibbous ? limb : 1 - limb;
+  const top = `${cx} ${cy - r}`, bot = `${cx} ${cy + r}`;
+  const shadow = `M ${top} A ${r} ${r} 0 0 ${1 - limb} ${bot} A ${rx} ${r} 0 0 ${term} ${top} Z`;
+  return `<circle cx="${cx}" cy="${cy}" r="${r}" fill="#eef2f8"/><path d="${shadow}" fill="#222838"/><circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="#000" stroke-width="0.6" opacity="0.35"/>`;
+}
+
+function renderSunSheet() {
+  el.sheetTitle.textContent = "Sun Clock";
+  const tz = state.tz || state.data?.current?.timezone || 0;
+  const c = state.center || {};
+  const lat = c.lat, lon = c.lon;
+  if (!Number.isFinite(lat)) { el.sheetNote.textContent = "Location is unavailable."; el.sheetList.innerHTML = ""; return; }
+  const nowUnix = Math.floor(Date.now() / 1000);
+  const localMidnight = Math.floor((nowUnix + tz) / 86400) * 86400 - tz;
+  const t = sunTimes(localMidnight + 43200, lat, lon);
+  const dir = lat >= 0 ? 1 : -1;
+  const toH = (u) => u == null ? null : ((((u + tz) / 3600) % 24) + 24) % 24;
+  const hToClock = (h) => fmtClock(localMidnight + Math.round(h * 3600), tz);
+
+  const ev = {
+    astroUp: toH(t.astro.up), nautUp: toH(t.nautical.up), civilUp: toH(t.civil.up), sunrise: toH(t.sunrise.up), goldenUp: toH(t.golden.up),
+    goldenDn: toH(t.golden.down), sunset: toH(t.sunrise.down), civilDn: toH(t.civil.down), nautDn: toH(t.nautical.down), astroDn: toH(t.astro.down)
+  };
+
+  const raw = [];
+  const add = (h0, h1, type) => { if (h0 != null && h1 != null && h1 > h0 + 0.001) raw.push([h0, h1, type]); };
+  add(0, ev.astroUp, "night"); add(ev.astroUp, ev.nautUp, "astro"); add(ev.nautUp, ev.civilUp, "nautical");
+  add(ev.civilUp, ev.sunrise, "civil"); add(ev.sunrise, ev.goldenUp, "golden"); add(ev.goldenUp, ev.goldenDn, "day");
+  add(ev.goldenDn, ev.sunset, "golden"); add(ev.sunset, ev.civilDn, "civil"); add(ev.civilDn, ev.nautDn, "nautical");
+  add(ev.nautDn, ev.astroDn, "astro"); add(ev.astroDn, 24, "night");
+  let bands;
+  if (raw.length === 0) {
+    bands = [[0, 24, t.maxAlt > 0 ? "day" : "night"]];
+  } else {
+    raw.sort((a, b) => a[0] - b[0]);
+    const deep = ev.astroUp != null ? "night" : ev.nautUp != null ? "astro" : ev.civilUp != null ? "nautical" : ev.sunrise != null ? "civil" : (t.maxAlt > 0 ? "golden" : "night");
+    bands = []; let cur = 0;
+    for (const b of raw) { if (b[0] > cur + 0.001) bands.push([cur, b[0], deep]); bands.push(b); cur = Math.max(cur, b[1]); }
+    if (cur < 24) bands.push([cur, 24, deep]);
+  }
+
+  const CX = 150, CY = 150, RI = 62, RO = 116;
+  const ang = (h) => -90 + dir * ((h - 12) / 24) * 360;
+  const pol = (r, a) => { const rad = a * Math.PI / 180; return [(CX + r * Math.cos(rad)).toFixed(2), (CY + r * Math.sin(rad)).toFixed(2)]; };
+  const arc = (ri, ro, h0, h1) => {
+    let a0 = ang(h0), a1 = ang(h1); if (a1 < a0) { const s = a0; a0 = a1; a1 = s; }
+    const large = (a1 - a0) > 180 ? 1 : 0;
+    const [ox0, oy0] = pol(ro, a0), [ox1, oy1] = pol(ro, a1), [ix1, iy1] = pol(ri, a1), [ix0, iy0] = pol(ri, a0);
+    return `M${ox0},${oy0} A${ro},${ro} 0 ${large} 1 ${ox1},${oy1} L${ix1},${iy1} A${ri},${ri} 0 ${large} 0 ${ix0},${iy0} Z`;
+  };
+
+  const bandInfo = bands.map((b) => ({ name: SUN_BANDS[b[2]].name, from: hToClock(b[0]), to: hToClock(b[1]) }));
+  const bandPaths = bands.map((b, i) => `<path class="sc-band" data-i="${i}" d="${arc(RI, RO, b[0], b[1])}" fill="${SUN_BANDS[b[2]].color}"/>`).join("");
+
+  let ticks = "";
+  for (let h = 0; h < 24; h++) {
+    const [x1, y1] = pol(RO, ang(h)), [x2, y2] = pol(RO + (h % 6 === 0 ? 8 : 4), ang(h));
+    ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="sc-tick" stroke-width="${h % 6 === 0 ? 2 : 1}"/>`;
+  }
+  const hourLabels = [0, 3, 6, 9, 12, 15, 18, 21].map((h) => {
+    const [x, y] = pol(RO + 20, ang(h));
+    return `<text x="${x}" y="${y}" class="sc-hour">${h}</text>`;
+  }).join("");
+
+  const moonFrac = moonPhase().frac;
+  const mt = moonTimes(localMidnight, lat, lon);
+  let moonMarks = "";
+  [["Moonrise", mt.rise], ["Moonset", mt.set]].forEach(([label, u]) => {
+    if (u == null) return;
+    const [mx, my] = pol((RI + RO) / 2, ang(toH(u)));
+    moonMarks += `<g class="sc-mark" data-cap="${label} · ${fmtClock(u, tz)}">${moonGlyph(+mx, +my, 9, moonFrac)}</g>`;
+  });
+
+  const nowH = toH(nowUnix);
+  const [sx, sy] = pol(RO, ang(nowH));
+  const sunUp = t.sunrise.up != null && nowUnix >= t.sunrise.up && nowUnix < t.sunrise.down;
+  const sunHand = `<line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand" data-cap="Now · ${fmtClock(nowUnix, tz)}"/><circle cx="${sx}" cy="${sy}" r="7" class="sc-sun"/>`;
+  const noonCap = t.noon != null ? `Solar noon · ${fmtClock(t.noon, tz)}` : "";
+
+  const svg = `<svg viewBox="0 0 300 300" class="sunclock" role="img" aria-label="24-hour sun clock">
+    ${bandPaths}
+    <circle cx="${CX}" cy="${CY}" r="${RO}" class="sc-ring" fill="none"/>
+    ${ticks}${hourLabels}${moonMarks}${sunHand}
+    <circle cx="${CX}" cy="${CY}" r="5" class="sc-center" data-cap="${noonCap}"/>
+  </svg>`;
+
+  const row = (icon, label, value) => `<div class="sun-row"><i class="ph-duotone ${icon}"></i><span class="sun-row-label">${label}</span><strong class="sun-row-val">${value}</strong></div>`;
+  const fmtOrDash = (u) => u != null ? fmtClock(u, tz) : "--";
+  const goldenAm = t.sunrise.up != null && t.golden.up != null ? `${fmtClock(t.sunrise.up, tz)} – ${fmtClock(t.golden.up, tz)}` : "--";
+  const goldenPm = t.golden.down != null && t.sunrise.down != null ? `${fmtClock(t.golden.down, tz)} – ${fmtClock(t.sunrise.down, tz)}` : "--";
+  const list =
+    `<div class="sun-key">` + Object.entries(SUN_BANDS).map(([k, v]) => `<span class="sun-key-item"><span class="sun-swatch" style="background:${v.color}"></span>${v.name}</span>`).join("") + `</div>` +
+    section("Sun", [
+      row("ph-sun-horizon", "Sunrise", fmtOrDash(t.sunrise.up)),
+      row("ph-sun", "Solar noon", fmtOrDash(t.noon)),
+      row("ph-sun-horizon", "Sunset", fmtOrDash(t.sunrise.down))
+    ].join("")) +
+    section("Golden hour", [
+      row("ph-sun", "Morning", goldenAm),
+      row("ph-sun", "Evening", goldenPm)
+    ].join("")) +
+    section("Dawn", [
+      row("ph-cloud-sun", "Civil", fmtOrDash(t.civil.up)),
+      row("ph-cloud-moon", "Nautical", fmtOrDash(t.nautical.up)),
+      row("ph-moon-stars", "Astronomical", fmtOrDash(t.astro.up))
+    ].join("")) +
+    section("Dusk", [
+      row("ph-cloud-sun", "Civil", fmtOrDash(t.civil.down)),
+      row("ph-cloud-moon", "Nautical", fmtOrDash(t.nautical.down)),
+      row("ph-moon-stars", "Astronomical", fmtOrDash(t.astro.down))
+    ].join("")) +
+    section("Moon", [
+      row("ph-moon", moonPhase().name, `${moonPhase().illum}%`),
+      row("ph-arrow-up", "Moonrise", fmtOrDash(mt.rise)),
+      row("ph-arrow-down", "Moonset", fmtOrDash(mt.set))
+    ].join(""));
+
+  el.sheetNote.textContent = sunUp
+    ? `Daylight now — sunset at ${fmtOrDash(t.sunrise.down)}.`
+    : `Nighttime now — sunrise at ${fmtOrDash(t.sunrise.up)}.`;
+  el.sheetList.innerHTML = `<div class="sunclock-wrap">${svg}</div>${list}`;
+
+  const setCap = (txt) => { if (txt) el.sheetNote.textContent = txt; };
+  el.sheetList.querySelectorAll(".sc-band").forEach((p) => {
+    p.addEventListener("click", () => { const b = bandInfo[+p.dataset.i]; setCap(`${b.name} · ${b.from} – ${b.to}`); });
+  });
+  el.sheetList.querySelectorAll("[data-cap]").forEach((n) => n.addEventListener("click", () => setCap(n.dataset.cap)));
+}
 
 function renderMoonSheet() {
   const now = new Date();
