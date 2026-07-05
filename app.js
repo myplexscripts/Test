@@ -16,7 +16,7 @@ const PALETTES = {
   orchid: { bg: "#d37bf3", ink: "#050505", surface: "#050505", onSurface: "#d37bf3", accent: "#d37bf3", dark: false },
   sage:   { bg: "#99f37b", ink: "#050505", surface: "#050505", onSurface: "#99f37b", accent: "#99f37b", dark: false },
   night:  { bg: "#050505", ink: "#fafafa", surface: "#fafafa", onSurface: "#050505", accent: "#050505", dark: true, statusBar: "#050505" },
-  dynamic: { bg: "#fafafa", ink: "#050505", surface: "#050505", onSurface: "#fafafa", accent: "#050505", dark: false, isDynamic: true }
+  dynamic: { bg: "#fafafa", ink: "#050505", surface: "#050505", onSurface: "#fafafa", accent: "#fafafa", dark: false, isDynamic: true }
 };
 
 const THEME_REMAP = {
@@ -1111,12 +1111,6 @@ function closeAlertModal() {
 
 function applyPalette(kind) {
   const p = PALETTES[kind] || PALETTES.lemon;
-  if (p.isDynamic) {
-    document.documentElement.setAttribute("data-theme", kind);
-    startDynamicTheme();
-    return;
-  }
-  stopDynamicTheme();
   const r = document.documentElement.style;
   r.setProperty("--bg", p.bg);
   r.setProperty("--ink", p.ink);
@@ -1134,6 +1128,8 @@ function applyPalette(kind) {
   state.dark = !!p.dark;
   updateMapTheme();
   if (state.data) drawTrend();
+
+  if (p.isDynamic) startDynamicTheme(); else stopDynamicTheme();
 }
 
 function themeKind() {
@@ -1531,11 +1527,6 @@ function darkenHex(hex, amt) {
   if (!amt) return hex;
   return lerpHex(hex, amt > 0 ? "#000000" : "#ffffff", Math.min(1, Math.abs(amt)));
 }
-function hexLuminance(hex) {
-  const [r, g, b] = hexToRgb(hex).map((v) => v / 255);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
 function skyGradientAt(bands, nowH) {
   const anchors = bands.map((b) => ({ h: (b[0] + b[1]) / 2, key: b[2] }));
   if (!anchors.length) return DYNAMIC_SKY.day;
@@ -1593,29 +1584,7 @@ function updateDynamicBackground() {
     sky = DYNAMIC_SKY.day;
   }
 
-  const r = document.documentElement.style;
-  r.setProperty("--dynamic-bg", `linear-gradient(180deg, ${sky.top} 0%, ${sky.bottom} 100%)`);
-
-  const lum = (hexLuminance(sky.top) + hexLuminance(sky.bottom)) / 2;
-  const nowDark = lum < 0.45;
-  const ink = nowDark ? "#fafafa" : "#050505", bg = nowDark ? "#050505" : "#fafafa";
-  r.setProperty("--ink", ink);
-  r.setProperty("--bg", bg);
-  r.setProperty("--surface", ink);
-  r.setProperty("--on-surface", bg);
-  r.setProperty("--surface-accent", bg);
-  r.setProperty("--moon-lit", nowDark ? "var(--ink)" : "var(--bg)");
-  r.setProperty("--moon-shadow", nowDark ? "var(--bg)" : "var(--ink)");
-  const sb = nowDark ? "#050505" : "#fafafa";
-  r.setProperty("--statusbar", sb);
-  r.setProperty("--theme", sb);
-  document.querySelector('meta[name="theme-color"]').setAttribute("content", sb);
-  document.documentElement.style.colorScheme = nowDark ? "dark" : "light";
-
-  const changed = state.dark !== nowDark;
-  state.dark = nowDark;
-  if (changed) updateMapTheme();
-  if (state.data) drawTrend();
+  document.documentElement.style.setProperty("--dynamic-bg", `linear-gradient(180deg, ${sky.top} 0%, ${sky.bottom} 100%)`);
 }
 
 function startDynamicTheme() {

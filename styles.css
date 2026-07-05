@@ -1205,10 +1205,11 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   position: fixed;
   inset: 0;
   z-index: 40;
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image: var(--dynamic-bg, none);
   color: var(--ink);
   transform: translateX(100%);
-  transition: transform var(--dur-slow) var(--ease-spring);
+  transition: transform var(--dur-slow) var(--ease-spring), background-image 1.2s var(--ease-out);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
