@@ -42,7 +42,7 @@ const el = {
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
   radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"), radarLegend: $("radarLegend"), windLegend: $("windLegend"),
   hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
-  sheet: $("sheet"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"),
+  sheet: $("sheet"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"), sheetHeadAux: $("sheetHeadAux"),
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList"), dayStats: $("dayStats")
 };
 
@@ -1197,6 +1197,7 @@ function syncRange() {
 }
 
 function renderDetailSheet() {
+  if (el.sheetHeadAux) { el.sheetHeadAux.innerHTML = ""; el.sheetHeadAux.style.display = "none"; }
   const gc = el.graph.closest(".graph-card");
   if (["aqi", "uv", "moon", "credits", "sun"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
   if (gc) gc.style.display = "";
@@ -1541,18 +1542,24 @@ function renderSunSheet() {
   el.sheetNote.textContent = sunUp
     ? `Daylight now. Sunset at ${fmtOrDash(t.sunrise.down)}.`
     : `Nighttime now. Sunrise at ${fmtOrDash(t.sunrise.up)}.`;
-  const toggle = `<div class="sun-fmt-wrap"><div class="segmented small sun-fmt" role="group" aria-label="Clock format">
+  const curBand = bands.find((b) => nowH >= b[0] && nowH < b[1]) || bands[bands.length - 1];
+  const curName = curBand ? SUN_BANDS[curBand[2]].name : "";
+  const defaultCap = curName ? `Right now: ${curName}` : "";
+  const toggle = `<div class="segmented small sun-fmt" role="group" aria-label="Clock format">
       <button class="seg-item ${state.clock24 ? "" : "is-active"}" data-fmt="12">12h</button>
       <button class="seg-item ${state.clock24 ? "is-active" : ""}" data-fmt="24">24h</button>
-    </div></div>`;
-  el.sheetList.innerHTML = `${toggle}<div class="sunclock-wrap">${svg}</div>${keyRow}${list}`;
+    </div>`;
+  el.sheetHeadAux.innerHTML = toggle;
+  el.sheetHeadAux.style.display = "";
+  el.sheetList.innerHTML = `<div class="sc-caption" id="scCaption">${defaultCap}</div><div class="sunclock-wrap">${svg}</div>${keyRow}${list}`;
 
-  const setCap = (txt) => { if (txt) el.sheetNote.textContent = txt; };
+  const capEl = el.sheetList.querySelector("#scCaption");
+  const setCap = (txt) => { if (capEl) capEl.textContent = txt || defaultCap; };
   el.sheetList.querySelectorAll(".sc-band").forEach((p) => {
     p.addEventListener("click", () => { const b = bandInfo[+p.dataset.i]; setCap(`${b.name} · ${b.from} to ${b.to}`); });
   });
   el.sheetList.querySelectorAll("[data-cap]").forEach((n) => n.addEventListener("click", () => setCap(n.dataset.cap)));
-  el.sheetList.querySelectorAll(".sun-fmt [data-fmt]").forEach((b) => {
+  el.sheetHeadAux.querySelectorAll("[data-fmt]").forEach((b) => {
     b.addEventListener("click", () => { state.clock24 = b.dataset.fmt === "24"; saveState(); renderSunSheet(); });
   });
   const moonLink = el.sheetList.querySelector('.sun-link[data-open="moon"]');

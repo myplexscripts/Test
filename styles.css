@@ -1314,7 +1314,8 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .info-head { font-family: Rubik, Inter, sans-serif; font-size: 1.15rem; font-weight: 700; margin-bottom: var(--s-2); }
 .info-card { background: var(--card-bg); border: 2px solid var(--card-border); border-radius: var(--r-md); padding: var(--s-4); }
 
-.sun-fmt-wrap { display: flex; justify-content: center; margin-bottom: var(--s-2); }
+.sheet-head-aux { display: flex; align-items: center; }
+.sc-caption { text-align: center; font-size: var(--t-body); font-weight: 800; letter-spacing: -0.01em; color: var(--ink); min-height: 1.4em; margin-top: var(--s-2); }
 .sun-link { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: var(--s-3); padding-top: var(--s-3); border-top: 2px solid var(--hairline); color: var(--ink); font-weight: 700; cursor: pointer; }
 .sun-link i { font-size: 1.2rem; color: var(--ink-faint); }
 .sun-link:active { opacity: 0.6; }
