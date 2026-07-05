@@ -1,4 +1,4 @@
-const CACHE_NAME = "home-weather-shell-v79";
+const CACHE_NAME = "home-weather-shell-v80";
 const SHELL_FILES = [
   "./",
   "./index.html",
@@ -11,7 +11,11 @@ const SHELL_FILES = [
   "./vendor/meteocons/icons.js",
   "./vendor/worldmap/land.js",
   "./vendor/phosphor/style.css",
-  "./vendor/phosphor/Phosphor.woff2"
+  "./vendor/phosphor/Phosphor.woff2",
+  "./vendor/phosphor/style-duotone.css",
+  "./vendor/phosphor/Phosphor-Duotone.woff2",
+  "./vendor/phosphor/style-fill.css",
+  "./vendor/phosphor/Phosphor-Fill.woff2"
 ];
 
 self.addEventListener("install", (event) => {
