@@ -1177,42 +1177,50 @@ const METRICS = {
   temp: {
     label: "Temperature", unit: "°", decimals: 0, daily: true,
     get: (it) => it.main.temp,
-    desc: () => { const t = state.daily[0]; return t ? `High near ${Math.round(t.max)}°, low near ${Math.round(t.min)}°.` : "Temperature trend ahead."; }
+    desc: () => { const t = state.daily[0]; return t ? `High near ${Math.round(t.max)}°, low near ${Math.round(t.min)}°.` : "Temperature trend ahead."; },
+    about: "Air temperature is measured about two metres above the ground, the standard height used by weather stations everywhere. These hourly values come from a forecast model, a computer simulation of the atmosphere built from satellite, radar and ground observations and updated several times a day."
   },
   feels: {
     label: "Feels Like", unit: "°", decimals: 0,
     get: (it) => it.main.feels_like,
-    desc: (c) => { const f = Math.round(c.main?.feels_like ?? 0), a = Math.round(c.main?.temp ?? 0), d = f - a; return Math.abs(d) < 1 ? "Feels about the same as the actual temperature." : d < 0 ? `Feels ${Math.abs(d)}° colder than the air temperature.` : `Feels ${d}° warmer than the air temperature.`; }
+    desc: (c) => { const f = Math.round(c.main?.feels_like ?? 0), a = Math.round(c.main?.temp ?? 0), d = f - a; return Math.abs(d) < 1 ? "Feels about the same as the actual temperature." : d < 0 ? `Feels ${Math.abs(d)}° colder than the air temperature.` : `Feels ${d}° warmer than the air temperature.`; },
+    about: "Feels-like temperature adjusts the air temperature for wind and humidity, the two things that most change how hot or cold your skin actually senses. Wind speeds up heat loss, so it makes cold air feel colder, while high humidity slows the evaporation that normally cools your skin, so it makes warm air feel hotter."
   },
   humidity: {
     label: "Humidity", unit: "%", decimals: 0,
     get: (it) => it.main.humidity,
-    desc: (c) => { const dp = dewPointDisplay(c.main?.temp, c.main?.humidity); return dp != null ? `The dew point is ${dp}° right now.` : "Relative humidity over the next hours."; }
+    desc: (c) => { const dp = dewPointDisplay(c.main?.temp, c.main?.humidity); return dp != null ? `The dew point is ${dp}° right now.` : "Relative humidity over the next hours."; },
+    about: "Relative humidity is how much moisture the air is holding compared with the most it could hold at that temperature, shown as a percentage. Warm air can hold more moisture than cold air, so the same amount of water vapour reads as a higher percentage on a cool day than on a warm one."
   },
   wind: {
     label: "Wind", unit: speedUnit(), decimals: 0,
     get: (it) => windParts(it.wind?.speed || 0).v,
-    desc: (c) => { const w = c.wind || {}; const g = w.gust != null ? `, gusting ${windText(w.gust)}` : ""; return `${windText(w.speed || 0)} from the ${w.deg != null ? direction(w.deg) : "--"}${g}.`; }
+    desc: (c) => { const w = c.wind || {}; const g = w.gust != null ? `, gusting ${windText(w.gust)}` : ""; return `${windText(w.speed || 0)} from the ${w.deg != null ? direction(w.deg) : "--"}${g}.`; },
+    about: "Wind speed and direction are measured about ten metres above open ground, away from buildings and trees that would slow or redirect it. A gust is a brief spike above the sustained speed, usually lasting just a few seconds, caused by turbulence in the air."
   },
   pressure: {
     label: "Pressure", unit: "hPa", decimals: 0,
     get: (it) => it.main.pressure,
-    desc: () => { const p = state.hourly?.[0]?.main?.pressure ?? state.data?.current?.main?.pressure; return p != null ? `${p} hPa, ${p >= 1013 ? "above" : "below"} the 1013 hPa average.` : "Sea-level pressure ahead."; }
+    desc: () => { const p = state.hourly?.[0]?.main?.pressure ?? state.data?.current?.main?.pressure; return p != null ? `${p} hPa, ${p >= 1013 ? "above" : "below"} the 1013 hPa average.` : "Sea-level pressure ahead."; },
+    about: "Atmospheric pressure is the weight of the air above you, measured in hectopascals and adjusted to sea level so readings from different elevations can be compared fairly. Falling pressure usually means unsettled or stormy weather is moving in, while rising pressure usually means clearer, calmer conditions are on the way."
   },
   precip: {
     label: "Precipitation", unit: "%", decimals: 0,
     get: (it) => (it.pop || 0) * 100,
-    desc: () => { const n = nextPrecip(state.data?.forecast, state.tz); const t = state.daily[0]; const pop = t ? Math.round((t.pop || 0) * 100) : 0; return n ? `Next precipitation around ${n.when}.` : pop > 0 ? `${pop}% chance today.` : "No precipitation expected soon."; }
+    desc: () => { const n = nextPrecip(state.data?.forecast, state.tz); const t = state.daily[0]; const pop = t ? Math.round((t.pop || 0) * 100) : 0; return n ? `Next precipitation around ${n.when}.` : pop > 0 ? `${pop}% chance today.` : "No precipitation expected soon."; },
+    about: "The percentage is the forecast's confidence that measurable rain or snow will fall in that hour, and the millimetres are how much is expected to accumulate if it does. A high chance with a small amount usually means light, steady precipitation, while a lower chance with a larger amount usually means a heavier but less certain event, like an isolated shower."
   },
   clouds: {
     label: "Cloud Cover", unit: "%", decimals: 0,
     get: (it) => it.clouds?.all ?? 0,
-    desc: () => { const c = state.hourly?.[0]?.clouds?.all ?? state.data?.current?.clouds?.all; return cloudDescriptor(c) + " Cloud cover over the next hours."; }
+    desc: () => { const c = state.hourly?.[0]?.clouds?.all ?? state.data?.current?.clouds?.all; return cloudDescriptor(c) + " Cloud cover over the next hours."; },
+    about: "Cloud cover is the share of the sky hidden by cloud, from clear at 0% to fully overcast at 100%. It shapes the temperature swing between day and night, since clouds block incoming sunlight from warming the ground by day and trap outgoing heat that would otherwise escape by night."
   },
   visibility: {
     label: "Visibility", unit: visUnit(), decimals: 1,
     get: (it) => visVal(it.visibility),
-    desc: () => { const v = state.hourly?.[0]?.visibility ?? state.data?.current?.visibility; return v != null ? `${visDescriptor(v)} Currently ${visibilityText(v)}.` : ""; }
+    desc: () => { const v = state.hourly?.[0]?.visibility ?? state.data?.current?.visibility; return v != null ? `${visDescriptor(v)} Currently ${visibilityText(v)}.` : ""; },
+    about: "Visibility is the greatest distance at which an object can still be told apart from the sky behind it, most often limited by fog, haze, or heavy rain or snow. Clear air typically allows visibility of 10 km or more, while anything below about 1 km is considered low."
   }
 };
 
@@ -1922,6 +1930,17 @@ function drawDetailChart() {
   }
 }
 
+const ABOUT_TITLES = {
+  temp: "About temperature", feels: "About feels-like temperature", humidity: "About humidity",
+  wind: "About wind", pressure: "About pressure", precip: "About precipitation",
+  clouds: "About cloud cover", visibility: "About visibility"
+};
+
+function aboutSection(metric, m) {
+  if (!m.about) return "";
+  return section(ABOUT_TITLES[metric] || `About ${m.label}`, `<p class="info-text">${m.about}</p>`);
+}
+
 function renderDetailList() {
   const m = METRICS[state.detail.metric];
   const tz = state.tz || 0;
@@ -1932,7 +1951,7 @@ function renderDetailList() {
         ${wxIcon({ main: d.main, icon: d.icon }, false, "row-icon")}
         <span class="row-temp">${Math.round(d.max)}°<span class="row-sub"> / ${Math.round(d.min)}°</span></span>
         <i class="ph ph-caret-right row-go"></i>
-      </button>`).join("");
+      </button>`).join("") + aboutSection(state.detail.metric, m);
     el.sheetList.querySelectorAll("[data-day]").forEach((b) => b.onclick = () => openDay(Number(b.dataset.day)));
     return;
   }
@@ -1958,7 +1977,7 @@ function renderDetailList() {
       ${wx}
       <span class="row-temp">${valTxt(m.get(it))}</span>
     </div>`;
-  }).join("");
+  }).join("") + aboutSection(state.detail.metric, m);
 }
 
 function hexA(hex, a) {
