@@ -307,7 +307,7 @@ function wmoMain(code) {
 async function fetchHourlyWx(lat, lon, units) {
   const tu = units === "imperial" ? "fahrenheit" : "celsius";
   const wu = units === "imperial" ? "mph" : "ms";
-  const fields = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,surface_pressure,cloud_cover,visibility";
+  const fields = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility";
   const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&hourly=${fields}&temperature_unit=${tu}&wind_speed_unit=${wu}&timeformat=unixtime&timezone=auto&forecast_days=2`;
   const h = (await fetchJSON(url)).hourly;
   if (!h || !h.time) return null;
@@ -317,7 +317,7 @@ async function fetchHourlyWx(lat, lon, units) {
       temp: h.temperature_2m?.[i],
       feels_like: h.apparent_temperature?.[i],
       humidity: h.relative_humidity_2m?.[i],
-      pressure: h.surface_pressure?.[i] != null ? Math.round(h.surface_pressure[i]) : null
+      pressure: h.pressure_msl?.[i] != null ? Math.round(h.pressure_msl[i]) : null
     },
     weather: [{ main: wmoMain(h.weather_code?.[i]) }],
     wind: { speed: h.wind_speed_10m?.[i] ?? 0, gust: h.wind_gusts_10m?.[i], deg: h.wind_direction_10m?.[i] },
@@ -753,17 +753,22 @@ function renderDetails(current, forecast) {
     items.push(["uv", "ph-sun", "UV index", `${Math.round(air.uv_index)}`, u.label, null, rangeMeter(air.uv_index, 0, 11)]);
   }
 
-  if (current.visibility != null) {
-    items.push(["visibility", "ph-eye", "Visibility", visibilityText(current.visibility), visDescriptor(current.visibility), null, rangeMeter(visVal(current.visibility), 0, 10)]);
+  const nowHr = state.hourly?.[0] || {};
+  const vis = nowHr.visibility ?? current.visibility;
+  const pres = nowHr.main?.pressure ?? m.pressure;
+  const cloudPct = nowHr.clouds?.all ?? clouds.all;
+
+  if (vis != null) {
+    items.push(["visibility", "ph-eye", "Visibility", visibilityText(vis), visDescriptor(vis), null, rangeMeter(visVal(vis), 0, 10)]);
   } else {
     items.push(["visibility", "ph-eye", "Visibility", "--", ""]);
   }
-  if (m.pressure != null) {
-    items.push(["pressure", "ph-gauge", "Pressure", `${m.pressure}<span class="d-unit">hPa</span>`, "", null, pressureMeter(m.pressure)]);
+  if (pres != null) {
+    items.push(["pressure", "ph-gauge", "Pressure", `${pres}<span class="d-unit">hPa</span>`, "", null, pressureMeter(pres)]);
   } else {
     items.push(["pressure", "ph-gauge", "Pressure", "--", ""]);
   }
-  items.push(["clouds", "ph-cloud", "Cloud cover", clouds.all != null ? `${clouds.all}%` : "--", cloudDescriptor(clouds.all), null, clouds.all != null ? rangeMeter(clouds.all, 0, 100) : ""]);
+  items.push(["clouds", "ph-cloud", "Cloud cover", cloudPct != null ? `${cloudPct}%` : "--", cloudDescriptor(cloudPct), null, cloudPct != null ? rangeMeter(cloudPct, 0, 100) : ""]);
 
   el.detailGrid.innerHTML = items.map(([metric, icon, label, value, sub, range, spark]) => `
     <button class="detail" data-metric="${metric}"${range ? ` data-range="${range}"` : ""}>
@@ -1123,7 +1128,7 @@ const METRICS = {
   pressure: {
     label: "Pressure", unit: "hPa", decimals: 0,
     get: (it) => it.main.pressure,
-    desc: (c) => { const p = c.main?.pressure; return p != null ? `${p} hPa, ${p >= 1013 ? "above" : "below"} the 1013 hPa average.` : "Sea-level pressure ahead."; }
+    desc: () => { const p = state.hourly?.[0]?.main?.pressure ?? state.data?.current?.main?.pressure; return p != null ? `${p} hPa, ${p >= 1013 ? "above" : "below"} the 1013 hPa average.` : "Sea-level pressure ahead."; }
   },
   precip: {
     label: "Precipitation", unit: "%", decimals: 0,
@@ -1133,12 +1138,12 @@ const METRICS = {
   clouds: {
     label: "Cloud Cover", unit: "%", decimals: 0,
     get: (it) => it.clouds?.all ?? 0,
-    desc: (c) => cloudDescriptor(c.clouds?.all) + " Cloud cover over the next hours."
+    desc: () => { const c = state.hourly?.[0]?.clouds?.all ?? state.data?.current?.clouds?.all; return cloudDescriptor(c) + " Cloud cover over the next hours."; }
   },
   visibility: {
     label: "Visibility", unit: visUnit(), decimals: 1,
     get: (it) => visVal(it.visibility),
-    desc: (c) => `${visDescriptor(c.visibility)} Currently ${visibilityText(c.visibility)}.`
+    desc: () => { const v = state.hourly?.[0]?.visibility ?? state.data?.current?.visibility; return v != null ? `${visDescriptor(v)} Currently ${visibilityText(v)}.` : ""; }
   }
 };
 
