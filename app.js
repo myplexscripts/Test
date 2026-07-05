@@ -15,7 +15,8 @@ const PALETTES = {
   sand:   { bg: "#f3bf7b", ink: "#050505", surface: "#050505", onSurface: "#f3bf7b", accent: "#f3bf7b", dark: false },
   orchid: { bg: "#d37bf3", ink: "#050505", surface: "#050505", onSurface: "#d37bf3", accent: "#d37bf3", dark: false },
   sage:   { bg: "#99f37b", ink: "#050505", surface: "#050505", onSurface: "#99f37b", accent: "#99f37b", dark: false },
-  night:  { bg: "#050505", ink: "#fafafa", surface: "#fafafa", onSurface: "#050505", accent: "#050505", dark: true, statusBar: "#050505" }
+  night:  { bg: "#050505", ink: "#fafafa", surface: "#fafafa", onSurface: "#050505", accent: "#050505", dark: true, statusBar: "#050505" },
+  dynamic: { bg: "#fafafa", ink: "#050505", surface: "#050505", onSurface: "#fafafa", accent: "#050505", dark: false, isDynamic: true }
 };
 
 const THEME_REMAP = {
@@ -526,6 +527,7 @@ function render(data) {
   syncMaps();
   setupScrollFx();
 
+  if (themeKind() === "dynamic") updateDynamicBackground();
   if (state.sheetOpen) renderDetailSheet();
 }
 
@@ -1109,6 +1111,12 @@ function closeAlertModal() {
 
 function applyPalette(kind) {
   const p = PALETTES[kind] || PALETTES.lemon;
+  if (p.isDynamic) {
+    document.documentElement.setAttribute("data-theme", kind);
+    startDynamicTheme();
+    return;
+  }
+  stopDynamicTheme();
   const r = document.documentElement.style;
   r.setProperty("--bg", p.bg);
   r.setProperty("--ink", p.ink);
@@ -1453,6 +1461,31 @@ function sunTimes(unix, lat, lon) {
   };
 }
 
+function hourOfDay(u, tz) {
+  return u == null ? null : ((((u + tz) / 3600) % 24) + 24) % 24;
+}
+
+function bandsFromSunTimes(t, tz) {
+  const toH = (u) => hourOfDay(u, tz);
+  const ev = {
+    astroUp: toH(t.astro.up), nautUp: toH(t.nautical.up), civilUp: toH(t.civil.up), sunrise: toH(t.sunrise.up), goldenUp: toH(t.golden.up),
+    goldenDn: toH(t.golden.down), sunset: toH(t.sunrise.down), civilDn: toH(t.civil.down), nautDn: toH(t.nautical.down), astroDn: toH(t.astro.down)
+  };
+  const raw = [];
+  const add = (h0, h1, type) => { if (h0 != null && h1 != null && h1 > h0 + 0.001) raw.push([h0, h1, type]); };
+  add(0, ev.astroUp, "night"); add(ev.astroUp, ev.nautUp, "astro"); add(ev.nautUp, ev.civilUp, "nautical");
+  add(ev.civilUp, ev.sunrise, "civil"); add(ev.sunrise, ev.goldenUp, "golden"); add(ev.goldenUp, ev.goldenDn, "day");
+  add(ev.goldenDn, ev.sunset, "golden"); add(ev.sunset, ev.civilDn, "civil"); add(ev.civilDn, ev.nautDn, "nautical");
+  add(ev.nautDn, ev.astroDn, "astro"); add(ev.astroDn, 24, "night");
+  if (raw.length === 0) return [[0, 24, t.maxAlt > 0 ? "day" : "night"]];
+  raw.sort((a, b) => a[0] - b[0]);
+  const deep = ev.astroUp != null ? "night" : ev.nautUp != null ? "astro" : ev.civilUp != null ? "nautical" : ev.sunrise != null ? "civil" : (t.maxAlt > 0 ? "golden" : "night");
+  const bands = []; let cur = 0;
+  for (const b of raw) { if (b[0] > cur + 0.001) bands.push([cur, b[0], deep]); bands.push(b); cur = Math.max(cur, b[1]); }
+  if (cur < 24) bands.push([cur, 24, deep]);
+  return bands;
+}
+
 const SUN_BANDS = {
   day:      { name: "Day",                   color: "color-mix(in srgb, var(--ink) 5%, var(--bg))" },
   golden:   { name: "Golden hour",           color: "color-mix(in srgb, var(--ink) 28%, var(--bg))" },
@@ -1461,6 +1494,139 @@ const SUN_BANDS = {
   astro:    { name: "Astronomical twilight", color: "color-mix(in srgb, var(--ink) 89%, var(--bg))" },
   night:    { name: "Night",                 color: "color-mix(in srgb, var(--ink) 100%, var(--bg))" }
 };
+
+const DYNAMIC_SKY = {
+  night:    { top: "#05070f", bottom: "#10152b" },
+  astro:    { top: "#0b1130", bottom: "#1c2049" },
+  nautical: { top: "#16215a", bottom: "#3a3568" },
+  civil:    { top: "#33418f", bottom: "#c97a86" },
+  golden:   { top: "#5f86cf", bottom: "#ffb27a" },
+  day:      { top: "#4fa3e8", bottom: "#bfe6f7" }
+};
+
+const WEATHER_VEIL = {
+  Clear:        { color: "#9aa3b4" },
+  Clouds:       { color: "#8f96a6", darken: 0.05 },
+  Mist:         { color: "#c9cdd6", mix: 0.7 },
+  Drizzle:      { color: "#69738a", mix: 0.55, darken: 0.05 },
+  Rain:         { color: "#5b6478", mix: 0.68, darken: 0.08 },
+  Snow:         { color: "#dfe6ee", mix: 0.55, darken: -0.06 },
+  Thunderstorm: { color: "#332c40", mix: 0.72, darken: 0.18 }
+};
+
+function hexToRgb(hex) {
+  const h = (hex || "").replace("#", "");
+  const n = h.length === 3 ? h.split("").map((c) => c + c).join("") : h;
+  return [parseInt(n.slice(0, 2), 16) || 0, parseInt(n.slice(2, 4), 16) || 0, parseInt(n.slice(4, 6), 16) || 0];
+}
+function rgbToHex(rgb) {
+  const c = (v) => Math.max(0, Math.min(255, Math.round(v))).toString(16).padStart(2, "0");
+  return `#${c(rgb[0])}${c(rgb[1])}${c(rgb[2])}`;
+}
+function lerpHex(hexA, hexB, t) {
+  const a = hexToRgb(hexA), b = hexToRgb(hexB);
+  return rgbToHex(a.map((v, i) => v + (b[i] - v) * t));
+}
+function darkenHex(hex, amt) {
+  if (!amt) return hex;
+  return lerpHex(hex, amt > 0 ? "#000000" : "#ffffff", Math.min(1, Math.abs(amt)));
+}
+function hexLuminance(hex) {
+  const [r, g, b] = hexToRgb(hex).map((v) => v / 255);
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+}
+
+function skyGradientAt(bands, nowH) {
+  const anchors = bands.map((b) => ({ h: (b[0] + b[1]) / 2, key: b[2] }));
+  if (!anchors.length) return DYNAMIC_SKY.day;
+  const ext = [
+    { h: anchors[anchors.length - 1].h - 24, key: anchors[anchors.length - 1].key },
+    ...anchors,
+    { h: anchors[0].h + 24, key: anchors[0].key }
+  ];
+  let lo = ext[0], hi = ext[ext.length - 1];
+  for (let i = 0; i < ext.length - 1; i++) {
+    if (nowH >= ext[i].h && nowH <= ext[i + 1].h) { lo = ext[i]; hi = ext[i + 1]; break; }
+  }
+  const span = hi.h - lo.h;
+  const frac = span > 0 ? (nowH - lo.h) / span : 0;
+  const a = DYNAMIC_SKY[lo.key] || DYNAMIC_SKY.day, b = DYNAMIC_SKY[hi.key] || DYNAMIC_SKY.day;
+  return { top: lerpHex(a.top, b.top, frac), bottom: lerpHex(a.bottom, b.bottom, frac) };
+}
+
+function weatherVeil(main, cloudPct) {
+  const v = WEATHER_VEIL[main] || WEATHER_VEIL.Clouds;
+  let mix = v.mix;
+  if (mix == null) {
+    const c = Number.isFinite(cloudPct) ? cloudPct : 40;
+    mix = main === "Clear" ? Math.max(0, Math.min(0.2, (c / 100) * 0.25)) : Math.max(0.15, Math.min(0.7, 0.1 + (c / 100) * 0.6));
+  }
+  return { color: v.color, mix, darken: v.darken || 0 };
+}
+
+function applyWeatherVeil(sky, main, cloudPct) {
+  const v = weatherVeil(main, cloudPct);
+  return {
+    top: darkenHex(lerpHex(sky.top, v.color, v.mix), v.darken),
+    bottom: darkenHex(lerpHex(sky.bottom, v.color, v.mix), v.darken)
+  };
+}
+
+let dynamicTimer = null;
+
+function updateDynamicBackground() {
+  const c = state.center || {};
+  const lat = c.lat, lon = c.lon;
+  let sky;
+  if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    const tz = state.tz || state.data?.current?.timezone || 0;
+    const nowUnix = Math.floor(Date.now() / 1000);
+    const localMidnight = Math.floor((nowUnix + tz) / 86400) * 86400 - tz;
+    const t = sunTimes(localMidnight + 43200, lat, lon);
+    const bands = bandsFromSunTimes(t, tz);
+    const nowH = hourOfDay(nowUnix, tz);
+    sky = skyGradientAt(bands, nowH);
+    const w = state.data?.current?.weather?.[0]?.main;
+    const cloudPct = state.data?.current?.clouds?.all;
+    if (w) sky = applyWeatherVeil(sky, w, cloudPct);
+  } else {
+    sky = DYNAMIC_SKY.day;
+  }
+
+  const r = document.documentElement.style;
+  r.setProperty("--dynamic-bg", `linear-gradient(180deg, ${sky.top} 0%, ${sky.bottom} 100%)`);
+
+  const lum = (hexLuminance(sky.top) + hexLuminance(sky.bottom)) / 2;
+  const nowDark = lum < 0.45;
+  const ink = nowDark ? "#fafafa" : "#050505", bg = nowDark ? "#050505" : "#fafafa";
+  r.setProperty("--ink", ink);
+  r.setProperty("--bg", bg);
+  r.setProperty("--surface", ink);
+  r.setProperty("--on-surface", bg);
+  r.setProperty("--surface-accent", bg);
+  r.setProperty("--moon-lit", nowDark ? "var(--ink)" : "var(--bg)");
+  r.setProperty("--moon-shadow", nowDark ? "var(--bg)" : "var(--ink)");
+  const sb = nowDark ? "#050505" : "#fafafa";
+  r.setProperty("--statusbar", sb);
+  r.setProperty("--theme", sb);
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", sb);
+  document.documentElement.style.colorScheme = nowDark ? "dark" : "light";
+
+  const changed = state.dark !== nowDark;
+  state.dark = nowDark;
+  if (changed) updateMapTheme();
+  if (state.data) drawTrend();
+}
+
+function startDynamicTheme() {
+  if (dynamicTimer) clearInterval(dynamicTimer);
+  updateDynamicBackground();
+  dynamicTimer = setInterval(updateDynamicBackground, 120000);
+}
+function stopDynamicTheme() {
+  if (dynamicTimer) { clearInterval(dynamicTimer); dynamicTimer = null; }
+  document.documentElement.style.removeProperty("--dynamic-bg");
+}
 
 function sunMapSVG(lat, lon) {
   if (typeof WORLD_MAP === "undefined" || !Number.isFinite(lat)) return "";
@@ -1507,30 +1673,10 @@ function renderSunSheet() {
   const localMidnight = Math.floor((nowUnix + tz) / 86400) * 86400 - tz;
   const t = sunTimes(localMidnight + 43200, lat, lon);
   const dir = lat >= 0 ? 1 : -1;
-  const toH = (u) => u == null ? null : ((((u + tz) / 3600) % 24) + 24) % 24;
+  const toH = (u) => hourOfDay(u, tz);
   const hToClock = (h) => fmtClock(localMidnight + Math.round(h * 3600), tz);
 
-  const ev = {
-    astroUp: toH(t.astro.up), nautUp: toH(t.nautical.up), civilUp: toH(t.civil.up), sunrise: toH(t.sunrise.up), goldenUp: toH(t.golden.up),
-    goldenDn: toH(t.golden.down), sunset: toH(t.sunrise.down), civilDn: toH(t.civil.down), nautDn: toH(t.nautical.down), astroDn: toH(t.astro.down)
-  };
-
-  const raw = [];
-  const add = (h0, h1, type) => { if (h0 != null && h1 != null && h1 > h0 + 0.001) raw.push([h0, h1, type]); };
-  add(0, ev.astroUp, "night"); add(ev.astroUp, ev.nautUp, "astro"); add(ev.nautUp, ev.civilUp, "nautical");
-  add(ev.civilUp, ev.sunrise, "civil"); add(ev.sunrise, ev.goldenUp, "golden"); add(ev.goldenUp, ev.goldenDn, "day");
-  add(ev.goldenDn, ev.sunset, "golden"); add(ev.sunset, ev.civilDn, "civil"); add(ev.civilDn, ev.nautDn, "nautical");
-  add(ev.nautDn, ev.astroDn, "astro"); add(ev.astroDn, 24, "night");
-  let bands;
-  if (raw.length === 0) {
-    bands = [[0, 24, t.maxAlt > 0 ? "day" : "night"]];
-  } else {
-    raw.sort((a, b) => a[0] - b[0]);
-    const deep = ev.astroUp != null ? "night" : ev.nautUp != null ? "astro" : ev.civilUp != null ? "nautical" : ev.sunrise != null ? "civil" : (t.maxAlt > 0 ? "golden" : "night");
-    bands = []; let cur = 0;
-    for (const b of raw) { if (b[0] > cur + 0.001) bands.push([cur, b[0], deep]); bands.push(b); cur = Math.max(cur, b[1]); }
-    if (cur < 24) bands.push([cur, 24, deep]);
-  }
+  const bands = bandsFromSunTimes(t, tz);
 
   const CX = 150, CY = 150, RI = 62, RO = 116;
   const ang = (h) => -90 + dir * ((h - 12) / 24) * 360;

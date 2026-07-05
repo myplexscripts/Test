@@ -88,7 +88,6 @@ body {
   font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   font-size: 16px;
   color: var(--ink);
-  background: var(--bg);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
   -webkit-tap-highlight-color: transparent;
@@ -126,6 +125,12 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   z-index: -1;
   background-color: var(--bg);
   transition: background-color var(--dur-slow) var(--ease-out);
+}
+.bg-dyn {
+  position: absolute;
+  inset: 0;
+  background-image: var(--dynamic-bg, none);
+  transition: background-image 1.2s var(--ease-out);
 }
 
 .status-fade {
