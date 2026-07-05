@@ -16,10 +16,7 @@ const PALETTES = {
   orchid: { bg: "#d37bf3", ink: "#050505", surface: "#050505", onSurface: "#d37bf3", accent: "#d37bf3", dark: false },
   sage:   { bg: "#99f37b", ink: "#050505", surface: "#050505", onSurface: "#99f37b", accent: "#99f37b", dark: false },
   night:  { bg: "#050505", ink: "#fafafa", surface: "#fafafa", onSurface: "#050505", accent: "#050505", dark: true, statusBar: "#050505" },
-  dynamic: {
-    bg: "#fafafa", ink: "#050505", surface: "#050505", onSurface: "#fafafa", accent: "#fafafa", dark: false, isDynamic: true,
-    moonLit: "color-mix(in srgb, var(--ink) 20%, var(--bg))", moonShadow: "var(--ink)"
-  }
+  dynamic: { bg: "#fafafa", ink: "#050505", surface: "#050505", onSurface: "#fafafa", accent: "#fafafa", dark: false, isDynamic: true }
 };
 
 const THEME_REMAP = {
@@ -1120,8 +1117,8 @@ function applyPalette(kind) {
   r.setProperty("--surface", p.surface);
   r.setProperty("--on-surface", p.onSurface);
   r.setProperty("--surface-accent", p.accent);
-  r.setProperty("--moon-lit", p.moonLit || (p.dark ? "var(--ink)" : "var(--bg)"));
-  r.setProperty("--moon-shadow", p.moonShadow || (p.dark ? "var(--bg)" : "var(--ink)"));
+  r.setProperty("--moon-lit", p.dark ? "var(--ink)" : "transparent");
+  r.setProperty("--moon-shadow", p.dark ? "var(--bg)" : "var(--ink)");
   const sb = p.statusBar || p.surface;
   r.setProperty("--statusbar", sb);
   r.setProperty("--theme", sb);

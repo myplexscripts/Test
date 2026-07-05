@@ -8,7 +8,7 @@
   --on-surface: #ffe442;
   --surface-accent: #ffe442;
   --theme: #050505;
-  --moon-lit: var(--bg);
+  --moon-lit: transparent;
   --moon-shadow: var(--ink);
 
   --ink-soft: color-mix(in srgb, var(--ink) 60%, transparent);
