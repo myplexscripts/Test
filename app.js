@@ -2,7 +2,7 @@
 "use strict";
 
 const API_KEY = "37c88f3496272531c686b0686ecfe1dd";
-const API_BASE = "https://api.openweathermap.org/data/2.5";
+const GEO_BASE = "https://api.openweathermap.org/geo/1.0";
 const AIR_BASE = "https://air-quality-api.open-meteo.com/v1/air-quality";
 const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
@@ -186,15 +186,14 @@ async function refresh(force) {
   setBusy(true);
   if (force) setStatus("Refreshing…");
   try {
-    const q = `lat=${state.loc.lat}&lon=${state.loc.lon}&units=${state.units}&appid=${API_KEY}`;
-    const [current, forecast, air, hourly, alerts] = await Promise.all([
-      fetchJSON(`${API_BASE}/weather?${q}`),
-      fetchJSON(`${API_BASE}/forecast?${q}`),
+    const [omj, place, air, alerts] = await Promise.all([
+      fetchOpenMeteo(state.loc.lat, state.loc.lon, state.units),
+      fetchPlaceName(state.loc.lat, state.loc.lon).catch(() => null),
       fetchAir(state.loc.lat, state.loc.lon).catch(() => null),
-      fetchHourlyWx(state.loc.lat, state.loc.lon, state.units).catch(() => null),
       fetchAlerts(state.loc.lat, state.loc.lon).catch(() => null)
     ]);
-    const data = { current, forecast, air, hourly, alerts };
+    const { current, forecast, points } = adaptOpenMeteo(omj, place, state.loc.lat, state.loc.lon);
+    const data = { current, forecast, air, hourly: points, alerts };
     state.data = data;
     saveCache(data);
     render(data);
@@ -304,28 +303,98 @@ function wmoMain(code) {
   return "Clouds";
 }
 
-async function fetchHourlyWx(lat, lon, units) {
+async function fetchOpenMeteo(lat, lon, units) {
   const tu = units === "imperial" ? "fahrenheit" : "celsius";
   const wu = units === "imperial" ? "mph" : "ms";
-  const fields = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,weather_code,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility";
-  const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&hourly=${fields}&temperature_unit=${tu}&wind_speed_unit=${wu}&timeformat=unixtime&timezone=auto&forecast_days=2`;
-  const h = (await fetchJSON(url)).hourly;
-  if (!h || !h.time) return null;
-  return h.time.map((t, i) => ({
-    dt: t,
+  const hourly = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,rain,showers,snowfall,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility";
+  const current = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,rain,showers,snowfall,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover";
+  const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&current=${current}&hourly=${hourly}&daily=sunrise,sunset&temperature_unit=${tu}&wind_speed_unit=${wu}&timeformat=unixtime&timezone=auto&forecast_days=7`;
+  return fetchJSON(url);
+}
+
+async function fetchPlaceName(lat, lon) {
+  const r = await fetchJSON(`${GEO_BASE}/reverse?lat=${lat}&lon=${lon}&limit=1&appid=${API_KEY}`);
+  const g = Array.isArray(r) ? r[0] : null;
+  return g ? { name: g.name, country: g.country } : null;
+}
+
+function wmoDesc(code) {
+  const map = { 0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast", 45: "Fog", 48: "Rime fog", 51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle", 56: "Freezing drizzle", 57: "Freezing drizzle", 61: "Light rain", 63: "Rain", 65: "Heavy rain", 66: "Freezing rain", 67: "Freezing rain", 71: "Light snow", 73: "Snow", 75: "Heavy snow", 77: "Snow grains", 80: "Light showers", 81: "Showers", 82: "Heavy showers", 85: "Snow showers", 86: "Heavy snow showers", 95: "Thunderstorm", 96: "Thunderstorm with hail", 99: "Severe thunderstorm" };
+  return map[code] || wmoMain(code);
+}
+
+function wmoIcon(code, isDay) {
+  const dn = isDay ? "d" : "n";
+  if (code === 0) return "01" + dn;
+  if (code === 1) return "02" + dn;
+  if (code === 2) return "03" + dn;
+  if (code === 3) return "04" + dn;
+  if (code === 45 || code === 48) return "50" + dn;
+  if (code >= 51 && code <= 57) return "09" + dn;
+  if ((code >= 61 && code <= 67) || (code >= 80 && code <= 82)) return "10" + dn;
+  if ((code >= 71 && code <= 77) || code === 85 || code === 86) return "13" + dn;
+  if (code >= 95) return "11" + dn;
+  return "03" + dn;
+}
+
+function omWeather(code, isDay) {
+  return [{ main: wmoMain(code), description: wmoDesc(code), icon: wmoIcon(code, isDay) }];
+}
+
+function adaptOpenMeteo(j, place, lat, lon) {
+  const H = j.hourly || {};
+  const times = H.time || [];
+  const at = (arr, i) => (arr && arr[i] != null ? arr[i] : null);
+  const points = times.map((t, i) => {
+    const rain = (at(H.rain, i) || 0) + (at(H.showers, i) || 0);
+    const snow = at(H.snowfall, i) || 0;
+    const pt = {
+      dt: t,
+      main: {
+        temp: at(H.temperature_2m, i),
+        feels_like: at(H.apparent_temperature, i),
+        humidity: at(H.relative_humidity_2m, i),
+        pressure: at(H.pressure_msl, i) != null ? Math.round(H.pressure_msl[i]) : null
+      },
+      weather: omWeather(at(H.weather_code, i), at(H.is_day, i)),
+      wind: { speed: at(H.wind_speed_10m, i) ?? 0, gust: at(H.wind_gusts_10m, i), deg: at(H.wind_direction_10m, i) },
+      pop: (at(H.precipitation_probability, i) ?? 0) / 100,
+      precip: at(H.precipitation, i) ?? 0,
+      clouds: { all: at(H.cloud_cover, i) },
+      visibility: at(H.visibility, i)
+    };
+    if (rain > 0) pt.rain = { "1h": rain, "3h": rain };
+    if (snow > 0) pt.snow = { "1h": snow, "3h": snow };
+    return pt;
+  });
+
+  const C = j.current || {};
+  const D = j.daily || {};
+  const nowHr = Math.floor(Date.now() / 1000 / 3600) * 3600;
+  const nowPt = points.find((p) => p.dt >= nowHr) || points[0] || {};
+  const current = {
+    dt: C.time || Math.floor(Date.now() / 1000),
+    timezone: j.utc_offset_seconds ?? 0,
+    coord: { lat, lon },
+    name: place?.name || "",
+    sys: { country: place?.country || "", sunrise: at(D.sunrise, 0), sunset: at(D.sunset, 0) },
     main: {
-      temp: h.temperature_2m?.[i],
-      feels_like: h.apparent_temperature?.[i],
-      humidity: h.relative_humidity_2m?.[i],
-      pressure: h.pressure_msl?.[i] != null ? Math.round(h.pressure_msl[i]) : null
+      temp: C.temperature_2m,
+      feels_like: C.apparent_temperature,
+      humidity: C.relative_humidity_2m,
+      pressure: C.pressure_msl != null ? Math.round(C.pressure_msl) : null
     },
-    weather: [{ main: wmoMain(h.weather_code?.[i]) }],
-    wind: { speed: h.wind_speed_10m?.[i] ?? 0, gust: h.wind_gusts_10m?.[i], deg: h.wind_direction_10m?.[i] },
-    pop: (h.precipitation_probability?.[i] ?? 0) / 100,
-    precip: h.precipitation?.[i] ?? 0,
-    clouds: { all: h.cloud_cover?.[i] },
-    visibility: h.visibility?.[i]
-  }));
+    weather: omWeather(C.weather_code, C.is_day),
+    wind: { speed: C.wind_speed_10m ?? 0, gust: C.wind_gusts_10m, deg: C.wind_direction_10m },
+    clouds: { all: C.cloud_cover },
+    visibility: nowPt.visibility
+  };
+  const crain = (C.rain || 0) + (C.showers || 0);
+  if (crain > 0) current.rain = { "1h": crain };
+  if ((C.snowfall || 0) > 0) current.snow = { "1h": C.snowfall };
+
+  const forecast = { list: points, city: { timezone: j.utc_offset_seconds ?? 0 } };
+  return { current, forecast, points };
 }
 
 const POLLUTANTS = {
@@ -2702,8 +2771,8 @@ function windText(speed) {
 function visibilityText(v) {
   if (v == null) return "--";
   return state.units === "imperial"
-    ? `${Math.min(10, v / 1609).toFixed(v >= 16090 ? 0 : 1)} mi`
-    : `${Math.min(10, v / 1000).toFixed(v >= 10000 ? 0 : 1)} km`;
+    ? `${(v / 1609).toFixed(1)} mi`
+    : `${(v / 1000).toFixed(1)} km`;
 }
 function fmtHour(dt, tz) {
   let hh = new Date((dt + tz) * 1000).getUTCHours();
