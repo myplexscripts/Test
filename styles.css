@@ -974,6 +974,11 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   flex-direction: column;
   gap: var(--s-3);
   overflow: hidden;
+  padding:
+    calc(var(--safe-t) + var(--s-4))
+    calc(var(--gutter) + var(--safe-r))
+    calc(var(--safe-b) + var(--s-10))
+    calc(var(--gutter) + var(--safe-l));
 }
 .radar-map-full {
   flex: 1;
@@ -1295,13 +1300,10 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   color: var(--ink);
   transform: translateX(100%);
   transition: transform var(--dur-slow) var(--ease-spring);
-  padding:
-    calc(var(--safe-t) + var(--s-4))
-    calc(var(--gutter) + var(--safe-r))
-    calc(var(--safe-b) + var(--s-10))
-    calc(var(--gutter) + var(--safe-l));
+  padding: 0;
   display: flex;
   flex-direction: column;
+  overflow: hidden;
   will-change: transform;
 }
 .sheet.is-open { transform: translateX(0); }
@@ -1317,6 +1319,11 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
   display: flex;
   flex-direction: column;
   gap: var(--s-5);
+  padding:
+    calc(var(--safe-t) + var(--s-4))
+    calc(var(--gutter) + var(--safe-r))
+    calc(var(--safe-b) + var(--s-10))
+    calc(var(--gutter) + var(--safe-l));
 }
 
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
