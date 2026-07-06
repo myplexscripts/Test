@@ -1527,6 +1527,25 @@ function darkenHex(hex, amt) {
   if (!amt) return hex;
   return lerpHex(hex, amt > 0 ? "#000000" : "#ffffff", Math.min(1, Math.abs(amt)));
 }
+function luminance(hex) {
+  const [r, g, b] = hexToRgb(hex);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+function setDynamicPalette(dark) {
+  const r = document.documentElement.style;
+  const vars = dark
+    ? { "--bg": "#050505", "--ink": "#fafafa", "--surface": "#fafafa", "--on-surface": "#050505", "--surface-accent": "#050505", "--moon-lit": "var(--ink)", "--moon-shadow": "var(--bg)" }
+    : { "--bg": "#fafafa", "--ink": "#050505", "--surface": "#050505", "--on-surface": "#fafafa", "--surface-accent": "#fafafa", "--moon-lit": "transparent", "--moon-shadow": "var(--ink)" };
+  for (const k in vars) r.setProperty(k, vars[k]);
+  r.setProperty("--statusbar", "#050505");
+  r.setProperty("--theme", "#050505");
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", "#050505");
+  document.documentElement.style.colorScheme = dark ? "dark" : "light";
+  document.documentElement.setAttribute("data-dyn", dark ? "dark" : "light");
+  const changed = state.dark !== dark;
+  state.dark = dark;
+  if (changed) { updateMapTheme(); if (state.data) drawTrend(); }
+}
 function skyGradientAt(bands, nowH) {
   const anchors = bands.map((b) => ({ h: (b[0] + b[1]) / 2, key: b[2] }));
   if (!anchors.length) return DYNAMIC_SKY.day;
@@ -1599,6 +1618,7 @@ function updateDynamicBackground() {
     sky = DYNAMIC_SKY.day;
   }
 
+  setDynamicPalette((luminance(sky.top) + luminance(sky.bottom)) / 2 < 0.42);
   setDynamicGradient(`linear-gradient(180deg, ${sky.top} 0%, ${sky.bottom} 100%)`);
 }
 
@@ -1611,6 +1631,7 @@ function stopDynamicTheme() {
   if (dynamicTimer) { clearInterval(dynamicTimer); dynamicTimer = null; }
   const r = document.documentElement.style;
   ["--dyn-a", "--dyn-b", "--dyn-op-a", "--dyn-op-b"].forEach((v) => r.removeProperty(v));
+  document.documentElement.removeAttribute("data-dyn");
 }
 
 function sunMapSVG(lat, lon) {

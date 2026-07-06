@@ -182,7 +182,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 @media (min-width: 821px) { .mini-header { display: none; } }
 
 [data-theme="night"] .mini-header,
-[data-theme="night"] .drawer {
+[data-theme="night"] .drawer,
+[data-dyn="dark"] .mini-header,
+[data-dyn="dark"] .drawer {
   --surface: #1c1c1e;
   --on-surface: #fafafa;
   --on-surface-soft: color-mix(in srgb, #fafafa 64%, transparent);
