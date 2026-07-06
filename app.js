@@ -1483,12 +1483,12 @@ function bandsFromSunTimes(t, tz) {
 }
 
 const SUN_BANDS = {
-  day:      { name: "Day",                   color: "color-mix(in srgb, var(--ink) 5%, var(--bg))" },
-  golden:   { name: "Golden hour",           color: "color-mix(in srgb, var(--ink) 28%, var(--bg))" },
-  civil:    { name: "Civil twilight",        color: "color-mix(in srgb, var(--ink) 50%, var(--bg))" },
-  nautical: { name: "Nautical twilight",     color: "color-mix(in srgb, var(--ink) 72%, var(--bg))" },
-  astro:    { name: "Astronomical twilight", color: "color-mix(in srgb, var(--ink) 89%, var(--bg))" },
-  night:    { name: "Night",                 color: "color-mix(in srgb, var(--ink) 100%, var(--bg))" }
+  day:      { name: "Day",                   color: "color-mix(in srgb, var(--ink) 6%, transparent)" },
+  golden:   { name: "Golden hour",           color: "color-mix(in srgb, var(--ink) 28%, transparent)" },
+  civil:    { name: "Civil twilight",        color: "color-mix(in srgb, var(--ink) 50%, transparent)" },
+  nautical: { name: "Nautical twilight",     color: "color-mix(in srgb, var(--ink) 72%, transparent)" },
+  astro:    { name: "Astronomical twilight", color: "color-mix(in srgb, var(--ink) 89%, transparent)" },
+  night:    { name: "Night",                 color: "color-mix(in srgb, var(--ink) 100%, transparent)" }
 };
 
 const DYNAMIC_SKY = {
@@ -1688,14 +1688,14 @@ function renderSunSheet() {
   }).join("");
 
   const mt = moonTimes(localMidnight, lat, lon);
-  const Rb = 42, bR = 14;
+  const bR = 14, RB_OUT = RO + 42;
   const wxInline = (code, cx, cy, size) => wxSVG(code, false).replace(/^<svg /, `<svg x="${(cx - size / 2).toFixed(1)}" y="${(cy - size / 2).toFixed(1)}" width="${size}" height="${size}" `);
   let connectors = "", marks = "";
   const placeMark = (label, u, inner) => {
     if (u == null) return;
     const A = ang(toH(u));
-    const [bx, by] = pol(Rb, A);
-    const [c1x, c1y] = pol(Rb + bR, A), [c2x, c2y] = pol(RO + 8, A);
+    const [bx, by] = pol(RB_OUT, A);
+    const [c1x, c1y] = pol(RI - 6, A), [c2x, c2y] = pol(RO + 8, A);
     connectors += `<line x1="${c1x}" y1="${c1y}" x2="${c2x}" y2="${c2y}" class="sc-connector-casing"/><line x1="${c1x}" y1="${c1y}" x2="${c2x}" y2="${c2y}" class="sc-connector"/>`;
     marks += `<g class="sc-mark sc-wxmark" data-cap="${label} · ${fmtClock(u, tz)}"><circle cx="${bx}" cy="${by}" r="${bR}" class="sc-badge"/>${inner(+bx, +by)}</g>`;
   };
@@ -1710,7 +1710,7 @@ function renderSunSheet() {
   const sunHand = `<line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand-casing"/><line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand" data-cap="Now · ${fmtClock(nowUnix, tz)}"/><circle cx="${sx}" cy="${sy}" r="7" class="sc-sun"/>`;
   const noonCap = t.noon != null ? `Solar noon · ${fmtClock(t.noon, tz)}` : "";
 
-  const svg = `<svg viewBox="0 0 300 300" class="sunclock" role="img" aria-label="24-hour sun clock">
+  const svg = `<svg viewBox="-26 -26 352 352" class="sunclock" role="img" aria-label="24-hour sun clock">
     ${bandPaths}
     <circle cx="${CX}" cy="${CY}" r="${RO}" class="sc-ring" fill="none"/>
     ${ticks}${hourLabels}${connectors}${marks}${sunHand}

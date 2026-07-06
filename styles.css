@@ -158,12 +158,13 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   padding: calc(var(--safe-t) + 8px) calc(var(--gutter) + var(--safe-r)) 10px calc(var(--gutter) + var(--safe-l));
   transform: translateY(-101%);
   opacity: 0;
-  transition: transform var(--dur) var(--ease-spring), opacity var(--dur-fast) var(--ease-out);
+  transition: transform var(--dur) var(--ease-spring), opacity var(--dur) var(--ease-spring);
   will-change: transform, opacity;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
   pointer-events: none;
 }
 .mini-header.show { transform: translateY(0); opacity: 1; }
+.mini-header.show { transition: transform var(--dur) var(--ease-out), opacity var(--dur-fast) var(--ease-out); }
 .mini-inner { display: flex; align-items: center; gap: var(--s-3); max-width: var(--max); margin: 0 auto; }
 .mini-ic { font-size: 1.6rem; color: var(--surface-accent); flex: 0 0 auto; }
 .mini-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
@@ -753,7 +754,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .sun-svg { width: 100%; height: auto; display: block; overflow: visible; }
 .arc-bg { fill: none; stroke: var(--ink); opacity: 0.16; stroke-width: 3; stroke-linecap: round; }
 .arc-fg { fill: none; stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
-.sun-dot { fill: var(--ink); stroke: var(--bg); stroke-width: 3.5; }
+.sun-dot { fill: var(--ink); stroke: none; }
 .sun-top { display: flex; justify-content: space-between; align-items: flex-start; gap: var(--s-4); }
 .sun-dur { display: flex; flex-direction: column; gap: 2px; }
 .sun-dur.end { text-align: right; align-items: flex-end; }
@@ -1344,14 +1345,14 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .sm-pinhole { fill: var(--bg); }
 .sunclock-wrap { display: flex; justify-content: center; padding: var(--s-3) 0 var(--s-2); }
 .sunclock { width: min(340px, 92%); height: auto; display: block; }
-.sc-band { cursor: pointer; stroke: var(--bg); stroke-width: 2; stroke-linejoin: round; transition: opacity var(--dur-fast); }
+.sc-band { cursor: pointer; stroke: color-mix(in srgb, var(--ink) 22%, transparent); stroke-width: 1.5; stroke-linejoin: round; transition: opacity var(--dur-fast); }
 .sc-band:hover { opacity: 0.82; }
 .sc-ring { stroke: var(--ink); opacity: 0.22; stroke-width: 2; }
 .sc-tick { stroke: var(--ink); opacity: 0.35; }
 .sc-hour { fill: var(--ink); font-size: 13px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; font-family: Inter, sans-serif; }
 .sc-connector-casing { stroke: var(--bg); stroke-width: 5.5; stroke-linecap: round; }
 .sc-connector { stroke: var(--ink); stroke-width: 2; stroke-linecap: round; }
-.sc-badge { fill: var(--bg); stroke: var(--ink); stroke-width: 2; }
+.sc-badge { fill: transparent; stroke: var(--ink); stroke-width: 2; }
 .sc-wxmark { color: var(--ink); }
 .sc-hand-casing { stroke: var(--bg); stroke-width: 7; stroke-linecap: round; }
 .sc-hand { stroke: var(--ink); stroke-width: 3.5; stroke-linecap: round; cursor: pointer; }
