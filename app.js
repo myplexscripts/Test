@@ -1528,8 +1528,8 @@ function renderInfoSheet(kind) {
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
 }
 
-function section(title, body) {
-  return `<div class="info-section"><h3 class="info-head">${title}</h3><div class="info-card">${body}</div></div>`;
+function section(title, body, card) {
+  return `<div class="info-section"><h3 class="info-head">${title}</h3>${card ? `<div class="info-card">${body}</div>` : body}</div>`;
 }
 
 function scaleBar(pos, ends) {
@@ -1568,7 +1568,7 @@ function renderAqiSheet(air) {
     scale +
     section("What this means", `<p class="info-text">${b.advice}</p>`) +
     primary +
-    section("Pollutants right now", breakdown);
+    section("Pollutants right now", breakdown, true);
 }
 
 function renderUvSheet(air) {
@@ -1591,7 +1591,7 @@ function renderUvSheet(air) {
     (cur != null ? `<div class="aqi-hero"><span class="aqi-big">${cur}</span><span class="aqi-band">${u.label}</span></div>` : "") +
     (cur != null ? scaleBar((cur / 11) * 100, ["0", "Moderate", "Very high", "11+"]) : "") +
     (cur != null ? section("What to do", `<p class="info-text">${u.advice}</p>`) : "") +
-    section("UV scale", `<div class="uv-scale">${scaleRows}</div>`) +
+    section("UV scale", `<div class="uv-scale">${scaleRows}</div>`, true) +
     section("About the UV index", `<p class="info-text">The UV index rates the strength of the sun's ultraviolet rays from 0 (low) to 11+ (extreme). Higher means skin and eyes burn faster, so sun protection matters more.</p>`);
 }
 
@@ -2089,9 +2089,9 @@ function renderMoonSheet() {
 
   el.sheetList.innerHTML =
     hero + figs +
-    section("Upcoming phases", `<div class="phase-list">${upcoming}</div>`) +
-    section("The eight phases", `<p class="info-text">The Moon makes no light of its own, we see the half lit by the Sun. As it orbits Earth about every 29.5 days, the amount of that lit half we can see grows (waxing) and shrinks (waning), giving eight named phases.</p><div class="phase-guide">${guide}</div>`) +
-    section("The month ahead", calendar) +
+    section("Upcoming phases", `<div class="phase-list">${upcoming}</div>`, true) +
+    section("The eight phases", `<p class="info-text">The Moon makes no light of its own, we see the half lit by the Sun. As it orbits Earth about every 29.5 days, the amount of that lit half we can see grows (waxing) and shrinks (waning), giving eight named phases.</p><div class="phase-guide">${guide}</div>`, true) +
+    section("The month ahead", calendar, true) +
     section("About illumination", `<p class="info-text">Illumination represents the percentage of the Moon's Earth-facing side lit by the Sun, ranging from 0% at a new moon to 100% at a full moon. This value describes the Moon's phase regardless of your local horizon or weather conditions.</p><p class="info-text info-now">Currently, the Moon's illumination is ${moon.illum}%.</p>`) +
     section("About the Moon's distance", `<p class="info-text">The Moon follows an elliptical orbit, causing its distance from Earth to vary throughout the month between approximately 356,500 km (perigee) and 406,700 km (apogee).</p><p class="info-text info-now">Currently, the Moon is approximately ${groupNum(dist)} km away.</p>`);
 }
@@ -2127,14 +2127,14 @@ function renderActivitySheet() {
   el.sheetNote.textContent = "A quick read on whether today suits a few everyday outdoor tasks, based on the hourly forecast.";
   el.sheetList.innerHTML =
     section("What this shows", `<p class="info-text">Each row looks at the hours ahead and estimates when today's conditions suit that task. The time beside it is the best stretch of the day for it, or a short note when the whole day works or none of it does.</p><p class="info-text">The list is drawn from a wider set and adapts to the season and the day's weather, so what appears changes: a warm dry day might offer a BBQ or a bike ride, a snowy one sledding, a wet one a cozy day in.</p>`) +
-    section("Today's picks", how || `<p class="info-text">Suggestions appear once the forecast has loaded.</p>`) +
+    section("Today's picks", how || `<p class="info-text">Suggestions appear once the forecast has loaded.</p>`, true) +
     section("It is a best guess", `<p class="info-text">These are simple rules of thumb built on the forecast, not a promise. Forecasts shift through the day, so the suggested times can move as fresh data arrives. Treat them as a starting point and check the sky before you commit.</p>`) +
     section("Examples you might see", `
       <p class="info-text"><strong>Most of the day</strong>: conditions stay good from morning to evening.</p>
       <p class="info-text"><strong>12pm to 5pm</strong>: the best window falls in the afternoon.</p>
       <p class="info-text"><strong>Around 2pm</strong>: only a brief window looks good.</p>
       <p class="info-text"><strong>Rain by 6pm</strong>: dry for now, but rain is expected later.</p>
-      <p class="info-text"><strong>Not today</strong>: conditions do not really suit it today.</p>`);
+      <p class="info-text"><strong>Not today</strong>: conditions do not really suit it today.</p>`, true);
 }
 
 function capeLabel(v) {
@@ -2204,7 +2204,7 @@ function renderAlertsSheet() {
     section("What the colours mean",
       tier("Yellow", "yellow", "Moderate, localized or short-lived. These are the most common alerts. Worth keeping an eye on.") +
       tier("Orange", "orange", "Major, more widespread, and may last a day or more. Less common. Be ready to act.") +
-      tier("Red", "red", "The most severe: extensive, widespread and prolonged. Take action right away to protect life and property.")) +
+      tier("Red", "red", "The most severe: extensive, widespread and prolonged. Take action right away to protect life and property."), true) +
     section("Types of alert",
       type("Watch", "Conditions are favourable for severe weather. It may develop, so stay aware.") +
       type("Advisory", "Weather that is not severe but can still affect your day. Plan around it.") +
@@ -2221,7 +2221,7 @@ function renderCreditsSheet() {
       <a class="credit-row" href="${url}" target="_blank" rel="noopener noreferrer">
         <span class="credit-name">${name}</span>
         <span class="credit-desc">${desc}</span>
-      </a>`).join("")}</div>`)
+      </a>`).join("")}</div>`, true)
   ).join("");
 }
 
@@ -2651,15 +2651,25 @@ function drawChart(rows, m, dual, showNow) {
     ctx.setLineDash([]); ctx.globalAlpha = 1;
   }
 
-  ctx.fillStyle = ink; ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center";
+  ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center"; ctx.lineJoin = "round";
+  const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#ffffff";
+  const halo = (t, x, y) => { ctx.strokeStyle = bg; ctx.lineWidth = 4; ctx.strokeText(t, x, y); ctx.fillStyle = ink; ctx.fillText(t, x, y); };
   const step = Math.max(1, Math.ceil(rows.length / 8));
+  const lastIdx = Math.floor((rows.length - 1) / step) * step;
+  let lastHi = null, lastLo = null;
   rows.forEach((r, i) => {
     if (i % step !== 0) return;
+    const isEnd = i === 0 || i === lastIdx;
+    ctx.fillStyle = ink;
     ctx.beginPath(); ctx.arc(X(i), Y(r.hi), 3.5, 0, Math.PI * 2); ctx.fill();
     if (dual) { ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(X(i), Y(r.lo), 3.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
-    ctx.fillText(lab(r.hi), X(i), Y(r.hi) - 12);
-    if (dual) { ctx.globalAlpha = 0.6; ctx.fillText(lab(r.lo), X(i), Y(r.lo) + 18); ctx.globalAlpha = 1; }
-    ctx.globalAlpha = 0.55; ctx.fillText(i === 0 && showNow ? "Now" : r.label, X(i), rect.height - 10); ctx.globalAlpha = 1;
+    const hiLab = lab(r.hi);
+    if (hiLab !== lastHi || isEnd) { halo(hiLab, X(i), Y(r.hi) - 12); lastHi = hiLab; }
+    if (dual) {
+      const loLab = lab(r.lo);
+      if (loLab !== lastLo || isEnd) { ctx.globalAlpha = 0.85; halo(loLab, X(i), Y(r.lo) + 18); ctx.globalAlpha = 1; lastLo = loLab; }
+    }
+    ctx.globalAlpha = 0.55; ctx.fillStyle = ink; ctx.fillText(i === 0 && showNow ? "Now" : r.label, X(i), rect.height - 10); ctx.globalAlpha = 1;
   });
 
   chartGeom = {
