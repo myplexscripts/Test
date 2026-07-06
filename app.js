@@ -28,7 +28,7 @@ const el = {
   ptr: $("ptr"), scrim: $("scrim"),
   drawer: $("drawer"), drawerClose: $("drawerClose"),
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
-  unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
+  unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), stormBtn: $("stormBtn"), alertsInfoBtn: $("alertsInfoBtn"),
   placeName: $("placeName"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), quickHits: $("quickHits"), alerts: $("alerts"),
   alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
@@ -125,6 +125,8 @@ function wireEvents() {
   el.useLocation.onclick = () => { closeDrawer(); useMyLocation(); };
   el.useHome.onclick = () => { state.loc = { ...HOME }; markLoc("home"); saveState(); closeDrawer(); refresh(true); };
   if (el.creditsBtn) el.creditsBtn.onclick = () => { closeDrawer(); openDetail("credits"); };
+  if (el.stormBtn) el.stormBtn.onclick = () => { closeDrawer(); openDetail("storm"); };
+  if (el.alertsInfoBtn) el.alertsInfoBtn.onclick = () => { closeDrawer(); openDetail("alerts"); };
 
   el.unitSeg.querySelectorAll("[data-units]").forEach((b) => {
     b.onclick = () => {
@@ -310,8 +312,8 @@ function wmoMain(code) {
 async function fetchOpenMeteo(lat, lon, units) {
   const tu = units === "imperial" ? "fahrenheit" : "celsius";
   const wu = units === "imperial" ? "mph" : "ms";
-  const hourly = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility";
-  const current = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,rain,showers,snowfall,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover";
+  const hourly = "temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility,cape,freezing_level_height";
+  const current = "temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation,rain,showers,snowfall,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,cape,freezing_level_height";
   const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&current=${current}&hourly=${hourly}&minutely_15=precipitation&daily=sunrise,sunset&temperature_unit=${tu}&wind_speed_unit=${wu}&timeformat=unixtime&timezone=auto&forecast_days=7`;
   return fetchJSON(url);
 }
@@ -361,12 +363,16 @@ function adaptOpenMeteo(j, place, lat, lon) {
         pressure: at(H.pressure_msl, i) != null ? Math.round(H.pressure_msl[i]) : null
       },
       weather: omWeather(at(H.weather_code, i), at(H.is_day, i)),
+      code: at(H.weather_code, i),
       wind: { speed: at(H.wind_speed_10m, i) ?? 0, gust: at(H.wind_gusts_10m, i), deg: at(H.wind_direction_10m, i) },
       pop: (at(H.precipitation_probability, i) ?? 0) / 100,
       precip: at(H.precipitation, i) ?? 0,
       clouds: { all: at(H.cloud_cover, i) },
       visibility: at(H.visibility, i),
-      snowDepth: at(H.snow_depth, i)
+      snowDepth: at(H.snow_depth, i),
+      dew: at(H.dew_point_2m, i),
+      cape: at(H.cape, i),
+      freezing: at(H.freezing_level_height, i)
     };
     if (rain > 0) pt.rain = { "1h": rain, "3h": rain };
     if (snow > 0) pt.snow = { "1h": snow, "3h": snow };
@@ -395,7 +401,10 @@ function adaptOpenMeteo(j, place, lat, lon) {
     weather: omWeather(C.weather_code, C.is_day),
     wind: { speed: C.wind_speed_10m ?? 0, gust: C.wind_gusts_10m, deg: C.wind_direction_10m },
     clouds: { all: C.cloud_cover },
-    visibility: nowPt.visibility
+    visibility: nowPt.visibility,
+    dew: C.dew_point_2m,
+    cape: C.cape,
+    freezing: C.freezing_level_height
   };
   const crain = (C.rain || 0) + (C.showers || 0);
   if (crain > 0) current.rain = { "1h": crain };
@@ -505,6 +514,7 @@ function render(data) {
   el.summary.textContent = buildSummary(current, state.daily);
   renderQuickHits();
   renderAlerts(data.alerts, tz);
+  if (el.alertsInfoBtn) el.alertsInfoBtn.hidden = !inCanada(state.loc?.lat, state.loc?.lon);
 
   if (el.miniIcon) { el.miniIcon.className = "mini-ic wx-icon"; el.miniIcon.innerHTML = wxSVG(wxResolve(w, isNight), false); }
   if (el.miniPlace) el.miniPlace.textContent = el.placeName.textContent;
@@ -902,8 +912,24 @@ function activityTileHTML() {
   return `<div class="insight-card activity-card"><div class="activity-head"><div class="insight-label activity-title">Good day for</div><button class="whats-this" type="button" data-open="activity">What's this?</button></div><div class="activity-rows">${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.when}</span></div>`).join("")}</div></div>`;
 }
 
+function stormTileHTML() {
+  const o = stormOutlook();
+  const capeHot = o.capePk != null && o.capePk >= 1000;
+  if (!o.thunder && !capeHot) return "";
+  let value, sub;
+  if (o.thunder) {
+    value = o.thunder.hail ? "Storms, maybe hail" : "Thunderstorms likely";
+    sub = `Expected ${o.thunder.when.charAt(0).toLowerCase() + o.thunder.when.slice(1)}. Tap for the full storm readout.`;
+  } else {
+    value = capeLabel(o.capePk);
+    sub = `The air is turning unstable, ${groupNum(Math.round(o.capePk))} J/kg of storm energy building. Tap for details.`;
+  }
+  return `<button class="insight-card insight-tap" type="button" data-open="storm"><i class="ph-duotone ph-cloud-lightning insight-ic" aria-hidden="true"></i><div class="insight-body"><div class="insight-label">Storm watch</div><div class="insight-value">${value}</div><div class="insight-sub">${sub}</div></div><i class="ph ph-caret-right insight-go" aria-hidden="true"></i></button>`;
+}
+
 function renderQuickHits() {
   if (!el.quickHits) return;
+  const stormTile = stormTileHTML();
   const wearTile = insightTileHTML("ph-coat-hanger", "What to wear", "", buildWear(state.data?.current || {}, state.daily || []));
   const s = seasonalCallout();
   const seasonalTile = insightTileHTML(s.icon, s.label, s.value, s.sub);
@@ -916,7 +942,7 @@ function renderQuickHits() {
       <span class="qh-head"><i class="ph ph-sparkle qh-ic" aria-hidden="true"></i><span class="qh-label">Quick Hits</span></span>
       <svg class="qh-chev" viewBox="0 0 256 256" aria-hidden="true"><line class="qh-arm qh-arm-l" x1="48" y1="96" x2="128" y2="176" stroke="currentColor" stroke-linecap="round" stroke-width="20"/><line class="qh-arm qh-arm-r" x1="208" y1="96" x2="128" y2="176" stroke="currentColor" stroke-linecap="round" stroke-width="20"/></svg>
     </button>
-    <div class="qh-content"><div class="qh-clip"><div class="qh-tiles">${wearTile}${seasonalTile}${starTile}${activityTileHTML()}</div></div></div>`;
+    <div class="qh-content"><div class="qh-clip"><div class="qh-tiles">${stormTile}${wearTile}${seasonalTile}${starTile}${activityTileHTML()}</div></div></div>`;
   el.quickHits.classList.toggle("is-open", open);
   if (open) {
     requestAnimationFrame(() => requestAnimationFrame(() => el.quickHits.classList.remove("qh-no-anim")));
@@ -928,8 +954,9 @@ function renderQuickHits() {
     el.quickHits.classList.toggle("is-open", state.quickHitsOpen);
     toggle.setAttribute("aria-expanded", state.quickHitsOpen ? "true" : "false");
   };
-  const whatsThis = el.quickHits.querySelector(".whats-this");
-  if (whatsThis) whatsThis.onclick = (e) => { e.stopPropagation(); openDetail("activity"); };
+  el.quickHits.querySelectorAll("[data-open]").forEach((b) => {
+    b.onclick = (e) => { e.stopPropagation(); openDetail(b.dataset.open); };
+  });
 }
 
 function renderWind(current) {
@@ -1259,9 +1286,10 @@ function renderAlerts(alerts, tz) {
   const list = (alerts || []).filter((a) => a && a.event);
   if (!list.length) { host.hidden = true; host.innerHTML = ""; return; }
   host.hidden = false;
+  const tierClass = (c) => (c === "yellow" || c === "orange" || c === "red") ? ` alert--${c}` : "";
   host.innerHTML = list.map((a) => {
     const meta = escapeHTML(alertMeta(a, tz));
-    return `<button class="alert" type="button">
+    return `<button class="alert${tierClass(a.colour)}" type="button">
       <i class="ph-fill ph-warning-octagon alert-ic" aria-hidden="true"></i>
       <span class="alert-body">
         <span class="alert-title">${escapeHTML(a.event)}</span>
@@ -1269,10 +1297,12 @@ function renderAlerts(alerts, tz) {
       </span>
       <i class="ph ph-caret-right alert-go" aria-hidden="true"></i>
     </button>`;
-  }).join("");
+  }).join("") + `<button class="alert-help" type="button"><i class="ph ph-info" aria-hidden="true"></i><span>What do the alert colours mean?</span></button>`;
   [...host.querySelectorAll(".alert")].forEach((btn, i) => {
     btn.onclick = () => openAlertModal(list[i], tz);
   });
+  const help = host.querySelector(".alert-help");
+  if (help) help.onclick = () => openDetail("alerts");
 }
 
 function openAlertModal(a, tz) {
@@ -1422,7 +1452,7 @@ function openSheetUI() {
 }
 
 function openDetail(metric, range) {
-  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "activity";
+  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "activity" || metric === "storm" || metric === "alerts";
   if (!METRICS[metric] && !isInfo) metric = "temp";
   const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
   state.nav = [view];
@@ -1469,7 +1499,7 @@ function syncRange() {
 function renderDetailSheet() {
   if (el.sheetHeadAux) { el.sheetHeadAux.innerHTML = ""; el.sheetHeadAux.style.display = "none"; }
   const gc = el.graph.closest(".graph-card");
-  if (["aqi", "uv", "moon", "credits", "sun", "activity"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
+  if (["aqi", "uv", "moon", "credits", "sun", "activity", "storm", "alerts"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
   if (gc) gc.style.display = "";
   if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
@@ -1492,6 +1522,8 @@ function renderInfoSheet(kind) {
   else if (kind === "sun") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderSunSheet(); }
   else if (kind === "credits") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderCreditsSheet(); }
   else if (kind === "activity") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderActivitySheet(); }
+  else if (kind === "storm") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderStormSheet(); }
+  else if (kind === "alerts") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAlertsSheet(); }
   else if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
 }
@@ -2103,6 +2135,82 @@ function renderActivitySheet() {
       <p class="info-text"><strong>Around 2pm</strong>: only a brief window looks good.</p>
       <p class="info-text"><strong>Rain by 6pm</strong>: dry for now, but rain is expected later.</p>
       <p class="info-text"><strong>Not today</strong>: conditions do not really suit it today.</p>`);
+}
+
+function capeLabel(v) {
+  if (v == null) return null;
+  if (v < 300) return "Little instability";
+  if (v < 1000) return "Marginal instability";
+  if (v < 2500) return "Moderate instability";
+  if (v < 4000) return "Strong instability";
+  return "Extreme instability";
+}
+
+function stormOutlook() {
+  const tz = state.tz || 0;
+  const now = Math.floor(Date.now() / 1000);
+  const fmtH = (dt) => { const h = new Date((dt + tz) * 1000).getUTCHours(); return `${h % 12 || 12}${h < 12 ? "am" : "pm"}`; };
+  const pts = (state.hourly || []).filter((p) => p.dt >= now - 1800).slice(0, 24);
+  const isT = (p) => p.code === 95 || p.code === 96 || p.code === 99;
+  let s = -1, e = -1;
+  for (let i = 0; i < pts.length; i++) { if (isT(pts[i])) { if (s < 0) s = i; e = i; } else if (s >= 0) break; }
+  let thunder = null;
+  if (s >= 0) {
+    const hail = pts.slice(s, e + 1).some((p) => p.code === 96 || p.code === 99);
+    thunder = { when: s === e ? `Around ${fmtH(pts[s].dt)}` : `${fmtH(pts[s].dt)} to ${fmtH(pts[e].dt)}`, hail };
+  }
+  let capePk = null, capeAt = null;
+  for (const p of pts) if (p.cape != null && (capePk == null || p.cape > capePk)) { capePk = p.cape; capeAt = p.dt; }
+  let gustPk = null, gustAt = null;
+  for (const p of pts) { const g = p.wind?.gust; if (g != null && (gustPk == null || g > gustPk)) { gustPk = g; gustAt = p.dt; } }
+  const p0 = pts[0]?.main?.pressure, p6 = pts[6]?.main?.pressure;
+  const press = (p0 != null && p6 != null) ? { d: p6 - p0, dir: (p6 - p0) <= -1.5 ? "falling" : (p6 - p0) >= 1.5 ? "rising" : "steady" } : null;
+  return { thunder, capePk, capeAt, gustPk, gustAt, press, fmtH };
+}
+
+function renderStormSheet() {
+  const cur = state.data?.current || {};
+  const o = stormOutlook();
+  const capeStr = o.capePk != null ? `${groupNum(Math.round(o.capePk))} J/kg` : "unavailable";
+  const capeLab = capeLabel(o.capePk);
+  const thunderText = o.thunder ? `Thunderstorms ${o.thunder.when}${o.thunder.hail ? ", with a chance of hail" : ""}.` : "No thunderstorms in the next day.";
+  const pressStr = o.press ? (o.press.dir === "falling" ? "Falling" : o.press.dir === "rising" ? "Rising" : "Steady") : "unavailable";
+  const pressBlurb = !o.press ? "Pressure data is unavailable right now." :
+    o.press.dir === "falling" ? "Falling pressure often means unsettled or stormy weather is moving in." :
+    o.press.dir === "rising" ? "Rising pressure usually means calmer, clearer conditions are on the way." :
+    "Steady pressure suggests the current conditions will hold for now.";
+
+  el.sheetTitle.textContent = "Storm tracker";
+  el.sheetNote.textContent = "A closer look at the ingredients storm watchers follow through the day: instability, moisture, wind and the trend in the air pressure.";
+  el.sheetList.innerHTML =
+    section("Thunderstorm outlook", `<p class="info-text info-now">${thunderText}</p><p class="info-text">Thunderstorms need warm, moist air and something to lift it. When the forecast flags them, this is the window worth watching.</p>`) +
+    section("Instability (CAPE)", `<p class="info-text info-now">${capeStr}${capeLab ? `, ${capeLab.toLowerCase()}` : ""}${(o.capePk != null && o.capeAt) ? `, peaking around ${o.fmtH(o.capeAt)}` : ""}.</p><p class="info-text">CAPE is the energy available for rising air, in joules per kilogram. The higher it climbs, the taller and stronger storms can grow. Above roughly 1,000 hints at thunderstorms, and above 2,500 the air is primed for strong ones.</p>`) +
+    section("Peak wind gust", `<p class="info-text info-now">${o.gustPk != null ? windText(o.gustPk) : "Light"}${(o.gustPk != null && o.gustAt) ? `, around ${o.fmtH(o.gustAt)}` : ""}.</p><p class="info-text">Gusts are brief spikes above the steady wind. The strongest often arrive with a storm's leading edge or its downdraft.</p>`) +
+    section("Pressure trend", `<p class="info-text info-now">${pressStr}${o.press ? ` over the next few hours (${o.press.d > 0 ? "+" : ""}${o.press.d.toFixed(0)} hPa)` : ""}.</p><p class="info-text">${pressBlurb}</p>`) +
+    (cur.freezing != null ? section("Freezing level", `<p class="info-text info-now">${groupNum(Math.round(cur.freezing))} m above sea level.</p><p class="info-text">This is the height where the air reaches 0°C. A lower freezing level lets rain turn to snow, and it hints at how far any hail can fall before it melts.</p>`) : "") +
+    (cur.dew != null ? section("Dew point", `<p class="info-text info-now">${Math.round(cur.dew)}° right now.</p><p class="info-text">The dew point is the temperature at which air becomes saturated. Higher values mean more moisture in the air, which is fuel for storms. Above about 15° the air starts to feel humid and storm-ready.</p>`) : "") +
+    section("A best guess", `<p class="info-text">These readings come from a forecast model and describe the potential in the air, not a certainty that storms will fire. For active warnings, always follow Environment Canada or your local weather service.</p>`) +
+    `<button class="sun-link" data-open="radar"><span>Open the live radar</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
+  const rl = el.sheetList.querySelector('.sun-link[data-open="radar"]');
+  if (rl) rl.onclick = () => { closeSheet(); openRadar(); };
+}
+
+function renderAlertsSheet() {
+  const tier = (name, key, desc) => `<div class="tier-row tier-${key}"><span class="tier-dot" aria-hidden="true"></span><div class="tier-body"><div class="tier-name">${name}</div><p class="info-text">${desc}</p></div></div>`;
+  const type = (name, desc) => `<p class="info-text"><strong>${name}</strong>: ${desc}</p>`;
+  el.sheetTitle.textContent = "Weather alerts";
+  el.sheetNote.textContent = "In Canada, Environment Canada colour-codes each alert by how serious it is. Here is what the colours and the types mean.";
+  el.sheetList.innerHTML =
+    section("What the colours mean",
+      tier("Yellow", "yellow", "Moderate, localized or short-lived. These are the most common alerts. Worth keeping an eye on.") +
+      tier("Orange", "orange", "Major, more widespread, and may last a day or more. Less common. Be ready to act.") +
+      tier("Red", "red", "The most severe: extensive, widespread and prolonged. Take action right away to protect life and property.")) +
+    section("Types of alert",
+      type("Watch", "Conditions are favourable for severe weather. It may develop, so stay aware.") +
+      type("Advisory", "Weather that is not severe but can still affect your day. Plan around it.") +
+      type("Warning", "Severe weather is happening or is very likely. Act now.") +
+      type("Special weather statement", "A heads-up about unusual weather that does not yet meet alert criteria.")) +
+    section("Where these come from", `<p class="info-text">Alerts shown here are issued by Environment and Climate Change Canada for your area. They are a guide, so always follow the latest official guidance.</p>`);
 }
 
 function renderCreditsSheet() {
