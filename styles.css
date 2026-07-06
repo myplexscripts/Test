@@ -1398,7 +1398,7 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
 .back-btn i { font-size: 2.1rem; }
 
 .sheet-title { font-size: var(--t-headline); font-weight: 800; letter-spacing: -0.01em; }
-.sheet-note { font-size: var(--t-body); line-height: 1.5; color: var(--ink-soft); max-width: 58ch; }
+.sheet-note { font-size: var(--t-body); line-height: 1.6; font-weight: 500; color: var(--ink-soft); max-width: 58ch; }
 
 .graph-card {
   border: 2.5px solid var(--card-border);
@@ -1409,7 +1409,7 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
 #graph {
   display: block;
   width: 100%;
-  height: clamp(240px, 42vh, 420px);
+  height: clamp(190px, 27vh, 280px);
   border-radius: calc(var(--r-xl) - var(--s-4));
   touch-action: pan-y;
 }

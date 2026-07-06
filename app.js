@@ -2370,8 +2370,13 @@ function dayStatsHTML(day, items) {
 function detailSeries() {
   const m = METRICS[state.detail.metric];
   const tz = state.tz || 0;
-  return (state.hourly || [])
-    .map((it) => ({ label: fmtHour(it.dt, tz), hi: m.get(it) }))
+  const raw = state.data?.hourly || [];
+  const today = new Date((Math.floor(Date.now() / 1000) + tz) * 1000).toISOString().slice(0, 10);
+  const dayKey = (dt) => new Date((dt + tz) * 1000).toISOString().slice(0, 10);
+  const day = raw.filter((it) => dayKey(it.dt) === today);
+  const src = day.length ? day : (state.hourly || []);
+  return src
+    .map((it) => ({ label: fmtHour(it.dt, tz), hi: m.get(it), dt: it.dt }))
     .filter((r) => Number.isFinite(r.hi));
 }
 
@@ -2381,7 +2386,7 @@ function drawDetailChart() {
     const day = state.daily[state.detail.dayIndex];
     if (!day) return;
     const tz = state.tz || 0;
-    drawChart((day.items || []).map((it) => ({ label: fmtHour(it.dt, tz), hi: it.main.temp })), METRICS.temp, false, day.label === "Today");
+    drawChart((day.items || []).map((it) => ({ label: fmtHour(it.dt, tz), hi: it.main.temp, dt: it.dt })), METRICS.temp, false, day.label === "Today");
     return;
   }
   const m = METRICS[state.detail.metric];
@@ -2645,32 +2650,56 @@ function drawChart(rows, m, dual, showNow) {
   if (dual) stroke("lo", 0.4, 3);
   stroke("hi", 1, 3.5);
 
-  if (showNow) {
-    ctx.setLineDash([3, 4]); ctx.strokeStyle = ink; ctx.globalAlpha = 0.4; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(X(0), padTop); ctx.lineTo(X(0), padTop + h); ctx.stroke();
-    ctx.setLineDash([]); ctx.globalAlpha = 1;
+  if (showNow && rows.length && rows[0].dt != null) {
+    const now = Date.now() / 1000;
+    let nf = null;
+    if (now <= rows[0].dt) nf = 0;
+    else if (now < rows[rows.length - 1].dt) {
+      for (let i = 0; i < rows.length - 1; i++) {
+        if (now >= rows[i].dt && now <= rows[i + 1].dt) { nf = i + (now - rows[i].dt) / (rows[i + 1].dt - rows[i].dt); break; }
+      }
+    }
+    if (nf != null) {
+      const nx = X(nf);
+      ctx.setLineDash([3, 4]); ctx.strokeStyle = ink; ctx.globalAlpha = 0.4; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(nx, padTop); ctx.lineTo(nx, padTop + h); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.globalAlpha = 0.6; ctx.fillStyle = ink; ctx.font = "700 11px Inter, system-ui"; ctx.textAlign = "center";
+      ctx.fillText("Now", Math.max(padX + 14, Math.min(rect.width - padX - 14, nx)), padTop - 12);
+      ctx.globalAlpha = 1;
+    }
   }
 
-  ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center"; ctx.lineJoin = "round";
-  const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#ffffff";
-  const halo = (t, x, y) => { ctx.strokeStyle = bg; ctx.lineWidth = 4; ctx.strokeText(t, x, y); ctx.fillStyle = ink; ctx.fillText(t, x, y); };
-  const step = Math.max(1, Math.ceil(rows.length / 8));
-  const lastIdx = Math.floor((rows.length - 1) / step) * step;
-  let lastHi = null, lastLo = null;
-  rows.forEach((r, i) => {
-    if (i % step !== 0) return;
-    const isEnd = i === 0 || i === lastIdx;
-    ctx.fillStyle = ink;
-    ctx.beginPath(); ctx.arc(X(i), Y(r.hi), 3.5, 0, Math.PI * 2); ctx.fill();
-    if (dual) { ctx.globalAlpha = 0.5; ctx.beginPath(); ctx.arc(X(i), Y(r.lo), 3.5, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; }
-    const hiLab = lab(r.hi);
-    if (hiLab !== lastHi || isEnd) { halo(hiLab, X(i), Y(r.hi) - 12); lastHi = hiLab; }
-    if (dual) {
-      const loLab = lab(r.lo);
-      if (loLab !== lastLo || isEnd) { ctx.globalAlpha = 0.85; halo(loLab, X(i), Y(r.lo) + 18); ctx.globalAlpha = 1; lastLo = loLab; }
-    }
-    ctx.globalAlpha = 0.55; ctx.fillStyle = ink; ctx.fillText(i === 0 && showNow ? "Now" : r.label, X(i), rect.height - 10); ctx.globalAlpha = 1;
+  const keyIdx = (arr) => { let mn = 0, mx = 0; arr.forEach((v, i) => { if (v < arr[mn]) mn = i; if (v > arr[mx]) mx = i; }); return { mn, mx }; };
+  const end = rows.length - 1;
+  let hiMap, loMap = new Map();
+  if (rows.length > 10) {
+    const k = keyIdx(rows.map((r) => r.hi));
+    hiMap = new Map([[0, -12], [end, -12], [k.mx, -14], [k.mn, 20]]);
+    if (dual) { const kl = keyIdx(rows.map((r) => r.lo)); loMap = new Map([[0, 20], [end, 20], [kl.mn, 20], [kl.mx, -12]]); }
+  } else {
+    hiMap = new Map(rows.map((_, i) => [i, -12]));
+    if (dual) loMap = new Map(rows.map((_, i) => [i, 20]));
+  }
+
+  ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center"; ctx.fillStyle = ink;
+  hiMap.forEach((dy, i) => {
+    ctx.beginPath(); ctx.arc(X(i), Y(rows[i].hi), 3.5, 0, Math.PI * 2); ctx.fill();
+    ctx.fillText(lab(rows[i].hi), X(i), Y(rows[i].hi) + dy);
   });
+  if (dual) {
+    ctx.globalAlpha = 0.7;
+    loMap.forEach((dy, i) => {
+      ctx.beginPath(); ctx.arc(X(i), Y(rows[i].lo), 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillText(lab(rows[i].lo), X(i), Y(rows[i].lo) + dy);
+    });
+    ctx.globalAlpha = 1;
+  }
+
+  ctx.globalAlpha = 0.55; ctx.fillStyle = ink;
+  const step = Math.max(1, Math.ceil(rows.length / 8));
+  rows.forEach((r, i) => { if (i % step === 0) ctx.fillText(r.label, X(i), rect.height - 10); });
+  ctx.globalAlpha = 1;
 
   chartGeom = {
     xs: rows.map((_, i) => X(i)), ys: rows.map((r) => Y(r.hi)),
