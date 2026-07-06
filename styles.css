@@ -449,11 +449,27 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .qh-content {
   display: grid;
   grid-template-rows: 0fr;
-  transition: grid-template-rows var(--dur) var(--ease-out);
+  transition: grid-template-rows var(--dur-slow) var(--ease-out);
 }
 .quickhits.is-open .qh-content { grid-template-rows: 1fr; }
 .qh-clip { overflow: hidden; min-height: 0; }
 .qh-tiles { display: flex; flex-direction: column; gap: var(--s-3); padding-top: var(--s-3); }
+.qh-tiles > * {
+  opacity: 0;
+  transform: translateY(10px) scale(0.985);
+  transition: opacity var(--dur-fast) var(--ease-in), transform var(--dur-fast) var(--ease-in);
+}
+.quickhits.is-open .qh-tiles > * {
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--dur) var(--ease-out), transform var(--dur-slow) var(--ease-spring);
+}
+.quickhits.is-open .qh-tiles > *:nth-child(1) { transition-delay: 60ms; }
+.quickhits.is-open .qh-tiles > *:nth-child(2) { transition-delay: 120ms; }
+.quickhits.is-open .qh-tiles > *:nth-child(3) { transition-delay: 180ms; }
+.quickhits.is-open .qh-tiles > *:nth-child(4) { transition-delay: 240ms; }
+.quickhits.is-open .qh-tiles > *:nth-child(n+5) { transition-delay: 300ms; }
+.quickhits.qh-no-anim .qh-tiles > * { transition: none !important; }
 
 .alerts { display: flex; flex-direction: column; gap: var(--s-3); }
 .alerts[hidden] { display: none; }
@@ -680,7 +696,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   color: var(--ink-soft);
 }
 .d-value { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.3rem; line-height: 1.1; }
-.d-sub { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
+.d-sub { font-size: var(--t-cap); font-weight: 500; color: var(--ink-soft); }
 .d-unit { font-size: 0.72em; font-weight: 700; color: var(--ink-soft); margin-left: 0.35em; }
 .p-meter { display: block; margin-top: auto; padding-top: var(--s-3); }
 .p-track {
@@ -789,7 +805,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .moon-name { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.2rem; margin-bottom: var(--s-3); }
 .moon-stats { display: flex; flex-direction: column; gap: var(--s-2); }
-.moon-stat { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-4); font-weight: 600; color: var(--ink-soft); }
+.moon-stat { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s-4); font-weight: 500; color: var(--ink-soft); }
 .moon-stat strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; }
 .moon-art { flex: 0 0 auto; }
 .moon-art .moon-svg { width: clamp(5rem, 18vw, 9rem); height: auto; display: block; }
@@ -828,7 +844,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .insight-ic { font-size: 2.2rem; flex: 0 0 auto; line-height: 1; margin-top: 2px; }
 .insight-body { min-width: 0; }
 .insight-label { font-size: var(--t-cap); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); }
-.insight-value { font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: 1.35rem; margin: 2px 0 4px; }
+.insight-value { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.35rem; margin: 2px 0 4px; }
 .insight-sub { font-size: var(--t-sm); line-height: 1.45; color: var(--ink-soft); font-weight: 500; }
 
 .activity-card { flex-direction: column; align-items: stretch; gap: var(--s-3); }
@@ -845,7 +861,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .activity-row:first-child { border-top: 0; }
 .activity-row.is-good { opacity: 1; }
 .activity-row i { font-size: 1.5rem; flex: 0 0 auto; }
-.activity-name { font-weight: 700; }
+.activity-name { font-weight: 500; }
 .activity-verdict {
   margin-left: auto;
   font-size: var(--t-sm);

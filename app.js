@@ -866,6 +866,7 @@ function renderQuickHits() {
   const star = stargazingTonight();
   const starTile = star ? insightTileHTML("ph-shooting-star", "Stargazing tonight", star.rating, star.note) : "";
   const open = state.quickHitsOpen;
+  if (open) el.quickHits.classList.add("qh-no-anim");
   el.quickHits.innerHTML = `
     <button class="qh-toggle" type="button" aria-expanded="${open}">
       <span class="qh-head"><i class="ph ph-sparkle qh-ic" aria-hidden="true"></i><span class="qh-label">Quick Hits</span></span>
@@ -873,9 +874,13 @@ function renderQuickHits() {
     </button>
     <div class="qh-content"><div class="qh-clip"><div class="qh-tiles">${wearTile}${seasonalTile}${starTile}${activityTileHTML()}</div></div></div>`;
   el.quickHits.classList.toggle("is-open", open);
+  if (open) {
+    requestAnimationFrame(() => requestAnimationFrame(() => el.quickHits.classList.remove("qh-no-anim")));
+  }
   const toggle = el.quickHits.querySelector(".qh-toggle");
   toggle.onclick = () => {
     state.quickHitsOpen = !state.quickHitsOpen;
+    el.quickHits.classList.remove("qh-no-anim");
     el.quickHits.classList.toggle("is-open", state.quickHitsOpen);
     toggle.setAttribute("aria-expanded", state.quickHitsOpen ? "true" : "false");
   };
