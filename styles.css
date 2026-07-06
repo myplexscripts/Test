@@ -126,12 +126,15 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   background-color: var(--bg);
   transition: background-color var(--dur-slow) var(--ease-out);
 }
-.bg-dyn {
+.bg::before, .bg::after, .sheet::before, .sheet::after {
+  content: "";
   position: absolute;
   inset: 0;
-  background-image: var(--dynamic-bg, none);
-  transition: background-image 1.2s var(--ease-out);
+  pointer-events: none;
+  transition: opacity 1.4s var(--ease-out);
 }
+.bg::before, .sheet::before { background-image: var(--dyn-a, none); opacity: var(--dyn-op-a, 0); }
+.bg::after, .sheet::after { background-image: var(--dyn-b, none); opacity: var(--dyn-op-b, 0); }
 
 .status-fade {
   position: fixed;
@@ -155,7 +158,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   padding: calc(var(--safe-t) + 8px) calc(var(--gutter) + var(--safe-r)) 10px calc(var(--gutter) + var(--safe-l));
   transform: translateY(-101%);
   opacity: 0;
-  transition: transform var(--dur) var(--ease-out), opacity var(--dur) var(--ease-out);
+  transition: transform var(--dur) var(--ease-spring), opacity var(--dur-fast) var(--ease-out);
   will-change: transform, opacity;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
   pointer-events: none;
@@ -194,6 +197,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   transform: translateY(-20px) scale(0.6);
   pointer-events: none;
   box-shadow: 0 6px 20px rgba(0, 0, 0, 0.16);
+  transition: transform var(--dur) var(--ease-spring), opacity var(--dur) var(--ease-out);
+  will-change: transform, opacity;
 }
 .ptr i { font-size: 1.35rem; }
 .ptr.is-spinning i { animation: spin 800ms linear infinite; }
@@ -1206,10 +1211,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   inset: 0;
   z-index: 40;
   background-color: var(--bg);
-  background-image: var(--dynamic-bg, none);
   color: var(--ink);
   transform: translateX(100%);
-  transition: transform var(--dur-slow) var(--ease-spring), background-image 1.2s var(--ease-out);
+  transition: transform var(--dur-slow) var(--ease-spring);
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;

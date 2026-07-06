@@ -1564,6 +1564,21 @@ function applyWeatherVeil(sky, main, cloudPct) {
 }
 
 let dynamicTimer = null;
+let dynLayerFlip = false;
+
+function setDynamicGradient(css) {
+  const r = document.documentElement.style;
+  if (dynLayerFlip) {
+    r.setProperty("--dyn-a", css);
+    r.setProperty("--dyn-op-a", "1");
+    r.setProperty("--dyn-op-b", "0");
+  } else {
+    r.setProperty("--dyn-b", css);
+    r.setProperty("--dyn-op-b", "1");
+    r.setProperty("--dyn-op-a", "0");
+  }
+  dynLayerFlip = !dynLayerFlip;
+}
 
 function updateDynamicBackground() {
   const c = state.center || {};
@@ -1584,7 +1599,7 @@ function updateDynamicBackground() {
     sky = DYNAMIC_SKY.day;
   }
 
-  document.documentElement.style.setProperty("--dynamic-bg", `linear-gradient(180deg, ${sky.top} 0%, ${sky.bottom} 100%)`);
+  setDynamicGradient(`linear-gradient(180deg, ${sky.top} 0%, ${sky.bottom} 100%)`);
 }
 
 function startDynamicTheme() {
@@ -1594,7 +1609,8 @@ function startDynamicTheme() {
 }
 function stopDynamicTheme() {
   if (dynamicTimer) { clearInterval(dynamicTimer); dynamicTimer = null; }
-  document.documentElement.style.removeProperty("--dynamic-bg");
+  const r = document.documentElement.style;
+  ["--dyn-a", "--dyn-b", "--dyn-op-a", "--dyn-op-b"].forEach((v) => r.removeProperty(v));
 }
 
 function sunMapSVG(lat, lon) {
@@ -2977,6 +2993,24 @@ function initGestures() {
   const EDGE = 26, OPEN = 55, DISMISS = 95, PTR_TRIGGER = 72;
   let mode = null;
   let sx = 0, sy = 0, dist = 0;
+  let dx = 0, dy = 0, rafId = null;
+
+  const applyFrame = () => {
+    rafId = null;
+    if (mode === "ptr") {
+      if (dy > 0 && Math.abs(dy) > Math.abs(dx) && (window.scrollY || 0) <= 0) {
+        dist = dy * 0.5;
+        showPTR(dist);
+      } else { mode = null; hidePTR(); }
+    } else if (mode === "edge") {
+      if (dx > OPEN) openDrawerDrag(dx);
+    } else if (mode === "drawer") {
+      if (dx < 0) el.drawer.style.transform = `translateX(${Math.max(dx, -360)}px)`;
+    } else if (mode === "sheet") {
+      if (dx > 0 && Math.abs(dx) > Math.abs(dy)) el.sheet.style.transform = `translateX(${dx}px)`;
+    }
+  };
+  const scheduleFrame = () => { if (rafId == null) rafId = requestAnimationFrame(applyFrame); };
 
   ["gesturestart", "gesturechange", "gestureend"].forEach((ev) =>
     document.addEventListener(ev, (e) => e.preventDefault(), { passive: false }));
@@ -2984,42 +3018,37 @@ function initGestures() {
   document.addEventListener("touchstart", (e) => {
     if (e.touches.length !== 1) { mode = null; return; }
     const t = e.touches[0];
-    sx = t.clientX; sy = t.clientY; dist = 0;
+    sx = t.clientX; sy = t.clientY; dist = 0; dx = 0; dy = 0;
 
     if (state.radarOpen) { mode = null; return; }
-    if (state.drawerOpen) { mode = "drawer"; return; }
-    if (state.sheetOpen) { mode = sx < EDGE ? "sheet" : null; return; }
-    if (sx < EDGE) { mode = "edge"; return; }
-    if ((window.scrollY || 0) <= 0) { mode = "ptr"; return; }
+    if (state.drawerOpen) { mode = "drawer"; el.drawer.style.transition = "none"; return; }
+    if (state.sheetOpen) {
+      mode = sx < EDGE ? "sheet" : null;
+      if (mode === "sheet") el.sheet.style.transition = "none";
+      return;
+    }
+    if (sx < EDGE) { mode = "edge"; el.drawer.style.transition = "none"; return; }
+    if ((window.scrollY || 0) <= 0) { mode = "ptr"; el.ptr.style.transition = "none"; return; }
     mode = null;
   }, { passive: true });
 
   document.addEventListener("touchmove", (e) => {
     if (!mode) return;
     const t = e.touches[0];
-    const dx = t.clientX - sx;
-    const dy = t.clientY - sy;
+    dx = t.clientX - sx;
+    dy = t.clientY - sy;
 
     if (mode === "ptr") {
-      if (dy > 0 && Math.abs(dy) > Math.abs(dx) && (window.scrollY || 0) <= 0) {
-        dist = dy * 0.5;
-        showPTR(dist);
-        if (dy > 6) e.preventDefault();
-      } else { mode = null; hidePTR(); }
-    } else if (mode === "edge") {
-      if (dx > OPEN) { openDrawerDrag(dx); }
-    } else if (mode === "drawer") {
-      if (dx < 0) { el.drawer.style.transition = "none"; el.drawer.style.transform = `translateX(${Math.max(dx, -360)}px)`; }
+      if (dy > 6 && Math.abs(dy) > Math.abs(dx) && (window.scrollY || 0) <= 0) e.preventDefault();
     } else if (mode === "sheet") {
-      if (dx > 0 && Math.abs(dx) > Math.abs(dy)) {
-        el.sheet.style.transition = "none";
-        el.sheet.style.transform = `translateX(${dx}px)`;
-        e.preventDefault();
-      }
+      if (dx > 0 && Math.abs(dx) > Math.abs(dy)) e.preventDefault();
     }
+    scheduleFrame();
   }, { passive: false });
 
   document.addEventListener("touchend", () => {
+    if (rafId != null) { cancelAnimationFrame(rafId); rafId = null; }
+    el.ptr.style.transition = "";
     if (mode === "ptr") {
       if (dist >= PTR_TRIGGER) refresh(true); else hidePTR();
     } else if (mode === "edge") {
