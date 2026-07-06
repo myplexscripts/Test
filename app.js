@@ -870,7 +870,7 @@ function renderQuickHits() {
   el.quickHits.innerHTML = `
     <button class="qh-toggle" type="button" aria-expanded="${open}">
       <span class="qh-head"><i class="ph ph-sparkle qh-ic" aria-hidden="true"></i><span class="qh-label">Quick Hits</span></span>
-      <svg class="qh-chev" viewBox="0 0 256 256" aria-hidden="true"><polyline points="208 96 128 176 48 96" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="20"/></svg>
+      <svg class="qh-chev" viewBox="0 0 256 256" aria-hidden="true"><line class="qh-arm qh-arm-l" x1="48" y1="96" x2="128" y2="176" stroke="currentColor" stroke-linecap="round" stroke-width="20"/><line class="qh-arm qh-arm-r" x1="208" y1="96" x2="128" y2="176" stroke="currentColor" stroke-linecap="round" stroke-width="20"/></svg>
     </button>
     <div class="qh-content"><div class="qh-clip"><div class="qh-tiles">${wearTile}${seasonalTile}${starTile}${activityTileHTML()}</div></div></div>`;
   el.quickHits.classList.toggle("is-open", open);
