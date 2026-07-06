@@ -76,8 +76,8 @@ body { overflow-x: hidden; overflow-x: clip; }
   html, body { scrollbar-width: none; -ms-overflow-style: none; }
   html::-webkit-scrollbar, body::-webkit-scrollbar { display: none; }
 }
-.sheet { scrollbar-width: none; -ms-overflow-style: none; }
-.sheet::-webkit-scrollbar { display: none; }
+.sheet-scroll { scrollbar-width: none; -ms-overflow-style: none; }
+.sheet-scroll::-webkit-scrollbar { display: none; }
 
 html {
   background: var(--bg);
@@ -1214,9 +1214,6 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   color: var(--ink);
   transform: translateX(100%);
   transition: transform var(--dur-slow) var(--ease-spring);
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  overscroll-behavior: contain;
   padding:
     calc(var(--safe-t) + var(--s-4))
     calc(var(--gutter) + var(--safe-r))
@@ -1224,11 +1221,20 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
     calc(var(--gutter) + var(--safe-l));
   display: flex;
   flex-direction: column;
-  gap: var(--s-5);
   will-change: transform;
 }
 .sheet.is-open { transform: translateX(0); }
 .sheet > * { width: 100%; max-width: var(--max); margin-inline: auto; }
+.sheet-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-5);
+}
 
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
 .back-btn {

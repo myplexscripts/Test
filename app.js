@@ -43,7 +43,7 @@ const el = {
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
   radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"), radarLegend: $("radarLegend"), windLegend: $("windLegend"),
   hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
-  sheet: $("sheet"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"), sheetHeadAux: $("sheetHeadAux"),
+  sheet: $("sheet"), sheetScroll: $("sheetScroll"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"), sheetHeadAux: $("sheetHeadAux"),
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList"), dayStats: $("dayStats")
 };
 
@@ -1234,7 +1234,7 @@ function openSheetUI() {
   el.sheet.setAttribute("aria-hidden", "false");
   el.sheet.style.transform = "";
   document.body.style.overflow = "hidden";
-  el.sheet.scrollTop = 0;
+  el.sheetScroll.scrollTop = 0;
 }
 
 function openDetail(metric, range) {
@@ -1253,7 +1253,7 @@ function sheetBack() {
     state.detail = state.nav[state.nav.length - 1];
     el.sheet.classList.add("is-open");
     el.sheet.style.transform = "";
-    el.sheet.scrollTop = 0;
+    el.sheetScroll.scrollTop = 0;
     renderDetailSheet();
   } else {
     closeSheet();
@@ -1274,7 +1274,7 @@ function setRange(range) {
   syncRange();
   drawDetailChart();
   renderDetailList();
-  el.sheet.scrollTo({ top: 0, behavior: "smooth" });
+  el.sheetScroll.scrollTo({ top: 0, behavior: "smooth" });
 }
 
 function syncRange() {
@@ -1780,7 +1780,7 @@ function renderSunSheet() {
     const v = { metric: "moon", range: "hourly" };
     if (state.sheetOpen && state.nav) state.nav.push(v); else state.nav = [v];
     state.detail = v;
-    el.sheet.scrollTop = 0;
+    el.sheetScroll.scrollTop = 0;
     renderDetailSheet();
   });
 }
