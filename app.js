@@ -827,14 +827,18 @@ function activityWindows() {
   const dayPts = pts.filter(daylight);
 
   const windowOf = (list, ok) => {
-    let s = -1, e = -1;
-    for (let i = 0; i < list.length; i++) {
-      if (ok(list[i])) { if (s < 0) s = i; e = i; }
-      else if (s >= 0) break;
+    if (!list.length) return null;
+    const g = list.map((p) => (ok(p) ? 1 : 0));
+    for (let i = 1; i < g.length - 1; i++) if (!g[i] && g[i - 1] && g[i + 1]) g[i] = 1;
+    let bestS = -1, bestLen = 0, s = -1;
+    for (let i = 0; i <= g.length; i++) {
+      if (i < g.length && g[i]) { if (s < 0) s = i; }
+      else { if (s >= 0 && i - s > bestLen) { bestLen = i - s; bestS = s; } s = -1; }
     }
-    if (s < 0) return null;
-    if (e - s + 1 >= list.length - 1) return "Most of the day";
-    return s === e ? `Around ${fmtH(list[s].dt)}` : `${fmtH(list[s].dt)}–${fmtH(list[e].dt)}`;
+    if (bestS < 0) return null;
+    const e = bestS + bestLen - 1;
+    if (bestLen >= list.length - 1) return "Most of the day";
+    return bestS === e ? `Around ${fmtH(list[bestS].dt)}` : `${fmtH(list[bestS].dt)} to ${fmtH(list[e].dt)}`;
   };
 
   const laundry = windowOf(dayPts, (p) => (p.precip || 0) < 0.05 && (p.main.humidity ?? 60) < 75);
