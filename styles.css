@@ -424,43 +424,36 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   color: color-mix(in srgb, var(--ink) 84%, transparent);
   max-width: 60ch;
 }
-.wear { padding-top: var(--s-4); border-top: 2px solid var(--hairline); }
-.wear:empty { display: none; }
-.wear-toggle {
+.quickhits { padding-top: var(--s-4); border-top: 2px solid var(--hairline); }
+.quickhits:empty { display: none; }
+.qh-toggle {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--s-3);
   width: 100%;
   text-align: left;
+  cursor: pointer;
 }
-.wear-head { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
-.wear-ic { font-size: 1.2rem; color: var(--ink-soft); flex: 0 0 auto; }
-.wear-label {
+.qh-head { display: flex; align-items: center; gap: var(--s-2); min-width: 0; }
+.qh-ic { font-size: 1.25rem; color: var(--ink-soft); flex: 0 0 auto; }
+.qh-label {
   font-size: var(--t-cap);
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--ink-soft);
 }
-.wear-chev { font-size: 1.8rem; color: var(--ink); flex: 0 0 auto; transition: transform var(--dur) var(--ease-out); }
-.wear.is-open .wear-chev { transform: rotate(180deg); }
-.wear-content {
+.qh-chev { font-size: 1.8rem; color: var(--ink); flex: 0 0 auto; transition: transform var(--dur) var(--ease-out); }
+.quickhits.is-open .qh-chev { transform: rotate(180deg); }
+.qh-content {
   display: grid;
   grid-template-rows: 0fr;
   transition: grid-template-rows var(--dur) var(--ease-out);
 }
-.wear.is-open .wear-content { grid-template-rows: 1fr; }
-.wear-clip { overflow: hidden; min-height: 0; }
-.wear-text {
-  padding-top: var(--s-2);
-  margin: 0;
-  font-size: var(--t-body);
-  line-height: 1.5;
-  font-weight: 500;
-  color: color-mix(in srgb, var(--ink) 84%, transparent);
-  max-width: 60ch;
-}
+.quickhits.is-open .qh-content { grid-template-rows: 1fr; }
+.qh-clip { overflow: hidden; min-height: 0; }
+.qh-tiles { display: flex; flex-direction: column; gap: var(--s-3); padding-top: var(--s-3); }
 
 .alerts { display: flex; flex-direction: column; gap: var(--s-3); }
 .alerts[hidden] { display: none; }

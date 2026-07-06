@@ -30,7 +30,7 @@ const el = {
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
   unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
   placeName: $("placeName"), condition: $("condition"),
-  heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), wear: $("wear"), alerts: $("alerts"),
+  heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), quickHits: $("quickHits"), alerts: $("alerts"),
   alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
   hero: document.querySelector(".hero"),
   miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
@@ -38,7 +38,7 @@ const el = {
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   trendGraph: $("trendGraph"), trendCard: $("trendCard"),
   sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
-  nowcast: $("nowcast"), seasonalCard: $("seasonalCard"), starCard: $("starCard"), activityCard: $("activityCard"),
+  nowcast: $("nowcast"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
@@ -51,6 +51,7 @@ const el = {
 const state = {
   units: "metric",
   loc: { ...HOME },
+  quickHitsOpen: false,
   data: null,
   hourly: [],
   daily: [],
@@ -502,15 +503,7 @@ function render(data) {
   el.tempNum.textContent = `${Math.round(m.temp ?? 0)}`;
   el.temp.classList.remove("is-loading");
   el.summary.textContent = buildSummary(current, state.daily);
-  if (el.wear) {
-    el.wear.innerHTML = `<button class="wear-toggle" type="button" aria-expanded="false"><span class="wear-head"><i class="ph ph-coat-hanger wear-ic" aria-hidden="true"></i><span class="wear-label">What to wear</span></span><i class="ph ph-caret-down wear-chev" aria-hidden="true"></i></button><div class="wear-content"><div class="wear-clip"><p class="wear-text">${buildWear(current, state.daily)}</p></div></div>`;
-    el.wear.classList.remove("is-open");
-    const wt = el.wear.querySelector(".wear-toggle");
-    wt.onclick = () => {
-      const open = el.wear.classList.toggle("is-open");
-      wt.setAttribute("aria-expanded", open ? "true" : "false");
-    };
-  }
+  renderQuickHits();
   renderAlerts(data.alerts, tz);
 
   if (el.miniIcon) { el.miniIcon.className = "mini-ic wx-icon"; el.miniIcon.innerHTML = wxSVG(wxResolve(w, isNight), false); }
@@ -529,9 +522,6 @@ function render(data) {
   renderWind(current);
   renderSun(current);
   renderMoon(current);
-  renderSeasonal();
-  renderStar();
-  renderActivity();
   renderDetails(current, forecast);
 
   syncMaps();
@@ -806,20 +796,6 @@ function stargazingTonight() {
   return { rating, note };
 }
 
-function renderStar() {
-  if (!el.starCard) return;
-  const s = stargazingTonight();
-  if (!s) { el.starCard.style.display = "none"; return; }
-  el.starCard.style.display = "";
-  el.starCard.innerHTML = `
-    <i class="ph-duotone ph-shooting-star insight-ic" aria-hidden="true"></i>
-    <div class="insight-body">
-      <div class="insight-label">Stargazing tonight</div>
-      <div class="insight-value">${s.rating}</div>
-      <div class="insight-sub">${s.note}</div>
-    </div>`;
-}
-
 function seasonalCallout() {
   const cur = state.data?.current || {};
   const today = state.daily?.[0];
@@ -839,43 +815,70 @@ function seasonalCallout() {
   return { icon: "ph-leaf", label: "Settled conditions", value: today ? `${round(high)}° / ${round(low)}°` : "--", sub: "Calm and seasonal, nothing to watch out for." };
 }
 
-function renderSeasonal() {
-  if (!el.seasonalCard) return;
-  const s = seasonalCallout();
-  el.seasonalCard.innerHTML = `
-    <i class="ph-duotone ${s.icon} insight-ic" aria-hidden="true"></i>
-    <div class="insight-body">
-      <div class="insight-label">${s.label}</div>
-      <div class="insight-value">${s.value}</div>
-      <div class="insight-sub">${s.sub}</div>
-    </div>`;
-}
+function activityWindows() {
+  const tz = state.tz || 0;
+  const now = Math.floor(Date.now() / 1000);
+  const upcoming = (state.hourly || []).filter((p) => p.dt >= now - 1800);
+  const pts = upcoming.slice(0, 16);
+  const sun = state.data?.current?.sys || {};
+  const lh = (dt) => new Date((dt + tz) * 1000).getUTCHours();
+  const fmtH = (dt) => { const h = lh(dt); return `${h % 12 || 12}${h < 12 ? "am" : "pm"}`; };
+  const daylight = (p) => (!sun.sunrise || p.dt >= sun.sunrise) && (!sun.sunset || p.dt <= sun.sunset);
+  const dayPts = pts.filter(daylight);
 
-function activitySuggestions() {
-  const next12 = (state.hourly || []).slice(0, 12);
-  const next24 = (state.hourly || []).slice(0, 24);
-  const rainSoon = next12.some((p) => (p.precip || 0) > 0.2);
-  const dry24 = !next24.some((p) => (p.precip || 0) > 0.3);
-  const hum = state.data?.current?.main?.humidity ?? 60;
-  const windK = windKmh(state.data?.current?.wind?.speed);
-  const feels = toCelsius(state.data?.current?.main?.feels_like ?? state.data?.current?.main?.temp ?? 12);
-  const dry = !rainSoon && hum < 72 && windK >= 5;
-  const run = !rainSoon && feels >= 2 && feels <= 26;
+  const windowOf = (list, ok) => {
+    let s = -1, e = -1;
+    for (let i = 0; i < list.length; i++) {
+      if (ok(list[i])) { if (s < 0) s = i; e = i; }
+      else if (s >= 0) break;
+    }
+    if (s < 0) return null;
+    if (e - s + 1 >= list.length - 1) return "Most of the day";
+    return s === e ? `Around ${fmtH(list[s].dt)}` : `${fmtH(list[s].dt)}–${fmtH(list[e].dt)}`;
+  };
+
+  const laundry = windowOf(dayPts, (p) => (p.precip || 0) < 0.05 && (p.main.humidity ?? 60) < 75);
+  const feelsOk = (p) => { const f = toCelsius(p.main.feels_like ?? p.main.temp); return f >= 2 && f <= 26; };
+  const exercise = windowOf(dayPts, (p) => (p.precip || 0) < 0.1 && feelsOk(p));
+  const wet = upcoming.slice(0, 24).find((p) => (p.precip || 0) > 0.2);
+
   return [
-    { icon: "ph-wind", label: "Line-dry laundry", good: dry, verdict: dry ? "Good drying" : rainSoon ? "Rain risk" : hum >= 72 ? "Too humid" : "Not much wind" },
-    { icon: "ph-person-simple-run", label: "Outdoor exercise", good: run, verdict: run ? "Great window" : rainSoon ? "Wet out there" : feels > 26 ? "Too hot" : "Bundle up" },
-    { icon: "ph-car-profile", label: "Wash the car", good: dry24, verdict: dry24 ? "Stays dry" : "Rain coming" }
+    { icon: "ph-wind", label: "Line-dry laundry", good: !!laundry, when: laundry || "Not today" },
+    { icon: "ph-person-simple-run", label: "A run or walk", good: !!exercise, when: exercise || "Poor today" },
+    { icon: "ph-car-profile", label: "Wash the car", good: !wet, when: wet ? `Rain by ${fmtH(wet.dt)}` : "Dry all day" }
   ];
 }
 
-function renderActivity() {
-  if (!el.activityCard) return;
-  const acts = activitySuggestions();
-  el.activityCard.innerHTML = `
-    <div class="insight-label activity-title">Good day for</div>
-    <div class="activity-rows">
-      ${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.verdict}</span></div>`).join("")}
-    </div>`;
+function insightTileHTML(icon, label, value, sub) {
+  return `<div class="insight-card"><i class="ph-duotone ${icon} insight-ic" aria-hidden="true"></i><div class="insight-body"><div class="insight-label">${label}</div>${value ? `<div class="insight-value">${value}</div>` : ""}<div class="insight-sub">${sub}</div></div></div>`;
+}
+
+function activityTileHTML() {
+  const acts = activityWindows();
+  return `<div class="insight-card activity-card"><div class="insight-label activity-title">Good day for</div><div class="activity-rows">${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.when}</span></div>`).join("")}</div></div>`;
+}
+
+function renderQuickHits() {
+  if (!el.quickHits) return;
+  const wearTile = insightTileHTML("ph-coat-hanger", "What to wear", "", buildWear(state.data?.current || {}, state.daily || []));
+  const s = seasonalCallout();
+  const seasonalTile = insightTileHTML(s.icon, s.label, s.value, s.sub);
+  const star = stargazingTonight();
+  const starTile = star ? insightTileHTML("ph-shooting-star", "Stargazing tonight", star.rating, star.note) : "";
+  const open = state.quickHitsOpen;
+  el.quickHits.innerHTML = `
+    <button class="qh-toggle" type="button" aria-expanded="${open}">
+      <span class="qh-head"><i class="ph ph-sparkle qh-ic" aria-hidden="true"></i><span class="qh-label">Quick Hits</span></span>
+      <i class="ph ph-caret-down qh-chev" aria-hidden="true"></i>
+    </button>
+    <div class="qh-content"><div class="qh-clip"><div class="qh-tiles">${wearTile}${seasonalTile}${starTile}${activityTileHTML()}</div></div></div>`;
+  el.quickHits.classList.toggle("is-open", open);
+  const toggle = el.quickHits.querySelector(".qh-toggle");
+  toggle.onclick = () => {
+    state.quickHitsOpen = !state.quickHitsOpen;
+    el.quickHits.classList.toggle("is-open", state.quickHitsOpen);
+    toggle.setAttribute("aria-expanded", state.quickHitsOpen ? "true" : "false");
+  };
 }
 
 function renderWind(current) {
