@@ -444,8 +444,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   text-transform: uppercase;
   color: var(--ink-soft);
 }
-.qh-chev { font-size: 1.8rem; color: var(--ink); flex: 0 0 auto; transition: transform var(--dur) var(--ease-out); }
-.quickhits.is-open .qh-chev { transform: rotate(180deg); }
+.qh-chev { display: block; width: 1.6rem; height: 1.6rem; color: var(--ink); flex: 0 0 auto; transform-origin: center; transition: transform var(--dur) var(--ease-spring); }
+.quickhits.is-open .qh-chev { transform: scaleY(-1); }
 .qh-content {
   display: grid;
   grid-template-rows: 0fr;
