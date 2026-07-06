@@ -130,15 +130,15 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   background-color: var(--bg);
   transition: background-color var(--dur-slow) var(--ease-out);
 }
-.bg::before, .bg::after, .sheet::before, .sheet::after {
+.bg::before, .bg::after {
   content: "";
   position: absolute;
   inset: 0;
   pointer-events: none;
   transition: opacity 1.4s var(--ease-out);
 }
-.bg::before, .sheet::before { background-image: var(--dyn-a, none); opacity: var(--dyn-op-a, 0); }
-.bg::after, .sheet::after { background-image: var(--dyn-b, none); opacity: var(--dyn-op-b, 0); }
+.bg::before { background-image: var(--dyn-a, none); opacity: var(--dyn-op-a, 0); }
+.bg::after { background-image: var(--dyn-b, none); opacity: var(--dyn-op-b, 0); }
 
 .status-fade {
   position: fixed;
@@ -1291,7 +1291,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   position: fixed;
   inset: 0;
   z-index: 40;
-  background-color: var(--bg);
+  background-color: transparent;
   color: var(--ink);
   transform: translateX(100%);
   transition: transform var(--dur-slow) var(--ease-spring);
