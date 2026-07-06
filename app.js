@@ -2199,7 +2199,7 @@ function renderAlertsSheet() {
   const tier = (name, key, desc) => `<div class="tier-row tier-${key}"><span class="tier-dot" aria-hidden="true"></span><div class="tier-body"><div class="tier-name">${name}</div><p class="info-text">${desc}</p></div></div>`;
   const type = (name, desc) => `<p class="info-text"><strong>${name}</strong>: ${desc}</p>`;
   el.sheetTitle.textContent = "Weather alerts";
-  el.sheetNote.textContent = "In Canada, Environment Canada colour-codes each alert by how serious it is. Here is what the colours and the types mean.";
+  el.sheetNote.textContent = "In Canada, every weather alert now carries a colour that tells you how serious it is at a glance. Here is what each colour means, along with the kinds of alert you might see.";
   el.sheetList.innerHTML =
     section("What the colours mean",
       tier("Yellow", "yellow", "Moderate, localized or short-lived. These are the most common alerts. Worth keeping an eye on.") +
