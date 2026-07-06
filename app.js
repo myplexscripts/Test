@@ -1695,8 +1695,8 @@ function renderSunSheet() {
     if (u == null) return;
     const A = ang(toH(u));
     const [bx, by] = pol(RB_OUT, A);
-    const [c1x, c1y] = pol(RI - 6, A), [c2x, c2y] = pol(RO + 8, A);
-    connectors += `<line x1="${c1x}" y1="${c1y}" x2="${c2x}" y2="${c2y}" class="sc-connector-casing"/><line x1="${c1x}" y1="${c1y}" x2="${c2x}" y2="${c2y}" class="sc-connector"/>`;
+    const [c1x, c1y] = pol(RO - 16, A), [c2x, c2y] = pol(RO + 8, A);
+    connectors += `<line x1="${c1x}" y1="${c1y}" x2="${c2x}" y2="${c2y}" class="sc-connector"/>`;
     marks += `<g class="sc-mark sc-wxmark" data-cap="${label} · ${fmtClock(u, tz)}"><circle cx="${bx}" cy="${by}" r="${bR}" class="sc-badge"/>${inner(+bx, +by)}</g>`;
   };
   placeMark("Sunrise", t.sunrise.up, (bx, by) => wxInline("sunrise", bx, by, 20));
@@ -1707,7 +1707,7 @@ function renderSunSheet() {
   const nowH = toH(nowUnix);
   const [sx, sy] = pol(RO, ang(nowH));
   const sunUp = t.sunrise.up != null && nowUnix >= t.sunrise.up && nowUnix < t.sunrise.down;
-  const sunHand = `<line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand-casing"/><line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand" data-cap="Now · ${fmtClock(nowUnix, tz)}"/><circle cx="${sx}" cy="${sy}" r="7" class="sc-sun"/>`;
+  const sunHand = `<line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand" data-cap="Now · ${fmtClock(nowUnix, tz)}"/><circle cx="${sx}" cy="${sy}" r="6.5" class="sc-sun"/>`;
   const noonCap = t.noon != null ? `Solar noon · ${fmtClock(t.noon, tz)}` : "";
 
   const svg = `<svg viewBox="-26 -26 352 352" class="sunclock" role="img" aria-label="24-hour sun clock">
