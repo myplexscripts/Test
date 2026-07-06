@@ -38,6 +38,7 @@ const el = {
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   trendGraph: $("trendGraph"), trendCard: $("trendCard"),
   sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
+  nowcast: $("nowcast"), seasonalCard: $("seasonalCard"), starCard: $("starCard"), activityCard: $("activityCard"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
@@ -149,6 +150,7 @@ function wireEvents() {
   });
   el.radarPreview.onclick = openRadar;
   el.radarMore.onclick = openRadar;
+  if (el.nowcast) el.nowcast.onclick = openRadar;
   el.radarBack.onclick = closeRadar;
   el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.onclick = () => applyMode(b.dataset.layer));
   el.radarPlay.onclick = toggleRadarPlay;
@@ -193,8 +195,8 @@ async function refresh(force) {
       fetchAir(state.loc.lat, state.loc.lon).catch(() => null),
       fetchAlerts(state.loc.lat, state.loc.lon).catch(() => null)
     ]);
-    const { current, forecast, points } = adaptOpenMeteo(omj, place, state.loc.lat, state.loc.lon);
-    const data = { current, forecast, air, hourly: points, alerts };
+    const { current, forecast, points, minutely } = adaptOpenMeteo(omj, place, state.loc.lat, state.loc.lon);
+    const data = { current, forecast, air, hourly: points, minutely, alerts };
     state.data = data;
     saveCache(data);
     render(data);
@@ -307,9 +309,9 @@ function wmoMain(code) {
 async function fetchOpenMeteo(lat, lon, units) {
   const tu = units === "imperial" ? "fahrenheit" : "celsius";
   const wu = units === "imperial" ? "mph" : "ms";
-  const hourly = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,rain,showers,snowfall,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility";
+  const hourly = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility";
   const current = "temperature_2m,apparent_temperature,relative_humidity_2m,precipitation,rain,showers,snowfall,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover";
-  const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&current=${current}&hourly=${hourly}&daily=sunrise,sunset&temperature_unit=${tu}&wind_speed_unit=${wu}&timeformat=unixtime&timezone=auto&forecast_days=7`;
+  const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&current=${current}&hourly=${hourly}&minutely_15=precipitation&daily=sunrise,sunset&temperature_unit=${tu}&wind_speed_unit=${wu}&timeformat=unixtime&timezone=auto&forecast_days=7`;
   return fetchJSON(url);
 }
 
@@ -362,12 +364,16 @@ function adaptOpenMeteo(j, place, lat, lon) {
       pop: (at(H.precipitation_probability, i) ?? 0) / 100,
       precip: at(H.precipitation, i) ?? 0,
       clouds: { all: at(H.cloud_cover, i) },
-      visibility: at(H.visibility, i)
+      visibility: at(H.visibility, i),
+      snowDepth: at(H.snow_depth, i)
     };
     if (rain > 0) pt.rain = { "1h": rain, "3h": rain };
     if (snow > 0) pt.snow = { "1h": snow, "3h": snow };
     return pt;
   });
+
+  const MI = j.minutely_15 || {};
+  const minutely = (MI.time || []).map((t, i) => ({ dt: t, precip: at(MI.precipitation, i) ?? 0 }));
 
   const C = j.current || {};
   const D = j.daily || {};
@@ -395,7 +401,7 @@ function adaptOpenMeteo(j, place, lat, lon) {
   if ((C.snowfall || 0) > 0) current.snow = { "1h": C.snowfall };
 
   const forecast = { list: points, city: { timezone: j.utc_offset_seconds ?? 0 } };
-  return { current, forecast, points };
+  return { current, forecast, points, minutely };
 }
 
 const POLLUTANTS = {
@@ -516,12 +522,16 @@ function render(data) {
   el.mHumidity.textContent = m.humidity != null ? `${m.humidity}%` : "--";
   el.mFeels.textContent = `${Math.round(m.feels_like ?? m.temp ?? 0)}°`;
 
+  renderNowcast();
   renderHourly();
   renderDaily();
   drawTrend();
   renderWind(current);
   renderSun(current);
   renderMoon(current);
+  renderSeasonal();
+  renderStar();
+  renderActivity();
   renderDetails(current, forecast);
 
   syncMaps();
@@ -745,6 +755,126 @@ function renderMoon(current) {
     <div class="moon-info">
       <div class="moon-name">${moon.name}</div>
       <div class="moon-stats">${rows.map(([k, v]) => `<div class="moon-stat"><span>${k}</span><strong>${v}</strong></div>`).join("")}</div>
+    </div>`;
+}
+
+function toCelsius(t) { return state.units === "imperial" ? (t - 32) * 5 / 9 : t; }
+function windKmh(speed) { return (speed || 0) * (state.units === "imperial" ? 1.609 : 3.6); }
+
+function rainNowcast() {
+  const now = Math.floor(Date.now() / 1000);
+  const horizon = (state.data?.minutely || []).filter((p) => p.dt >= now - 450 && p.dt <= now + 7200);
+  if (horizon.length < 2) return null;
+  const wet = (p) => (p.precip || 0) >= 0.08;
+  const word = toCelsius(state.data?.current?.main?.temp ?? 5) <= 0.5 ? "Snow" : "Rain";
+  const mins = (p) => Math.max(5, Math.round((p.dt - now) / 300) * 5);
+  if (wet(horizon[0])) {
+    const stop = horizon.find((p) => !wet(p));
+    return stop ? { wet: true, text: `${word} easing in about ${mins(stop)} min` } : { wet: true, text: `${word} continuing for a while` };
+  }
+  const start = horizon.find((p) => wet(p));
+  return start
+    ? { wet: true, soon: true, text: `${word} starting in about ${mins(start)} min` }
+    : { wet: false, text: `No ${word.toLowerCase()} for the next 2 hours` };
+}
+
+function renderNowcast() {
+  if (!el.nowcast) return;
+  const n = rainNowcast();
+  if (!n) { el.nowcast.style.display = "none"; return; }
+  el.nowcast.style.display = "";
+  el.nowcast.classList.toggle("is-wet", !!n.wet);
+  const icon = n.wet ? "ph-cloud-rain" : "ph-cloud-sun";
+  el.nowcast.innerHTML = `<i class="ph-duotone ${icon} nowcast-ic" aria-hidden="true"></i><span class="nowcast-text">${n.text}</span><i class="ph ph-caret-right nowcast-go" aria-hidden="true"></i>`;
+}
+
+function stargazingTonight() {
+  const tz = state.tz || 0;
+  const hrs = (state.hourly || []).filter((p) => { const h = new Date((p.dt + tz) * 1000).getUTCHours(); return h >= 21 || h <= 3; }).slice(0, 8);
+  if (!hrs.length) return null;
+  const cloud = Math.round(hrs.reduce((a, p) => a + (p.clouds?.all ?? 0), 0) / hrs.length);
+  const illum = moonPhase().illum;
+  let rating;
+  if (cloud < 20) rating = "Excellent";
+  else if (cloud < 45) rating = "Good";
+  else if (cloud < 70) rating = "Fair";
+  else rating = "Poor";
+  let note;
+  if (cloud >= 70) note = "Too cloudy to see the stars tonight.";
+  else if (illum > 65) note = `${100 - cloud}% clear, but a bright ${illum}% moon will wash out fainter stars.`;
+  else note = `${100 - cloud}% clear skies with a ${illum}% moon overhead.`;
+  return { rating, note };
+}
+
+function renderStar() {
+  if (!el.starCard) return;
+  const s = stargazingTonight();
+  if (!s) { el.starCard.style.display = "none"; return; }
+  el.starCard.style.display = "";
+  el.starCard.innerHTML = `
+    <i class="ph-duotone ph-shooting-star insight-ic" aria-hidden="true"></i>
+    <div class="insight-body">
+      <div class="insight-label">Stargazing tonight</div>
+      <div class="insight-value">${s.rating}</div>
+      <div class="insight-sub">${s.note}</div>
+    </div>`;
+}
+
+function seasonalCallout() {
+  const cur = state.data?.current || {};
+  const today = state.daily?.[0];
+  const snowSum = (state.hourly || []).slice(0, 24).reduce((a, p) => a + ((p.snow?.["1h"]) || 0), 0);
+  const depth = state.hourly?.[0]?.snowDepth;
+  const low = today ? today.min : cur.main?.temp;
+  const high = today ? today.max : cur.main?.temp;
+  const uv = state.data?.air?.uv_index;
+  const gust = cur.wind?.gust;
+  const round = (v) => Math.round(v);
+  if (snowSum >= 0.4) return { icon: "ph-snowflake", label: "Snow expected", value: `${snowSum >= 10 ? round(snowSum) : Math.round(snowSum * 10) / 10} cm`, sub: "Allow extra time for travel and bundle up." };
+  if (depth != null && depth > 0.02) return { icon: "ph-snowflake", label: "Snow on the ground", value: `${round(depth * 100)} cm`, sub: "Watch for icy patches underfoot." };
+  if (low != null && toCelsius(low) <= 0.5) return { icon: "ph-thermometer-cold", label: "Frost tonight", value: `${round(low)}°`, sub: "Cover tender plants; roads may be icy early." };
+  if (high != null && toCelsius(high) >= 29) return { icon: "ph-thermometer-hot", label: "Hot day ahead", value: `${round(high)}°`, sub: "Stay hydrated and find shade midday." };
+  if (uv != null && uv >= 8) return { icon: "ph-sun", label: "Very high UV", value: `${round(uv)}`, sub: "Sunscreen, hat and sunglasses recommended." };
+  if (gust != null && windKmh(gust) >= 45) return { icon: "ph-wind", label: "Gusty winds", value: windText(gust), sub: "Secure loose outdoor items." };
+  return { icon: "ph-leaf", label: "Settled conditions", value: today ? `${round(high)}° / ${round(low)}°` : "--", sub: "Calm and seasonal, nothing to watch out for." };
+}
+
+function renderSeasonal() {
+  if (!el.seasonalCard) return;
+  const s = seasonalCallout();
+  el.seasonalCard.innerHTML = `
+    <i class="ph-duotone ${s.icon} insight-ic" aria-hidden="true"></i>
+    <div class="insight-body">
+      <div class="insight-label">${s.label}</div>
+      <div class="insight-value">${s.value}</div>
+      <div class="insight-sub">${s.sub}</div>
+    </div>`;
+}
+
+function activitySuggestions() {
+  const next12 = (state.hourly || []).slice(0, 12);
+  const next24 = (state.hourly || []).slice(0, 24);
+  const rainSoon = next12.some((p) => (p.precip || 0) > 0.2);
+  const dry24 = !next24.some((p) => (p.precip || 0) > 0.3);
+  const hum = state.data?.current?.main?.humidity ?? 60;
+  const windK = windKmh(state.data?.current?.wind?.speed);
+  const feels = toCelsius(state.data?.current?.main?.feels_like ?? state.data?.current?.main?.temp ?? 12);
+  const dry = !rainSoon && hum < 72 && windK >= 5;
+  const run = !rainSoon && feels >= 2 && feels <= 26;
+  return [
+    { icon: "ph-wind", label: "Line-dry laundry", good: dry, verdict: dry ? "Good drying" : rainSoon ? "Rain risk" : hum >= 72 ? "Too humid" : "Not much wind" },
+    { icon: "ph-person-simple-run", label: "Outdoor exercise", good: run, verdict: run ? "Great window" : rainSoon ? "Wet out there" : feels > 26 ? "Too hot" : "Bundle up" },
+    { icon: "ph-car-profile", label: "Wash the car", good: dry24, verdict: dry24 ? "Stays dry" : "Rain coming" }
+  ];
+}
+
+function renderActivity() {
+  if (!el.activityCard) return;
+  const acts = activitySuggestions();
+  el.activityCard.innerHTML = `
+    <div class="insight-label activity-title">Good day for</div>
+    <div class="activity-rows">
+      ${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.verdict}</span></div>`).join("")}
     </div>`;
 }
 

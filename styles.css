@@ -803,6 +803,65 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .moon-card { cursor: pointer; transition: transform var(--dur-release) var(--ease-out), background var(--dur-release) var(--ease-out); }
 .moon-card:active { transform: scale(0.975); background: var(--card-bg-hi); }
 
+.nowcast {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  width: 100%;
+  border: 2px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--r-md);
+  padding: var(--s-4) var(--s-5);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition: transform var(--dur-release) var(--ease-out), background var(--dur-release) var(--ease-out);
+}
+.nowcast:active { transform: scale(0.98); background: var(--card-bg-hi); }
+.nowcast.is-wet { border-color: color-mix(in srgb, var(--ink) 34%, transparent); }
+.nowcast-ic { font-size: 1.7rem; flex: 0 0 auto; }
+.nowcast-text { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: var(--t-body); line-height: 1.25; }
+.nowcast-go { margin-left: auto; font-size: 1rem; color: var(--ink-faint); flex: 0 0 auto; }
+
+.insight-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--s-4);
+  border: 2px solid var(--card-border);
+  background: var(--card-bg);
+  border-radius: var(--r-lg);
+  padding: var(--s-5);
+}
+.insight-ic { font-size: 2.2rem; flex: 0 0 auto; line-height: 1; margin-top: 2px; }
+.insight-body { min-width: 0; }
+.insight-label { font-size: var(--t-cap); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); }
+.insight-value { font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: 1.35rem; margin: 2px 0 4px; }
+.insight-sub { font-size: var(--t-sm); line-height: 1.45; color: var(--ink-soft); font-weight: 500; }
+
+.activity-card { flex-direction: column; align-items: stretch; gap: var(--s-3); }
+.activity-title { margin-bottom: var(--s-1); }
+.activity-rows { display: flex; flex-direction: column; gap: var(--s-2); }
+.activity-row {
+  display: flex;
+  align-items: center;
+  gap: var(--s-3);
+  padding: var(--s-2) 0;
+  border-top: 2px solid var(--hairline);
+  opacity: 0.5;
+}
+.activity-row:first-child { border-top: 0; }
+.activity-row.is-good { opacity: 1; }
+.activity-row i { font-size: 1.5rem; flex: 0 0 auto; }
+.activity-name { font-weight: 700; }
+.activity-verdict {
+  margin-left: auto;
+  font-size: var(--t-sm);
+  font-weight: 700;
+  color: var(--ink-soft);
+  font-variant-numeric: tabular-nums;
+}
+.activity-row.is-good .activity-verdict { color: var(--ink); }
+
 .moon-hero { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--s-2); margin: var(--s-2) 0 var(--s-5); }
 .moon-hero-art .moon-svg { width: clamp(7rem, 42vw, 11rem); height: auto; display: block; }
 .moon-phase-name { font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: clamp(1.5rem, 6vw, 2rem); margin-top: var(--s-2); }
@@ -1318,7 +1377,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .detail.static:active { transform: none; background: var(--card-bg); }
 
 .card:active, .detail:active, .sun-card:active, .moon-card:active, .wind-card:active,
-.radar-preview:active, .trend-card:active, .row-tap:active, .alert:active,
+.radar-preview:active, .trend-card:active, .row-tap:active, .alert:active, .nowcast:active,
 .drawer-action:active, .drawer-credits:active, .theme-swatch:active,
 .icon-btn:active, .arrow-btn:active, .back-btn:active, .radar-play:active,
 .alert-modal-close:active {
