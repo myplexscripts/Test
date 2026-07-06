@@ -1,9 +1,10 @@
-const CACHE_NAME = "home-weather-shell-v104";
+const CACHE_NAME = "home-weather-shell-v105";
 const SHELL_FILES = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./activities.js",
   "./manifest.json",
   "./icon.svg",
   "./vendor/leaflet/leaflet.js",

@@ -815,18 +815,39 @@ function seasonalCallout() {
   return { icon: "ph-leaf", label: "Settled conditions", value: today ? `${round(high)}° / ${round(low)}°` : "--", sub: "Calm and seasonal, nothing to watch out for." };
 }
 
-function activityWindows() {
+function seasonOf(month, lat) {
+  const north = ["winter", "winter", "spring", "spring", "spring", "summer", "summer", "summer", "fall", "fall", "fall", "winter"][month];
+  if (lat >= 0) return north;
+  return { winter: "summer", summer: "winter", spring: "fall", fall: "spring" }[north];
+}
+
+function selectActivities() {
+  const catalog = window.WEATHER_ACTIVITIES;
   const tz = state.tz || 0;
   const now = Math.floor(Date.now() / 1000);
-  const upcoming = (state.hourly || []).filter((p) => p.dt >= now - 1800);
-  const pts = upcoming.slice(0, 16);
   const sun = state.data?.current?.sys || {};
   const lh = (dt) => new Date((dt + tz) * 1000).getUTCHours();
   const fmtH = (dt) => { const h = lh(dt); return `${h % 12 || 12}${h < 12 ? "am" : "pm"}`; };
   const daylight = (p) => (!sun.sunrise || p.dt >= sun.sunrise) && (!sun.sunset || p.dt <= sun.sunset);
-  const dayPts = pts.filter(daylight);
+  const upcoming = (state.hourly || []).filter((p) => p.dt >= now - 1800).slice(0, 18);
+  if (!catalog || !upcoming.length) return [];
 
-  const windowOf = (list, ok) => {
+  const pts = upcoming.map((p) => ({
+    dt: p.dt,
+    tempC: toCelsius(p.main?.temp ?? p.main?.feels_like ?? 0),
+    feelsC: toCelsius(p.main?.feels_like ?? p.main?.temp ?? 0),
+    humidity: p.main?.humidity ?? 60,
+    precip: p.precip || 0,
+    cloud: p.clouds?.all ?? 50,
+    wind: windKmh(p.wind?.speed || 0),
+    gust: windKmh(p.wind?.gust || p.wind?.speed || 0),
+    snow: p.snow?.["1h"] || 0,
+    isDay: daylight(p)
+  }));
+  const dayPool = pts.filter((p) => p.isDay);
+  const evePool = pts.filter((p) => { const h = lh(p.dt); return h >= 17 && h <= 23; });
+
+  const windowOf = (list, ok, fullLabel) => {
     if (!list.length) return null;
     const g = list.map((p) => (ok(p) ? 1 : 0));
     for (let i = 1; i < g.length - 1; i++) if (!g[i] && g[i - 1] && g[i + 1]) g[i] = 1;
@@ -837,20 +858,39 @@ function activityWindows() {
     }
     if (bestS < 0) return null;
     const e = bestS + bestLen - 1;
-    if (bestLen >= list.length - 1) return "Most of the day";
+    if (bestLen >= list.length - 1) return fullLabel;
     return bestS === e ? `Around ${fmtH(list[bestS].dt)}` : `${fmtH(list[bestS].dt)} to ${fmtH(list[e].dt)}`;
   };
 
-  const laundry = windowOf(dayPts, (p) => (p.precip || 0) < 0.05 && (p.main.humidity ?? 60) < 75);
-  const feelsOk = (p) => { const f = toCelsius(p.main.feels_like ?? p.main.temp); return f >= 2 && f <= 26; };
-  const exercise = windowOf(dayPts, (p) => (p.precip || 0) < 0.1 && feelsOk(p));
-  const wet = upcoming.slice(0, 24).find((p) => (p.precip || 0) > 0.2);
+  const daily = state.daily?.[0] || {};
+  const depth = state.hourly?.[0]?.snowDepth;
+  const lat = state.center?.lat ?? state.loc?.lat ?? 45;
+  const ctx = {
+    season: seasonOf(new Date((now + tz) * 1000).getUTCMonth(), lat),
+    highC: daily.max != null ? toCelsius(daily.max) : (dayPool[0]?.tempC ?? pts[0]?.tempC ?? 15),
+    lowC: daily.min != null ? toCelsius(daily.min) : (pts[0]?.tempC ?? 8),
+    snowOnGround: depth != null && depth > 0.02,
+    wetDay: dayPool.some((p) => p.precip > 0.2),
+    rainStart: (pts.find((p) => p.precip > 0.2) || {}).dt || null,
+    fmtH
+  };
 
-  return [
-    { icon: "ph-wind", label: "Line-dry laundry", good: !!laundry, when: laundry || "Not today" },
-    { icon: "ph-person-simple-run", label: "A run or walk", good: !!exercise, when: exercise || "Poor today" },
-    { icon: "ph-car-profile", label: "Wash the car", good: !wet, when: wet ? `Rain by ${fmtH(wet.dt)}` : "Dry all day" }
-  ];
+  const out = [];
+  for (const a of catalog) {
+    if (a.seasons && !a.seasons.includes(ctx.season)) continue;
+    const rel = a.relevance(ctx);
+    if (rel <= 0) continue;
+    let good, when;
+    if (a.verdict) { const v = a.verdict(ctx); good = v.good; when = v.when; }
+    else {
+      const w = windowOf(a.nocturnal ? evePool : dayPool, (p) => a.suits(p, ctx), a.nocturnal ? "All evening" : "Most of the day");
+      good = !!w; when = w || a.bad || "Not today";
+    }
+    out.push({ icon: a.icon, label: a.label, explain: a.explain, good, when, score: rel + (good ? 1.5 : 0) });
+  }
+  out.sort((x, y) => y.score - x.score);
+  state.activities = out.slice(0, 4);
+  return state.activities;
 }
 
 function insightTileHTML(icon, label, value, sub) {
@@ -858,7 +898,7 @@ function insightTileHTML(icon, label, value, sub) {
 }
 
 function activityTileHTML() {
-  const acts = activityWindows();
+  const acts = selectActivities();
   return `<div class="insight-card activity-card"><div class="activity-head"><div class="insight-label activity-title">Good day for</div><button class="whats-this" type="button" data-open="activity">What's this?</button></div><div class="activity-rows">${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.when}</span></div>`).join("")}</div></div>`;
 }
 
@@ -2049,14 +2089,13 @@ const CREDITS = [
 ];
 
 function renderActivitySheet() {
+  const acts = (state.activities && state.activities.length) ? state.activities : selectActivities();
+  const how = acts.map((a) => `<p class="info-text"><strong>${a.label}</strong>: ${a.explain}</p>`).join("");
   el.sheetTitle.textContent = "Good day for";
   el.sheetNote.textContent = "A quick read on whether today suits a few everyday outdoor tasks, based on the hourly forecast.";
   el.sheetList.innerHTML =
-    section("What this shows", `<p class="info-text">Each row looks at the hours ahead and estimates when today's conditions suit that task. The time beside it is the best stretch of the day for it, or a short note when the whole day works or none of it does.</p>`) +
-    section("How it decides", `
-      <p class="info-text"><strong>Line-dry laundry</strong> looks for dry daylight hours with lower humidity, so a wash actually dries outside.</p>
-      <p class="info-text"><strong>A run or walk</strong> looks for dry hours at a comfortable temperature during daylight.</p>
-      <p class="info-text"><strong>Wash the car</strong> checks whether any rain is expected later today.</p>`) +
+    section("What this shows", `<p class="info-text">Each row looks at the hours ahead and estimates when today's conditions suit that task. The time beside it is the best stretch of the day for it, or a short note when the whole day works or none of it does.</p><p class="info-text">The list is drawn from a wider set and adapts to the season and the day's weather, so what appears changes: a warm dry day might offer a BBQ or a bike ride, a snowy one sledding, a wet one a cozy day in.</p>`) +
+    section("Today's picks", how || `<p class="info-text">Suggestions appear once the forecast has loaded.</p>`) +
     section("It is a best guess", `<p class="info-text">These are simple rules of thumb built on the forecast, not a promise. Forecasts shift through the day, so the suggested times can move as fresh data arrives. Treat them as a starting point and check the sky before you commit.</p>`) +
     section("Examples you might see", `
       <p class="info-text"><strong>Most of the day</strong>: conditions stay good from morning to evening.</p>
