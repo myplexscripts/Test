@@ -8,6 +8,7 @@ const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
+const ACTIVITY_KEY = "hw_activityplan_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
 
 const PALETTES = {
@@ -839,10 +840,24 @@ function selectActivities() {
   const lh = (dt) => new Date((dt + tz) * 1000).getUTCHours();
   const fmtH = (dt) => { const h = lh(dt); return `${h % 12 || 12}${h < 12 ? "am" : "pm"}`; };
   const daylight = (p) => (!sun.sunrise || p.dt >= sun.sunrise) && (!sun.sunset || p.dt <= sun.sunset);
-  const upcoming = (state.hourly || []).filter((p) => p.dt >= now - 1800).slice(0, 18);
-  if (!catalog || !upcoming.length) return [];
+  const raw = state.data?.hourly || [];
+  const today = new Date((now + tz) * 1000).toISOString().slice(0, 10);
+  const dayKey = (dt) => new Date((dt + tz) * 1000).toISOString().slice(0, 10);
+  const dayHours = raw.filter((p) => dayKey(p.dt) === today);
+  const source = dayHours.length ? dayHours : (state.hourly || []);
+  if (!catalog || !source.length) return state.activities || [];
 
-  const pts = upcoming.map((p) => ({
+  const lat = state.center?.lat ?? state.loc?.lat ?? 45;
+  const lon = state.center?.lon ?? state.loc?.lon ?? 0;
+  const planKey = `${today}|${lat.toFixed(2)},${lon.toFixed(2)}`;
+  const cached = loadActivityPlan();
+  if (cached && cached.key === planKey && Array.isArray(cached.list) && cached.list.length) {
+    state.activityAt = cached.at;
+    state.activities = cached.list;
+    return state.activities;
+  }
+
+  const pts = source.map((p) => ({
     dt: p.dt,
     tempC: toCelsius(p.main?.temp ?? p.main?.feels_like ?? 0),
     feelsC: toCelsius(p.main?.feels_like ?? p.main?.temp ?? 0),
@@ -873,8 +888,7 @@ function selectActivities() {
   };
 
   const daily = state.daily?.[0] || {};
-  const depth = state.hourly?.[0]?.snowDepth;
-  const lat = state.center?.lat ?? state.loc?.lat ?? 45;
+  const depth = source[0]?.snowDepth;
   const ctx = {
     season: seasonOf(new Date((now + tz) * 1000).getUTCMonth(), lat),
     highC: daily.max != null ? toCelsius(daily.max) : (dayPool[0]?.tempC ?? pts[0]?.tempC ?? 15),
@@ -899,8 +913,11 @@ function selectActivities() {
     out.push({ icon: a.icon, label: a.label, explain: a.explain, good, when, score: rel + (good ? 1.5 : 0) });
   }
   out.sort((x, y) => y.score - x.score);
-  state.activities = out.slice(0, 4);
-  return state.activities;
+  const top = out.slice(0, 4);
+  state.activityAt = now;
+  state.activities = top;
+  saveActivityPlan({ key: planKey, at: now, list: top });
+  return top;
 }
 
 function insightTileHTML(icon, label, value, sub) {
@@ -909,7 +926,8 @@ function insightTileHTML(icon, label, value, sub) {
 
 function activityTileHTML() {
   const acts = selectActivities();
-  return `<div class="insight-card activity-card"><div class="activity-head"><div class="insight-label activity-title">Good day for</div><button class="whats-this" type="button" data-open="activity">What's this?</button></div><div class="activity-rows">${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.when}</span></div>`).join("")}</div></div>`;
+  const foot = state.activityAt ? `<div class="activity-foot">Suggested at ${fmtClock(state.activityAt, state.tz || 0)}</div>` : "";
+  return `<div class="insight-card activity-card"><div class="activity-head"><div class="insight-label activity-title">Good day for</div><button class="whats-this" type="button" data-open="activity">What's this?</button></div><div class="activity-rows">${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.when}</span></div>`).join("")}</div>${foot}</div>`;
 }
 
 function stormTileHTML() {
@@ -3324,6 +3342,8 @@ function fmtClock(dt, tz) {
 function saveState() {
   try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, clock24: state.clock24 })); } catch {}
 }
+function loadActivityPlan() { try { return JSON.parse(localStorage.getItem(ACTIVITY_KEY) || "null"); } catch { return null; } }
+function saveActivityPlan(p) { try { localStorage.setItem(ACTIVITY_KEY, JSON.stringify(p)); } catch {} }
 function loadState() {
   try {
     const s = JSON.parse(localStorage.getItem(STATE_KEY) || "null");
