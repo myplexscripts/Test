@@ -859,7 +859,7 @@ function insightTileHTML(icon, label, value, sub) {
 
 function activityTileHTML() {
   const acts = activityWindows();
-  return `<div class="insight-card activity-card"><div class="insight-label activity-title">Good day for</div><div class="activity-rows">${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.when}</span></div>`).join("")}</div></div>`;
+  return `<div class="insight-card activity-card"><div class="activity-head"><div class="insight-label activity-title">Good day for</div><button class="whats-this" type="button" data-open="activity">What's this?</button></div><div class="activity-rows">${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.when}</span></div>`).join("")}</div></div>`;
 }
 
 function renderQuickHits() {
@@ -888,6 +888,8 @@ function renderQuickHits() {
     el.quickHits.classList.toggle("is-open", state.quickHitsOpen);
     toggle.setAttribute("aria-expanded", state.quickHitsOpen ? "true" : "false");
   };
+  const whatsThis = el.quickHits.querySelector(".whats-this");
+  if (whatsThis) whatsThis.onclick = (e) => { e.stopPropagation(); openDetail("activity"); };
 }
 
 function renderWind(current) {
@@ -1380,7 +1382,7 @@ function openSheetUI() {
 }
 
 function openDetail(metric, range) {
-  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun";
+  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "activity";
   if (!METRICS[metric] && !isInfo) metric = "temp";
   const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
   state.nav = [view];
@@ -1427,7 +1429,7 @@ function syncRange() {
 function renderDetailSheet() {
   if (el.sheetHeadAux) { el.sheetHeadAux.innerHTML = ""; el.sheetHeadAux.style.display = "none"; }
   const gc = el.graph.closest(".graph-card");
-  if (["aqi", "uv", "moon", "credits", "sun"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
+  if (["aqi", "uv", "moon", "credits", "sun", "activity"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
   if (gc) gc.style.display = "";
   if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
@@ -1449,6 +1451,7 @@ function renderInfoSheet(kind) {
   if (kind === "moon") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderMoonSheet(); }
   else if (kind === "sun") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderSunSheet(); }
   else if (kind === "credits") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderCreditsSheet(); }
+  else if (kind === "activity") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderActivitySheet(); }
   else if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
 }
@@ -2044,6 +2047,24 @@ const CREDITS = [
     ["SunCalc", "Algorithms behind the sun and moon times.", "https://github.com/mourner/suncalc"]
   ]]
 ];
+
+function renderActivitySheet() {
+  el.sheetTitle.textContent = "Good day for";
+  el.sheetNote.textContent = "A quick read on whether today suits a few everyday outdoor tasks, based on the hourly forecast.";
+  el.sheetList.innerHTML =
+    section("What this shows", `<p class="info-text">Each row looks at the hours ahead and estimates when today's conditions suit that task. The time beside it is the best stretch of the day for it, or a short note when the whole day works or none of it does.</p>`) +
+    section("How it decides", `
+      <p class="info-text"><strong>Line-dry laundry</strong> looks for dry daylight hours with lower humidity, so a wash actually dries outside.</p>
+      <p class="info-text"><strong>A run or walk</strong> looks for dry hours at a comfortable temperature during daylight.</p>
+      <p class="info-text"><strong>Wash the car</strong> checks whether any rain is expected later today.</p>`) +
+    section("It is a best guess", `<p class="info-text">These are simple rules of thumb built on the forecast, not a promise. Forecasts shift through the day, so the suggested times can move as fresh data arrives. Treat them as a starting point and check the sky before you commit.</p>`) +
+    section("Examples you might see", `
+      <p class="info-text"><strong>Most of the day</strong>: conditions stay good from morning to evening.</p>
+      <p class="info-text"><strong>12pm to 5pm</strong>: the best window falls in the afternoon.</p>
+      <p class="info-text"><strong>Around 2pm</strong>: only a brief window looks good.</p>
+      <p class="info-text"><strong>Rain by 6pm</strong>: dry for now, but rain is expected later.</p>
+      <p class="info-text"><strong>Not today</strong>: conditions do not really suit it today.</p>`);
+}
 
 function renderCreditsSheet() {
   el.sheetTitle.textContent = "Acknowledgements";
