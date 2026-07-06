@@ -1305,6 +1305,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   will-change: transform;
 }
 .sheet.is-open { transform: translateX(0); }
+body:has(.sheet.is-open) .app,
+body:has(.sheet.is-open) .mini-header { visibility: hidden; }
 .sheet > * { width: 100%; max-width: var(--max); margin-inline: auto; position: relative; z-index: 1; }
 .sheet-scroll {
   flex: 1;

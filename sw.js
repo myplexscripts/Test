@@ -1,4 +1,4 @@
-const CACHE_NAME = "home-weather-shell-v99";
+const CACHE_NAME = "home-weather-shell-v100";
 const SHELL_FILES = [
   "./",
   "./index.html",
