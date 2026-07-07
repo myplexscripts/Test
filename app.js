@@ -1546,8 +1546,9 @@ function renderInfoSheet(kind) {
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
 }
 
-function section(title, body, card) {
-  return `<div class="info-section"><h3 class="info-head">${title}</h3>${card ? `<div class="info-card">${body}</div>` : body}</div>`;
+function section(title, body, card, icon) {
+  const head = icon ? `<i class="ph ${icon} info-head-ic" aria-hidden="true"></i>${title}` : title;
+  return `<div class="info-section"><h3 class="info-head">${head}</h3>${card ? `<div class="info-card">${body}</div>` : body}</div>`;
 }
 
 function scaleBar(pos, ends) {
@@ -2201,13 +2202,13 @@ function renderStormSheet() {
   el.sheetTitle.textContent = "Storm tracker";
   el.sheetNote.textContent = "A closer look at the ingredients storm watchers follow through the day: instability, moisture, wind and the trend in the air pressure.";
   el.sheetList.innerHTML =
-    section("Thunderstorm outlook", `<p class="info-text info-now">${thunderText}</p><p class="info-text">Thunderstorms need warm, moist air and something to lift it. When the forecast flags them, this is the window worth watching.</p>`) +
-    section("Instability (CAPE)", `<p class="info-text info-now">${capeStr}${capeLab ? `, ${capeLab.toLowerCase()}` : ""}${(o.capePk != null && o.capeAt) ? `, peaking around ${o.fmtH(o.capeAt)}` : ""}.</p><p class="info-text">CAPE is the energy available for rising air, in joules per kilogram. The higher it climbs, the taller and stronger storms can grow. Above roughly 1,000 hints at thunderstorms, and above 2,500 the air is primed for strong ones.</p>`) +
-    section("Peak wind gust", `<p class="info-text info-now">${o.gustPk != null ? windText(o.gustPk) : "Light"}${(o.gustPk != null && o.gustAt) ? `, around ${o.fmtH(o.gustAt)}` : ""}.</p><p class="info-text">Gusts are brief spikes above the steady wind. The strongest often arrive with a storm's leading edge or its downdraft.</p>`) +
-    section("Pressure trend", `<p class="info-text info-now">${pressStr}${o.press ? ` over the next few hours (${o.press.d > 0 ? "+" : ""}${o.press.d.toFixed(0)} hPa)` : ""}.</p><p class="info-text">${pressBlurb}</p>`) +
-    (cur.freezing != null ? section("Freezing level", `<p class="info-text info-now">${groupNum(Math.round(cur.freezing))} m above sea level.</p><p class="info-text">This is the height where the air reaches 0°C. A lower freezing level lets rain turn to snow, and it hints at how far any hail can fall before it melts.</p>`) : "") +
-    (cur.dew != null ? section("Dew point", `<p class="info-text info-now">${Math.round(cur.dew)}° right now.</p><p class="info-text">The dew point is the temperature at which air becomes saturated. Higher values mean more moisture in the air, which is fuel for storms. Above about 15° the air starts to feel humid and storm-ready.</p>`) : "") +
-    section("A best guess", `<p class="info-text">These readings come from a forecast model and describe the potential in the air, not a certainty that storms will fire. For active warnings, always follow Environment Canada or your local weather service.</p>`) +
+    section("Thunderstorm outlook", `<p class="info-text info-now">${thunderText}</p><p class="info-text">Thunderstorms need warm, moist air and something to lift it. When the forecast flags them, this is the window worth watching.</p>`, false, "ph-cloud-lightning") +
+    section("Instability (CAPE)", `<p class="info-text info-now">${capeStr}${capeLab ? `, ${capeLab.toLowerCase()}` : ""}${(o.capePk != null && o.capeAt) ? `, peaking around ${o.fmtH(o.capeAt)}` : ""}.</p><p class="info-text">CAPE is the energy available for rising air, in joules per kilogram. The higher it climbs, the taller and stronger storms can grow. Above roughly 1,000 hints at thunderstorms, and above 2,500 the air is primed for strong ones.</p>`, false, "ph-lightning") +
+    section("Peak wind gust", `<p class="info-text info-now">${o.gustPk != null ? windText(o.gustPk) : "Light"}${(o.gustPk != null && o.gustAt) ? `, around ${o.fmtH(o.gustAt)}` : ""}.</p><p class="info-text">Gusts are brief spikes above the steady wind. The strongest often arrive with a storm's leading edge or its downdraft.</p>`, false, "ph-wind") +
+    section("Pressure trend", `<p class="info-text info-now">${pressStr}${o.press ? ` over the next few hours (${o.press.d > 0 ? "+" : ""}${o.press.d.toFixed(0)} hPa)` : ""}.</p><p class="info-text">${pressBlurb}</p>`, false, "ph-gauge") +
+    (cur.freezing != null ? section("Freezing level", `<p class="info-text info-now">${groupNum(Math.round(cur.freezing))} m above sea level.</p><p class="info-text">This is the height where the air reaches 0°C. A lower freezing level lets rain turn to snow, and it hints at how far any hail can fall before it melts.</p>`, false, "ph-thermometer-cold") : "") +
+    (cur.dew != null ? section("Dew point", `<p class="info-text info-now">${Math.round(cur.dew)}° right now.</p><p class="info-text">The dew point is the temperature at which air becomes saturated. Higher values mean more moisture in the air, which is fuel for storms. Above about 15° the air starts to feel humid and storm-ready.</p>`, false, "ph-drop") : "") +
+    section("A best guess", `<p class="info-text">These readings come from a forecast model and describe the potential in the air, not a certainty that storms will fire. For active warnings, always follow Environment Canada or your local weather service.</p>`, false, "ph-info") +
     `<button class="sun-link" data-open="radar"><span>Open the live radar</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
   const rl = el.sheetList.querySelector('.sun-link[data-open="radar"]');
   if (rl) rl.onclick = () => { closeSheet(); openRadar(); };

@@ -1484,7 +1484,8 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .scale-ends { display: flex; justify-content: space-between; font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); margin-bottom: var(--s-4); }
 
 .info-section { margin-top: var(--s-5); }
-.info-head { font-family: Rubik, Inter, sans-serif; font-size: 1.15rem; font-weight: 700; margin-bottom: var(--s-2); }
+.info-head { display: flex; align-items: center; gap: var(--s-2); font-family: Rubik, Inter, sans-serif; font-size: 1.15rem; font-weight: 700; margin-bottom: var(--s-2); }
+.info-head-ic { font-size: 1.3rem; color: var(--ink); flex: 0 0 auto; }
 .info-card { background: var(--card-bg); border: 2px solid var(--card-border); border-radius: var(--r-md); padding: var(--s-4); }
 .info-card .info-text:first-child { margin-top: 0; }
 
