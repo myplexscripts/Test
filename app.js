@@ -1541,8 +1541,8 @@ function renderInfoSheet(kind) {
 }
 
 function section(title, body, card, icon) {
-  const head = icon ? `<i class="ph ${icon} info-head-ic" aria-hidden="true"></i>${title}` : title;
-  return `<div class="info-section"><h3 class="info-head">${head}</h3>${card ? `<div class="info-card">${body}</div>` : body}</div>`;
+  const tab = `<div class="folder-tab">${icon ? `<i class="ph ${icon} folder-tab-ic" aria-hidden="true"></i>` : ""}<span>${title}</span></div>`;
+  return `<div class="folder">${tab}<div class="folder-body">${body}</div></div>`;
 }
 
 function scaleBar(pos, ends) {
@@ -1972,10 +1972,10 @@ function renderSunSheet() {
   const fmtOrDash = (u) => u != null ? fmtClock(u, tz) : "--";
   const goldenAm = t.sunrise.up != null && t.golden.up != null ? `${fmtClock(t.sunrise.up, tz)} to ${fmtClock(t.golden.up, tz)}` : "--";
   const goldenPm = t.golden.down != null && t.sunrise.down != null ? `${fmtClock(t.golden.down, tz)} to ${fmtClock(t.sunrise.down, tz)}` : "--";
-  const sectionD = (title, desc, body) => `<div class="info-section"><h3 class="info-head">${title}</h3><p class="info-desc">${desc}</p><div class="info-card">${body}</div></div>`;
+  const sectionD = (title, desc, body) => section(title, `<p class="info-desc">${desc}</p>${body}`);
   const intro = `<p class="sun-intro">A 24-hour map of light for your location. Midnight sits at the bottom and noon at the top; the hand shows where the sun is <em>right now</em>. Each shaded band is a stage of light, from bright <strong>day</strong> at the pale end down to full <strong>night</strong> at the dark end, so you can see daylight and darkness fall across the whole day. The little moons mark when the moon rises and sets. Tap any band, the sun, the moon, or the centre to read its exact times.</p>`;
   const sunMap = sunMapSVG(lat, lon);
-  const mapSection = sunMap ? `<div class="info-section"><h3 class="info-head">Sun map</h3><p class="info-desc">Day and night across the world right now. The pin marks your location.</p>${sunMap}</div>` : "";
+  const mapSection = sunMap ? section("Sun map", `<p class="info-desc">Day and night across the world right now. The pin marks your location.</p>${sunMap}`) : "";
   const keyRow = `<div class="sun-key">` + Object.entries(SUN_BANDS).map(([k, v]) => `<span class="sun-key-item"><span class="sun-swatch" style="background:${v.color}"></span>${v.name}</span>`).join("") + `</div>`;
   const list = intro + mapSection +
     sectionD("Sun", "The sun's key moments today. Solar noon is when the sun is highest in the sky, the true middle of the day.", [

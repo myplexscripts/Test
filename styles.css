@@ -1497,11 +1497,36 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 }
 .scale-ends { display: flex; justify-content: space-between; font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); margin-bottom: var(--s-4); }
 
-.info-section { margin-top: var(--s-5); }
-.info-head { display: flex; align-items: center; gap: var(--s-2); font-family: Rubik, Inter, sans-serif; font-size: 1.15rem; font-weight: 700; margin-bottom: var(--s-2); }
-.info-head-ic { font-size: 1.3rem; color: var(--ink); flex: 0 0 auto; }
-.info-card { background: var(--card-bg); border: 2px solid var(--card-border); border-radius: var(--r-md); padding: var(--s-4); }
-.info-card .info-text:first-child { margin-top: 0; }
+.folder { margin-top: var(--s-6); }
+.folder-tab {
+  display: flex;
+  align-items: center;
+  gap: var(--s-2);
+  width: 60%;
+  min-width: 9rem;
+  box-sizing: border-box;
+  background: var(--card-bg);
+  border: 2px solid var(--card-border);
+  border-bottom: 0;
+  border-radius: var(--r-md) var(--r-md) 0 0;
+  padding: var(--s-2) var(--s-4);
+  position: relative;
+  z-index: 1;
+  font-family: Rubik, Inter, sans-serif;
+  font-weight: 700;
+  font-size: 1.02rem;
+  line-height: 1.2;
+  color: var(--ink);
+}
+.folder-tab-ic { font-size: 1.2rem; flex: 0 0 auto; }
+.folder-body {
+  background: var(--card-bg);
+  border: 2px solid var(--card-border);
+  border-radius: 0 var(--r-lg) var(--r-lg) var(--r-lg);
+  padding: var(--s-5);
+  margin-top: -2px;
+}
+.folder-body .info-text:first-child { margin-top: 0; }
 
 .sheet-head-aux { display: flex; align-items: center; }
 .sc-caption { text-align: center; font-size: var(--t-body); font-weight: 800; letter-spacing: -0.01em; color: var(--ink); min-height: 1.4em; margin-top: var(--s-2); }
