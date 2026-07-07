@@ -1497,7 +1497,10 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 }
 .scale-ends { display: flex; justify-content: space-between; font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); margin-bottom: var(--s-4); }
 
-.folder { margin-top: var(--s-6); }
+.folder {
+  margin-top: var(--s-6);
+  filter: drop-shadow(0 0 0.75px var(--card-border)) drop-shadow(0 0 0.75px var(--card-border));
+}
 .folder-tab {
   display: inline-flex;
   align-items: flex-end;
