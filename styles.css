@@ -1520,11 +1520,25 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 }
 .folder-tab-ic { font-size: 1.2rem; flex: 0 0 auto; }
 .folder-body {
+  position: relative;
   background: var(--card-bg);
   border: 2px solid var(--card-border);
-  border-radius: 0 var(--r-lg) var(--r-lg) var(--r-lg);
+  border-top: 0;
+  border-radius: 0 0 var(--r-lg) var(--r-lg);
   padding: var(--s-5);
-  margin-top: -2px;
+}
+.folder-body::before {
+  content: "";
+  position: absolute;
+  top: -2px;
+  right: 0;
+  left: calc(60% - 2px);
+  height: var(--r-lg);
+  border-top: 2px solid var(--card-border);
+  border-right: 2px solid var(--card-border);
+  border-top-right-radius: var(--r-lg);
+  box-sizing: border-box;
+  pointer-events: none;
 }
 .folder-body .info-text:first-child { margin-top: 0; }
 
