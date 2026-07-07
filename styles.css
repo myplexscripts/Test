@@ -16,7 +16,7 @@
   --hairline: color-mix(in srgb, var(--ink) 14%, transparent);
   --card-bg: color-mix(in srgb, var(--ink) 5%, transparent);
   --card-bg-hi: color-mix(in srgb, var(--ink) 9%, transparent);
-  --card-border: color-mix(in srgb, var(--ink) 16%, transparent);
+  --card-border: transparent;
   --on-surface-soft: color-mix(in srgb, var(--on-surface) 64%, transparent);
 
   --r-xs: 10px;
@@ -915,8 +915,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   color: var(--ink-soft);
   padding: var(--s-1) var(--s-3);
   border-radius: var(--r-pill);
-  border: 1.5px solid var(--card-border);
-  background: transparent;
+  background: var(--card-bg-hi);
   cursor: pointer;
   white-space: nowrap;
   transition: transform var(--dur-press) var(--ease-press), background var(--dur-fast) var(--ease-out);
@@ -949,9 +948,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .moon-hero-art .moon-svg { width: clamp(7rem, 42vw, 11rem); height: auto; display: block; }
 .moon-phase-name { font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: clamp(1.5rem, 6vw, 2rem); margin-top: var(--s-2); }
 .moon-date { color: var(--ink-soft); font-weight: 600; }
-.moon-figs { display: flex; border: 2px solid var(--card-border); background: var(--card-bg); border-radius: var(--r-md); overflow: hidden; }
+.moon-figs { display: flex; border-radius: var(--r-md); overflow: hidden; }
 .moon-fig { flex: 1; display: flex; flex-direction: column; align-items: center; gap: var(--s-1); padding: var(--s-4) var(--s-2); }
-.moon-fig + .moon-fig { border-left: 2px solid var(--card-border); }
+.moon-fig + .moon-fig { border-left: 2px solid var(--hairline); }
 .moon-fig strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; font-variant-numeric: tabular-nums; }
 .phase-list { display: flex; flex-direction: column; }
 .phase-row { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) 0; }
@@ -1083,7 +1082,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   appearance: none;
   height: 6px;
   border-radius: var(--r-pill);
-  background: var(--card-border);
+  background: var(--hairline);
   outline: none;
 }
 .radar-scrub::-webkit-slider-thumb {
@@ -1500,18 +1499,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .folder {
   margin-top: var(--s-6);
   position: relative;
-  display: grid;
 }
-.folder > * { grid-area: 1 / 1; }
-.folder-content { position: relative; z-index: 1; }
-.folder-content .folder-tab,
-.folder-content .folder-body { background: transparent; }
-.folder-content .folder-body::before { display: none; }
-.folder-shape { z-index: 0; filter: url(#fborder); pointer-events: none; }
-.folder-shape .folder-tab > *,
-.folder-shape .folder-body > * { visibility: hidden; }
-.svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
-#fborder feFlood { flood-color: var(--card-border); }
 .folder-tab {
   display: inline-flex;
   align-items: flex-end;
@@ -1520,7 +1508,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
   box-sizing: border-box;
   background: var(--card-bg);
   border-radius: var(--r-md) var(--r-md) 0 0;
-  padding: var(--s-4) var(--s-4) var(--s-2);
+  padding: var(--s-4) var(--s-5) var(--s-2);
   position: relative;
   z-index: 1;
   font-family: Rubik, Inter, sans-serif;
@@ -1597,7 +1585,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .credit-desc { font-size: var(--t-sm); line-height: 1.4; color: var(--ink-soft); font-weight: 500; }
 .credit-row:active { opacity: 0.6; }
 
-.pollutant + .pollutant { margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1.5px solid var(--card-border); }
+.pollutant + .pollutant { margin-top: var(--s-4); padding-top: var(--s-4); border-top: 1.5px solid var(--hairline); }
 .pollutant-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); margin-bottom: 2px; }
 .pollutant-name { font-weight: 700; }
 .pollutant-val { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-variant-numeric: tabular-nums; }
