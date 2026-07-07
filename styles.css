@@ -528,6 +528,20 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .insight-tap:active { transform: scale(0.98); background: var(--card-bg-hi); }
 .insight-go { margin-left: auto; align-self: center; font-size: 1rem; color: var(--ink-faint); flex: 0 0 auto; }
 
+.map-links { display: flex; flex-direction: column; gap: var(--s-3); }
+.map-link {
+  display: flex; align-items: center; gap: var(--s-4); width: 100%; text-align: left;
+  border: 2px solid var(--card-border); background: var(--card-bg); border-radius: var(--r-lg);
+  padding: var(--s-4); cursor: pointer; color: inherit; font: inherit;
+  transition: transform var(--dur-press) var(--ease-press), background var(--dur-fast) var(--ease-out);
+}
+.map-link:active { transform: scale(0.98); background: var(--card-bg-hi); }
+.map-link-ic { font-size: 2rem; flex: 0 0 auto; }
+.map-link-body { flex: 1; min-width: 0; }
+.map-link-name { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: var(--t-body); }
+.map-link-sub { font-size: var(--t-sm); font-weight: 500; color: var(--ink-soft); }
+.map-link-go { margin-left: auto; font-size: 1.1rem; color: var(--ink-faint); flex: 0 0 auto; }
+
 .tier-row { display: flex; gap: var(--s-3); align-items: flex-start; }
 .tier-row + .tier-row { margin-top: var(--s-4); }
 .tier-dot { width: 18px; height: 18px; border-radius: 50%; margin-top: 3px; flex: 0 0 auto; }

@@ -88,7 +88,8 @@ const RV_SIZE = 256;
 const ECCC_WMS          = "https://geo.weather.gc.ca/geomet";
 const ECCC_LAYER_RAIN = "RADAR_1KM_RRAI";
 const ECCC_LAYER_SNOW = "RADAR_1KM_RSNO";
-const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed & direction" };
+const ECCC_LAYER_LIGHTNING = "Lightning_2.5km_Density";
+const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed & direction", lightning: "Lightning density, Environment Canada, Canada only" };
 
 function ecccLayer() {
   const main = (state.data?.current?.weather?.[0]?.main || "").toLowerCase();
@@ -2208,10 +2209,14 @@ function renderStormSheet() {
     section("Pressure trend", `<p class="info-text info-now">${pressStr}${o.press ? ` over the next few hours (${o.press.d > 0 ? "+" : ""}${o.press.d.toFixed(0)} hPa)` : ""}.</p><p class="info-text">${pressBlurb}</p>`, false, "ph-gauge") +
     (cur.freezing != null ? section("Freezing level", `<p class="info-text info-now">${groupNum(Math.round(cur.freezing))} m above sea level.</p><p class="info-text">This is the height where the air reaches 0°C. A lower freezing level lets rain turn to snow, and it hints at how far any hail can fall before it melts.</p>`, false, "ph-thermometer-cold") : "") +
     (cur.dew != null ? section("Dew point", `<p class="info-text info-now">${Math.round(cur.dew)}° right now.</p><p class="info-text">The dew point is the temperature at which air becomes saturated. Higher values mean more moisture in the air, which is fuel for storms. Above about 15° the air starts to feel humid and storm-ready.</p>`, false, "ph-drop") : "") +
-    section("A best guess", `<p class="info-text">These readings come from a forecast model and describe the potential in the air, not a certainty that storms will fire. For active warnings, always follow Environment Canada or your local weather service.</p>`, false, "ph-info") +
-    `<button class="sun-link" data-open="radar"><span>Open the live radar</span><i class="ph ph-caret-right" aria-hidden="true"></i></button>`;
-  const rl = el.sheetList.querySelector('.sun-link[data-open="radar"]');
-  if (rl) rl.onclick = () => { closeSheet(); openRadar(); };
+    section("Live maps", `<div class="map-links">
+      <button class="map-link" data-map="radar"><i class="ph-duotone ph-cloud-rain map-link-ic" aria-hidden="true"></i><div class="map-link-body"><div class="map-link-name">Radar</div><div class="map-link-sub">Live precipitation, animated</div></div><i class="ph ph-caret-right map-link-go" aria-hidden="true"></i></button>
+      <button class="map-link" data-map="lightning"><i class="ph-duotone ph-cloud-lightning map-link-ic" aria-hidden="true"></i><div class="map-link-body"><div class="map-link-name">Lightning</div><div class="map-link-sub">Strike density near you</div></div><i class="ph ph-caret-right map-link-go" aria-hidden="true"></i></button>
+    </div>`, false, "ph-map-trifold") +
+    section("A best guess", `<p class="info-text">These readings come from a forecast model and describe the potential in the air, not a certainty that storms will fire. For active warnings, always follow Environment Canada or your local weather service.</p>`, false, "ph-info");
+  el.sheetList.querySelectorAll(".map-link").forEach((b) => {
+    b.onclick = () => { closeSheet(); openRadar(b.dataset.map); };
+  });
 }
 
 function renderAlertsSheet() {
@@ -2888,7 +2893,8 @@ function warmRadar() {
   if (radar.map && radar.mode === "radar") loadRadar();
 }
 
-function openRadar() {
+function openRadar(mode) {
+  if (mode) radar.mode = mode;
   state.radarOpen = true;
   el.radarSheet.classList.add("is-open");
   el.radarSheet.setAttribute("aria-hidden", "false");
@@ -2928,11 +2934,14 @@ function applyMode(mode) {
   disableWindArrows();
   const isRadar = mode === "radar";
   const isWind = mode === "wind_new";
+  const isLightning = mode === "lightning";
   el.radarTimeline.style.display = isRadar ? "" : "none";
   if (el.radarLegend) el.radarLegend.style.display = isRadar ? "" : "none";
   if (el.windLegend) el.windLegend.style.display = isWind ? "" : "none";
   if (isRadar) {
     loadRadar();
+  } else if (isLightning) {
+    radar.owm = L.tileLayer.wms(ECCC_WMS, { layers: ECCC_LAYER_LIGHTNING, format: "image/png", transparent: true, version: "1.3.0", opacity: 0.85, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; Environment Canada" }).addTo(radar.map);
   } else {
     const opacity = isWind ? 0.3 : 0.72;
     radar.owm = L.tileLayer(owmTileUrl(mode), { opacity, maxZoom: 12, maxNativeZoom: 9, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; OpenWeather" }).addTo(radar.map);
@@ -3242,6 +3251,7 @@ function toggleRadarPlay() { radar.playing ? stopRadarPlay() : startRadarPlay();
 
 function updateRadarNote() {
   const place = state.placeName || "your area";
+  if (radar.mode === "lightning") { el.radarNote.textContent = "Lightning density from Environment Canada. Canada coverage only."; return; }
   let name = LAYER_NAMES[radar.mode] || "Weather";
   if (radar.mode === "radar") {
     if (radar.source === "eccc") {
