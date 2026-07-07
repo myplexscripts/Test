@@ -29,7 +29,7 @@ const el = {
   ptr: $("ptr"), scrim: $("scrim"),
   drawer: $("drawer"), drawerClose: $("drawerClose"),
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
-  unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), stormBtn: $("stormBtn"), hurricaneBtn: $("hurricaneBtn"), alertsInfoBtn: $("alertsInfoBtn"),
+  unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), stormBtn: $("stormBtn"), alertsInfoBtn: $("alertsInfoBtn"),
   placeName: $("placeName"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), quickHits: $("quickHits"), alerts: $("alerts"),
   alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
@@ -89,7 +89,6 @@ const ECCC_WMS          = "https://geo.weather.gc.ca/geomet";
 const ECCC_LAYER_RAIN = "RADAR_1KM_RRAI";
 const ECCC_LAYER_SNOW = "RADAR_1KM_RSNO";
 const ECCC_LAYER_LIGHTNING = "Lightning_2.5km_Density";
-const NHC_STORMS_URL = "https://www.nhc.noaa.gov/CurrentStorms.json";
 const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed & direction", lightning: "Lightning density, Environment Canada, Canada only" };
 
 function ecccLayer() {
@@ -129,7 +128,6 @@ function wireEvents() {
   el.useHome.onclick = () => { state.loc = { ...HOME }; markLoc("home"); saveState(); closeDrawer(); refresh(true); };
   if (el.creditsBtn) el.creditsBtn.onclick = () => { closeDrawer(); openDetail("credits"); };
   if (el.stormBtn) el.stormBtn.onclick = () => { closeDrawer(); openDetail("storm"); };
-  if (el.hurricaneBtn) el.hurricaneBtn.onclick = () => { closeDrawer(); openDetail("hurricanes"); };
   if (el.alertsInfoBtn) el.alertsInfoBtn.onclick = () => { closeDrawer(); openDetail("alerts"); };
 
   el.unitSeg.querySelectorAll("[data-units]").forEach((b) => {
@@ -935,16 +933,9 @@ function activityTileHTML() {
 
 function stormTileHTML() {
   const o = stormOutlook();
-  const capeHot = o.capePk != null && o.capePk >= 1000;
-  if (!o.thunder && !capeHot) return "";
-  let value, sub;
-  if (o.thunder) {
-    value = o.thunder.hail ? "Storms, maybe hail" : "Thunderstorms likely";
-    sub = `Expected ${o.thunder.when.charAt(0).toLowerCase() + o.thunder.when.slice(1)}. Tap for the full storm readout.`;
-  } else {
-    value = capeLabel(o.capePk);
-    sub = `The air is turning unstable, ${groupNum(Math.round(o.capePk))} J/kg of storm energy building. Tap for details.`;
-  }
+  if (!o.thunder) return "";
+  const value = o.thunder.hail ? "Storms, maybe hail" : "Thunderstorms likely";
+  const sub = `The forecast shows thunderstorms ${o.thunder.when.charAt(0).toLowerCase() + o.thunder.when.slice(1)}. Tap for the full storm readout.`;
   return `<button class="insight-card insight-tap" type="button" data-open="storm"><i class="ph-duotone ph-cloud-lightning insight-ic" aria-hidden="true"></i><div class="insight-body"><div class="insight-label">Storm watch</div><div class="insight-value">${value}</div><div class="insight-sub">${sub}</div></div><i class="ph ph-caret-right insight-go" aria-hidden="true"></i></button>`;
 }
 
@@ -1473,7 +1464,7 @@ function openSheetUI() {
 }
 
 function openDetail(metric, range) {
-  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "activity" || metric === "storm" || metric === "alerts" || metric === "hurricanes";
+  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "activity" || metric === "storm" || metric === "alerts";
   if (!METRICS[metric] && !isInfo) metric = "temp";
   const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
   state.nav = [view];
@@ -1520,7 +1511,7 @@ function syncRange() {
 function renderDetailSheet() {
   if (el.sheetHeadAux) { el.sheetHeadAux.innerHTML = ""; el.sheetHeadAux.style.display = "none"; }
   const gc = el.graph.closest(".graph-card");
-  if (["aqi", "uv", "moon", "credits", "sun", "activity", "storm", "alerts", "hurricanes"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
+  if (["aqi", "uv", "moon", "credits", "sun", "activity", "storm", "alerts"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
   if (gc) gc.style.display = "";
   if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
@@ -1545,7 +1536,6 @@ function renderInfoSheet(kind) {
   else if (kind === "activity") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderActivitySheet(); }
   else if (kind === "storm") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderStormSheet(); }
   else if (kind === "alerts") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAlertsSheet(); }
-  else if (kind === "hurricanes") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderHurricaneSheet(); }
   else if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
 }
@@ -2238,60 +2228,6 @@ function renderAlertsSheet() {
       type("Warning", "Severe weather is happening or is very likely. Act now.") +
       type("Special weather statement", "A heads-up about unusual weather that does not yet meet alert criteria.")) +
     section("Where these come from", `<p class="info-text">Alerts shown here are issued by Environment and Climate Change Canada for your area. They are a guide, so always follow the latest official guidance.</p>`);
-}
-
-function saffirScale(kt) {
-  if (!Number.isFinite(kt)) return null;
-  if (kt < 34) return "Tropical depression";
-  if (kt < 64) return "Tropical storm";
-  if (kt < 83) return "Category 1 hurricane";
-  if (kt < 96) return "Category 2 hurricane";
-  if (kt < 113) return "Category 3 hurricane";
-  if (kt < 137) return "Category 4 hurricane";
-  return "Category 5 hurricane";
-}
-
-function ktSpeed(kt) {
-  if (!Number.isFinite(kt)) return null;
-  return state.units === "imperial" ? `${Math.round(kt * 1.151)} mph` : `${Math.round(kt * 1.852)} km/h`;
-}
-
-function hurricaneCard(s) {
-  const kt = parseFloat(s.intensity);
-  const cat = saffirScale(kt) || (s.classification || "Tropical system");
-  const winds = ktSpeed(kt) || "unknown";
-  const pres = s.pressure ? `${s.pressure} mb` : "unknown";
-  const mvKt = parseFloat(s.movementSpeed), mvDir = parseFloat(s.movementDir);
-  const move = (Number.isFinite(mvKt) && Number.isFinite(mvDir)) ? `${direction(mvDir)} at ${ktSpeed(mvKt)}` : "Little movement";
-  const lat = Number.isFinite(s.latitudeNumeric) ? s.latitudeNumeric : parseFloat(s.latitude);
-  const lon = Number.isFinite(s.longitudeNumeric) ? s.longitudeNumeric : parseFloat(s.longitude);
-  const pos = (Number.isFinite(lat) && Number.isFinite(lon)) ? `${Math.abs(lat).toFixed(1)}°${lat >= 0 ? "N" : "S"}, ${Math.abs(lon).toFixed(1)}°${lon >= 0 ? "E" : "W"}` : "";
-  const name = s.name || s.tcName || "Tropical system";
-  const row = (l, v) => `<div class="moon-stat"><span>${l}</span><strong>${v}</strong></div>`;
-  return `<div class="storm-card"><div class="storm-name">${escapeHTML(name)}</div><div class="storm-cat">${escapeHTML(cat)}</div><div class="moon-stats">${row("Winds", winds)}${row("Pressure", pres)}${row("Moving", move)}${pos ? row("Position", pos) : ""}</div></div>`;
-}
-
-async function renderHurricaneSheet() {
-  el.sheetTitle.textContent = "Hurricane tracker";
-  el.sheetNote.textContent = "Active tropical storms and hurricanes from the US National Hurricane Center, which covers the Atlantic and the eastern Pacific.";
-  el.sheetList.innerHTML = `<p class="info-text">Checking for active storms…</p>`;
-  let j;
-  try { j = await fetchJSON(NHC_STORMS_URL); }
-  catch (e) {
-    if (state.detail?.metric !== "hurricanes") return;
-    el.sheetList.innerHTML = section("Storms did not load", `<p class="info-text">The storm feed could not be reached just now. It may be down, or the connection was blocked. Please try again later.</p>`, false, "ph-warning-circle");
-    return;
-  }
-  if (state.detail?.metric !== "hurricanes") return;
-  const storms = Array.isArray(j.activeStorms) ? j.activeStorms : (Array.isArray(j.storms) ? j.storms : []);
-  const scaleNote = section("About the scale", `<p class="info-text">Storms are rated by their peak sustained wind on the Saffir-Simpson scale: a tropical storm from 63 km/h, a Category 1 hurricane from 119 km/h, up to a Category 5 above 252 km/h. For tracks, cones and official advisories, the National Hurricane Center is the source.</p>`, false, "ph-info");
-  if (!storms.length) {
-    el.sheetList.innerHTML =
-      section("All quiet", `<p class="info-text info-now">No active tropical storms in the Atlantic or eastern Pacific right now.</p><p class="info-text">This is normal for much of the year. When a storm forms, it will show up here with its strength, pressure and heading.</p>`, false, "ph-check-circle") +
-      scaleNote;
-    return;
-  }
-  el.sheetList.innerHTML = storms.map(hurricaneCard).join("") + scaleNote;
 }
 
 function renderCreditsSheet() {

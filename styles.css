@@ -542,11 +542,6 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .map-link-sub { font-size: var(--t-sm); font-weight: 500; color: var(--ink-soft); }
 .map-link-go { margin-left: auto; font-size: 1.1rem; color: var(--ink-faint); flex: 0 0 auto; }
 
-.storm-card { border: 2px solid var(--card-border); background: var(--card-bg); border-radius: var(--r-lg); padding: var(--s-5); margin-top: var(--s-4); }
-.storm-name { font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: var(--t-title); line-height: 1.1; }
-.storm-cat { font-size: var(--t-sm); font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-soft); margin: 2px 0 var(--s-3); }
-.storm-card .moon-stats { gap: var(--s-2); }
-
 .tier-row { display: flex; gap: var(--s-3); align-items: flex-start; }
 .tier-row + .tier-row { margin-top: var(--s-4); }
 .tier-dot { width: 18px; height: 18px; border-radius: 50%; margin-top: 3px; flex: 0 0 auto; }
