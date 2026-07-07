@@ -1500,22 +1500,21 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .folder { margin-top: var(--s-6); }
 .folder-tab {
   display: flex;
-  align-items: center;
+  align-items: flex-end;
   gap: var(--s-2);
   width: 60%;
-  min-width: 9rem;
   box-sizing: border-box;
   background: var(--card-bg);
   border: 2px solid var(--card-border);
   border-bottom: 0;
   border-radius: var(--r-md) var(--r-md) 0 0;
-  padding: var(--s-2) var(--s-4);
+  padding: var(--s-4) var(--s-4) var(--s-2);
   position: relative;
   z-index: 1;
   font-family: Rubik, Inter, sans-serif;
   font-weight: 700;
   font-size: 1.02rem;
-  line-height: 1.2;
+  line-height: 1.15;
   color: var(--ink);
 }
 .folder-tab-ic { font-size: 1.2rem; flex: 0 0 auto; }
@@ -1524,20 +1523,17 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
   background: var(--card-bg);
   border: 2px solid var(--card-border);
   border-top: 0;
-  border-radius: 0 0 var(--r-lg) var(--r-lg);
+  border-radius: 0 var(--r-lg) var(--r-lg) var(--r-lg);
   padding: var(--s-5);
 }
 .folder-body::before {
   content: "";
   position: absolute;
-  top: -2px;
-  right: 0;
   left: calc(60% - 2px);
-  height: var(--r-lg);
-  border-top: 2px solid var(--card-border);
-  border-right: 2px solid var(--card-border);
-  border-top-right-radius: var(--r-lg);
-  box-sizing: border-box;
+  right: var(--r-lg);
+  top: 0;
+  height: 2px;
+  background: var(--card-border);
   pointer-events: none;
 }
 .folder-body .info-text:first-child { margin-top: 0; }
