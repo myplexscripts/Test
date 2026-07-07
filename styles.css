@@ -1499,14 +1499,12 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 
 .folder { margin-top: var(--s-6); }
 .folder-tab {
-  display: flex;
+  display: inline-flex;
   align-items: flex-end;
   gap: var(--s-2);
   width: 60%;
   box-sizing: border-box;
   background: var(--card-bg);
-  border: 2px solid var(--card-border);
-  border-bottom: 0;
   border-radius: var(--r-md) var(--r-md) 0 0;
   padding: var(--s-4) var(--s-4) var(--s-2);
   position: relative;
@@ -1521,19 +1519,19 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .folder-body {
   position: relative;
   background: var(--card-bg);
-  border: 2px solid var(--card-border);
-  border-top: 0;
   border-radius: 0 var(--r-lg) var(--r-lg) var(--r-lg);
   padding: var(--s-5);
 }
 .folder-body::before {
   content: "";
   position: absolute;
-  left: calc(60% - 2px);
-  right: var(--r-lg);
-  top: 0;
-  height: 2px;
-  background: var(--card-border);
+  bottom: 100%;
+  left: 60%;
+  width: var(--r-md);
+  height: var(--r-md);
+  background: var(--card-bg);
+  -webkit-mask: radial-gradient(circle at top right, transparent var(--r-md), #000 calc(var(--r-md) + 0.5px));
+  mask: radial-gradient(circle at top right, transparent var(--r-md), #000 calc(var(--r-md) + 0.5px));
   pointer-events: none;
 }
 .folder-body .info-text:first-child { margin-top: 0; }
