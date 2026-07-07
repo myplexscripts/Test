@@ -868,10 +868,33 @@ function selectActivities() {
     wind: windKmh(p.wind?.speed || 0),
     gust: windKmh(p.wind?.gust || p.wind?.speed || 0),
     snow: p.snow?.["1h"] || 0,
+    visibility: p.visibility ?? null,
+    dewC: p.dew != null ? toCelsius(p.dew) : null,
+    cape: p.cape ?? 0,
     isDay: daylight(p)
   }));
   const dayPool = pts.filter((p) => p.isDay);
   const evePool = pts.filter((p) => { const h = lh(p.dt); return h >= 17 && h <= 23; });
+  const nightPool = pts.filter((p) => { const h = lh(p.dt); return h >= 21 || h <= 4; });
+  const dawnPool = pts.filter((p) => sun.sunrise && p.dt >= sun.sunrise && p.dt - sun.sunrise <= 7200);
+  const goldenPool = pts.filter((p) => (sun.sunrise && Math.abs(p.dt - sun.sunrise) <= 3600) || (sun.sunset && Math.abs(p.dt - sun.sunset) <= 3600));
+  const twilightPool = pts.filter((p) => (sun.sunset && p.dt > sun.sunset && p.dt - sun.sunset <= 2700) || (sun.sunrise && p.dt < sun.sunrise && sun.sunrise - p.dt <= 2700));
+  const poolFor = (a) => {
+    if (a.pool === "night") return nightPool;
+    if (a.pool === "golden") return goldenPool;
+    if (a.pool === "twilight") return twilightPool;
+    if (a.pool === "dawn") return dawnPool;
+    if (a.pool === "eve" || a.nocturnal) return evePool;
+    return dayPool;
+  };
+  const labelFor = (a) => {
+    if (a.pool === "night") return "Overnight";
+    if (a.pool === "golden") return "Around golden hour";
+    if (a.pool === "twilight") return "Around twilight";
+    if (a.pool === "dawn") return "At dawn";
+    if (a.pool === "eve" || a.nocturnal) return "All evening";
+    return "Most of the day";
+  };
 
   const windowOf = (list, ok, fullLabel) => {
     if (!list.length) return null;
@@ -890,6 +913,8 @@ function selectActivities() {
 
   const daily = state.daily?.[0] || {};
   const depth = source[0]?.snowDepth;
+  const uvArr = state.data?.air?.hourly?.uv_index;
+  const uvMax = uvArr && uvArr.length ? Math.max(...uvArr.filter(Number.isFinite)) : (state.data?.air?.uv_index ?? 0);
   const ctx = {
     season: seasonOf(new Date((now + tz) * 1000).getUTCMonth(), lat),
     highC: daily.max != null ? toCelsius(daily.max) : (dayPool[0]?.tempC ?? pts[0]?.tempC ?? 15),
@@ -897,6 +922,11 @@ function selectActivities() {
     snowOnGround: depth != null && depth > 0.02,
     wetDay: dayPool.some((p) => p.precip > 0.2),
     rainStart: (pts.find((p) => p.precip > 0.2) || {}).dt || null,
+    uvMax,
+    aqi: state.data?.air?.us_aqi ?? null,
+    moonIllum: moonPhase().illum,
+    capeMax: pts.length ? Math.max(...pts.map((p) => p.cape || 0)) : 0,
+    gustMax: pts.length ? Math.max(...pts.map((p) => p.gust || 0)) : 0,
     fmtH
   };
 
@@ -908,7 +938,7 @@ function selectActivities() {
     let good, when;
     if (a.verdict) { const v = a.verdict(ctx); good = v.good; when = v.when; }
     else {
-      const w = windowOf(a.nocturnal ? evePool : dayPool, (p) => a.suits(p, ctx), a.nocturnal ? "All evening" : "Most of the day");
+      const w = windowOf(poolFor(a), (p) => a.suits(p, ctx), labelFor(a));
       good = !!w; when = w || a.bad || "Not today";
     }
     out.push({ icon: a.icon, label: a.label, explain: a.explain, good, when, score: rel + (good ? 1.5 : 0) });
