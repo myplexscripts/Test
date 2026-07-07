@@ -1499,8 +1499,19 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 
 .folder {
   margin-top: var(--s-6);
-  filter: drop-shadow(0 0 0.75px var(--card-border)) drop-shadow(0 0 0.75px var(--card-border));
+  position: relative;
+  display: grid;
 }
+.folder > * { grid-area: 1 / 1; }
+.folder-content { position: relative; z-index: 1; }
+.folder-content .folder-tab,
+.folder-content .folder-body { background: transparent; }
+.folder-content .folder-body::before { display: none; }
+.folder-shape { z-index: 0; filter: url(#fborder); pointer-events: none; }
+.folder-shape .folder-tab > *,
+.folder-shape .folder-body > * { visibility: hidden; }
+.svg-defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+#fborder feFlood { flood-color: var(--card-border); }
 .folder-tab {
   display: inline-flex;
   align-items: flex-end;

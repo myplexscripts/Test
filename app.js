@@ -1541,8 +1541,8 @@ function renderInfoSheet(kind) {
 }
 
 function section(title, body, card, icon) {
-  const tab = `<div class="folder-tab">${icon ? `<i class="ph ${icon} folder-tab-ic" aria-hidden="true"></i>` : ""}<span>${title}</span></div>`;
-  return `<div class="folder">${tab}<div class="folder-body">${body}</div></div>`;
+  const inner = `<div class="folder-tab">${icon ? `<i class="ph ${icon} folder-tab-ic" aria-hidden="true"></i>` : ""}<span>${title}</span></div><div class="folder-body">${body}</div>`;
+  return `<div class="folder"><div class="folder-content">${inner}</div><div class="folder-shape" aria-hidden="true">${inner}</div></div>`;
 }
 
 function scaleBar(pos, ends) {
