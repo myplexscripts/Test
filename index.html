@@ -64,6 +64,13 @@
           <button class="seg-item" data-units="imperial">°F</button>
         </div>
       </div>
+      <div class="seg-row">
+        <span>Animated icons</span>
+        <div class="segmented small" id="animSeg" role="group" aria-label="Animated weather icons">
+          <button class="seg-item is-active" data-anim="on">On</button>
+          <button class="seg-item" data-anim="off">Off</button>
+        </div>
+      </div>
     </div>
 
     <div class="drawer-group">
@@ -106,9 +113,17 @@
       <div class="col col-now">
 
     <section class="hero" aria-label="Current conditions">
-      <i class="hero-icon wx-icon" id="heroIcon" aria-hidden="true"></i>
+      <div class="hero-icon-wrap"><i class="hero-icon wx-icon" id="heroIcon" aria-hidden="true"></i></div>
+      <div class="hero-readout">
+        <h1 class="display is-loading" id="temp"><span class="temp-num" id="tempNum">--</span><span class="temp-deg">°</span></h1>
+        <p class="hero-feels">Feels like <strong id="heroFeels">--°</strong></p>
+        <p class="hero-hilo">
+          <span class="hilo-item"><i class="ph ph-arrow-down" aria-hidden="true"></i><span id="heroLo">--°</span></span>
+          <span class="hilo-item"><i class="ph ph-arrow-up" aria-hidden="true"></i><span id="heroHi">--°</span></span>
+        </p>
+      </div>
       <p class="condition" id="condition">Weather</p>
-      <h1 class="display is-loading" id="temp"><span class="temp-num" id="tempNum">--</span><span class="temp-deg">°</span></h1>
+      <p class="hero-when" id="heroWhen">--</p>
     </section>
 
     <section class="alerts" id="alerts" aria-label="Weather alerts" hidden></section>

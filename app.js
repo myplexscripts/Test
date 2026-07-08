@@ -29,9 +29,10 @@ const el = {
   ptr: $("ptr"), scrim: $("scrim"),
   drawer: $("drawer"), drawerClose: $("drawerClose"),
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
-  unitSeg: $("unitSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), stormBtn: $("stormBtn"), alertsInfoBtn: $("alertsInfoBtn"),
+  unitSeg: $("unitSeg"), animSeg: $("animSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), stormBtn: $("stormBtn"), alertsInfoBtn: $("alertsInfoBtn"),
   placeName: $("placeName"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), quickHits: $("quickHits"), alerts: $("alerts"),
+  heroFeels: $("heroFeels"), heroLo: $("heroLo"), heroHi: $("heroHi"), heroWhen: $("heroWhen"),
   alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
   hero: document.querySelector(".hero"),
   miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
@@ -63,6 +64,7 @@ const state = {
   placeName: "",
   dark: false,
   clock24: false,
+  animate: true,
   drawerOpen: false,
   sheetOpen: false,
   radarOpen: false
@@ -141,6 +143,17 @@ function wireEvents() {
   });
 
   el.themeGrid.querySelectorAll("[data-theme]").forEach((b) => b.onclick = () => setTheme(b.dataset.theme));
+
+  if (el.animSeg) el.animSeg.querySelectorAll("[data-anim]").forEach((b) => {
+    b.onclick = () => {
+      const on = b.dataset.anim === "on";
+      if ((state.animate !== false) === on) return;
+      state.animate = on;
+      syncControls();
+      saveState();
+      if (state.data) render(state.data);
+    };
+  });
 
   el.hourlyMore.onclick = () => openDetail("temp", "hourly");
   el.dailyMore.onclick = () => openDetail("temp", "daily");
@@ -525,12 +538,21 @@ function render(data) {
   el.condition.textContent = w.description || w.main || "Weather";
   el.tempNum.textContent = `${Math.round(m.temp ?? 0)}`;
   el.temp.classList.remove("is-loading");
+  if (el.heroFeels) el.heroFeels.textContent = `${Math.round(m.feels_like ?? m.temp ?? 0)}°`;
+  const dToday = state.daily?.[0];
+  if (el.heroLo) el.heroLo.textContent = dToday && dToday.min != null ? `${Math.round(dToday.min)}°` : "--";
+  if (el.heroHi) el.heroHi.textContent = dToday && dToday.max != null ? `${Math.round(dToday.max)}°` : "--";
+  if (el.heroWhen) {
+    const dNow = new Date((Math.floor(Date.now() / 1000) + tz) * 1000);
+    const moShort = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][dNow.getUTCMonth()];
+    el.heroWhen.textContent = `${moShort} ${dNow.getUTCDate()} · ${fmtClock(Math.floor(Date.now() / 1000), tz)}`;
+  }
   el.summary.textContent = buildSummary(current, state.daily, state.yesterday);
   renderQuickHits();
   renderAlerts(data.alerts, tz);
   if (el.alertsInfoBtn) el.alertsInfoBtn.hidden = !inCanada(state.loc?.lat, state.loc?.lon);
 
-  if (el.miniIcon) { el.miniIcon.className = "mini-ic wx-icon"; el.miniIcon.innerHTML = wxSVG(wxResolve(w, isNight), false); }
+  if (el.miniIcon) { el.miniIcon.className = "mini-ic wx-icon"; el.miniIcon.innerHTML = wxSVG(wxResolve(w, isNight), true); }
   if (el.miniPlace) el.miniPlace.textContent = el.placeName.textContent;
   if (el.miniCond) el.miniCond.textContent = w.description || w.main || "Weather";
   if (el.miniTemp) el.miniTemp.textContent = `${Math.round(m.temp ?? 0)}°`;
@@ -1578,13 +1600,13 @@ let wxUid = 0;
 function wxSVG(code, animated) {
   let svg = (typeof METEOCONS !== "undefined" && (METEOCONS[code] || METEOCONS["03d"])) || "";
   if (!svg) return "";
-  if (!animated) svg = svg.replace(/<animate[^>]*\/>/g, "");
+  if (!animated || state.animate === false) svg = svg.replace(/<animate[^>]*\/>/g, "");
   const uid = "w" + (wxUid++);
   svg = svg.replace(/\bid="([^"]+)"/g, (mm, v) => `id="${v}${uid}"`).replace(/url\(#([^)]+)\)/g, (mm, v) => `url(#${v}${uid})`);
   return svg;
 }
 function wxIcon(w, isNight, cls) {
-  return `<i class="wx-icon${cls ? " " + cls : ""}" aria-hidden="true">${wxSVG(wxResolve(w, isNight), false)}</i>`;
+  return `<i class="wx-icon${cls ? " " + cls : ""}" aria-hidden="true">${wxSVG(wxResolve(w, isNight), true)}</i>`;
 }
 
 function speedUnit() { return state.units === "imperial" ? "mph" : "km/h"; }
@@ -3532,7 +3554,7 @@ function fmtClock(dt, tz) {
 }
 
 function saveState() {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, clock24: state.clock24 })); } catch {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, clock24: state.clock24, animate: state.animate })); } catch {}
 }
 function loadActivityPlan() { try { return JSON.parse(localStorage.getItem(ACTIVITY_KEY) || "null"); } catch { return null; } }
 function saveActivityPlan(p) { try { localStorage.setItem(ACTIVITY_KEY, JSON.stringify(p)); } catch {} }
@@ -3544,6 +3566,7 @@ function loadState() {
       state.loc = s.loc || { ...HOME };
       state.theme = PALETTES[s.theme] ? s.theme : (THEME_REMAP[s.theme] || "lemon");
       state.clock24 = !!s.clock24;
+      state.animate = s.animate !== false;
     }
   } catch {}
 }
@@ -3558,6 +3581,9 @@ function syncControls() {
     b.classList.toggle("is-active", b.dataset.units === state.units));
   el.themeGrid.querySelectorAll("[data-theme]").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.theme === state.theme));
+  if (el.animSeg) el.animSeg.querySelectorAll("[data-anim]").forEach((b) =>
+    b.classList.toggle("is-active", (b.dataset.anim === "on") === (state.animate !== false)));
+  document.documentElement.setAttribute("data-anim", state.animate === false ? "off" : "on");
   markLoc(state.loc.label === HOME.label ? "home" : "loc");
 }
 
