@@ -32,7 +32,7 @@ const el = {
   unitSeg: $("unitSeg"), animSeg: $("animSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), stormBtn: $("stormBtn"), alertsInfoBtn: $("alertsInfoBtn"),
   placeName: $("placeName"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), quickHits: $("quickHits"), alerts: $("alerts"),
-  heroFeels: $("heroFeels"), heroLo: $("heroLo"), heroHi: $("heroHi"), heroWhen: $("heroWhen"),
+  heroLo: $("heroLo"), heroHi: $("heroHi"), heroWhen: $("heroWhen"),
   alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
   hero: document.querySelector(".hero"),
   miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
@@ -538,7 +538,6 @@ function render(data) {
   el.condition.textContent = w.description || w.main || "Weather";
   el.tempNum.textContent = `${Math.round(m.temp ?? 0)}`;
   el.temp.classList.remove("is-loading");
-  if (el.heroFeels) el.heroFeels.textContent = `${Math.round(m.feels_like ?? m.temp ?? 0)}°`;
   const dToday = state.daily?.[0];
   if (el.heroLo) el.heroLo.textContent = dToday && dToday.min != null ? `${Math.round(dToday.min)}°` : "--";
   if (el.heroHi) el.heroHi.textContent = dToday && dToday.max != null ? `${Math.round(dToday.max)}°` : "--";
