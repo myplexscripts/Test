@@ -243,9 +243,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
     grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
     grid-template-rows: auto auto auto auto 1fr;
     grid-template-areas:
-      "now trend"
       "now hourly"
       "now daily"
+      "now trend"
       "now radar"
       "now today";
     gap: var(--s-8);
@@ -287,8 +287,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
     grid-template-columns: minmax(280px, 350px) minmax(0, 1fr) minmax(250px, 320px);
     grid-template-rows: auto auto auto 1fr;
     grid-template-areas:
-      "now trend  daily"
       "now hourly daily"
+      "now trend  daily"
       "now radar  daily"
       "now today  daily";
     column-gap: var(--s-8);

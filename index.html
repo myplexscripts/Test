@@ -169,16 +169,6 @@
       </div>
     </template>
 
-    <section class="block b-trend" aria-label="Today's temperature and precipitation trend">
-      <button class="trend-card" id="trendCard" aria-label="Open hourly graph">
-        <div class="trend-legend">
-          <span class="tl-item"><span class="tl-line"></span>Temp (°)</span>
-          <span class="tl-item"><span class="tl-bar"></span>Rain (mm)</span>
-        </div>
-        <canvas id="trendGraph" role="img" aria-label="Temperature line and precipitation bars over the coming days"></canvas>
-      </button>
-    </section>
-
     <section class="block b-hourly" aria-label="Hourly forecast">
       <div class="block-head">
         <h2>Hourly</h2>
@@ -193,6 +183,16 @@
         <button class="arrow-btn" id="dailyMore" aria-label="Open daily graph"><svg class="arrow-ic" viewBox="-144 0 368 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" aria-hidden="true"><line x1="-136" y1="128" x2="216" y2="128"/><polyline points="144 56 216 128 144 200"/></svg></button>
       </div>
       <div class="rail" id="dayRail"></div>
+    </section>
+
+    <section class="block b-trend" aria-label="Today's temperature and precipitation trend">
+      <button class="trend-card" id="trendCard" aria-label="Open hourly graph">
+        <div class="trend-legend">
+          <span class="tl-item"><span class="tl-line"></span>Temp (°)</span>
+          <span class="tl-item"><span class="tl-bar"></span>Rain (mm)</span>
+        </div>
+        <canvas id="trendGraph" role="img" aria-label="Temperature line and precipitation bars over the coming days"></canvas>
+      </button>
     </section>
 
     <section class="block b-radar" aria-label="Radar">
