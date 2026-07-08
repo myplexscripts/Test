@@ -848,12 +848,16 @@ function seasonOf(month, lat) {
 function pickWeighted(list, n) {
   const pool = list.slice();
   const picked = [];
+  // Weight by score^2 so a clearly stronger fit is picked far more often than a
+  // marginal one; near-equal options still shuffle, which is what keeps the
+  // refresh button useful without ever surfacing a weak suggestion.
+  const wt = (o) => { const s = Math.max(o.score, 0.01); return s * s; };
   while (pool.length && picked.length < n) {
-    const total = pool.reduce((s, o) => s + Math.max(o.score, 0.01), 0);
+    const total = pool.reduce((s, o) => s + wt(o), 0);
     let r = Math.random() * total;
     let idx = pool.length - 1;
     for (let i = 0; i < pool.length; i++) {
-      r -= Math.max(pool[i].score, 0.01);
+      r -= wt(pool[i]);
       if (r <= 0) { idx = i; break; }
     }
     picked.push(pool[idx]);
@@ -918,11 +922,11 @@ function selectActivities(force) {
   };
   const labelFor = (a) => {
     if (a.pool === "night") return "Overnight";
-    if (a.pool === "golden") return "Around golden hour";
-    if (a.pool === "twilight") return "Around twilight";
+    if (a.pool === "golden") return "Golden hour";
+    if (a.pool === "twilight") return "Twilight";
     if (a.pool === "dawn") return "At dawn";
     if (a.pool === "eve" || a.nocturnal) return "All evening";
-    return "Most of the day";
+    return "All day";
   };
 
   const windowOf = (list, ok, fullLabel) => {
@@ -956,30 +960,74 @@ function selectActivities(force) {
     moonIllum: moonPhase().illum,
     capeMax: pts.length ? Math.max(...pts.map((p) => p.cape || 0)) : 0,
     gustMax: pts.length ? Math.max(...pts.map((p) => p.gust || 0)) : 0,
+    // band(v, lo, idealLo, idealHi, hi): 1 inside the ideal range, ramping to 0
+    // at the outer edges — lets an activity say how *pleasant* a value is, not
+    // just whether it passes a threshold.
+    band: bandScore,
     fmtH
   };
 
   const out = [];
   for (const a of catalog) {
     if (a.seasons && !a.seasons.includes(ctx.season)) continue;
-    const rel = a.relevance(ctx);
-    if (rel <= 0) continue;
-    let good, when;
-    if (a.verdict) { const v = a.verdict(ctx); good = v.good; when = v.when; }
-    else {
-      const w = windowOf(poolFor(a), (p) => a.suits(p, ctx), labelFor(a));
+    const appeal = a.relevance(ctx);
+    if (appeal <= 0) continue;
+    let good, when, quality;
+    if (a.verdict) {
+      const v = a.verdict(ctx);
+      good = v.good; when = v.when;
+      quality = v.quality != null ? v.quality : (good ? 0.7 : 0);
+    } else {
+      const pool = poolFor(a);
+      const test = (p) => a.suits(p, ctx);
+      const w = windowOf(pool, test, labelFor(a));
       good = !!w; when = w || a.bad || "Not today";
+      quality = good ? windowQuality(pool, test, a.comfort, ctx) : 0;
     }
-    out.push({ icon: a.icon, label: a.label, explain: a.explain, good, when, score: rel + (good ? 1.5 : 0) });
+    // score blends how much you'd want to do it (appeal) with how good today
+    // actually is for it (quality). A great-fit day multiplies appeal up; a
+    // marginal one barely clears. Not-good options keep a small score so they
+    // can still fill the list on a washout day.
+    const score = good ? appeal * (0.5 + 1.1 * quality) : appeal * 0.12;
+    out.push({ icon: a.icon, label: a.label, explain: a.explain, good, when, quality, score });
   }
-  const goodList = out.filter((o) => o.good).sort((x, y) => y.score - x.score);
-  const badList = out.filter((o) => !o.good).sort((x, y) => y.score - x.score);
-  const top = pickWeighted(goodList, 4);
-  if (top.length < 4) top.push(...badList.slice(0, 4 - top.length));
+  const goods = out.filter((o) => o.good).sort((x, y) => y.score - x.score);
+  const bads = out.filter((o) => !o.good).sort((x, y) => y.score - x.score);
+  // Reliability: only ever sample from options genuinely close to the best fit,
+  // so a standout day surfaces standout activities rather than a lucky filler.
+  const best = goods.length ? goods[0].score : 0;
+  const strong = goods.filter((o) => o.score >= best * 0.55);
+  const top = pickWeighted(strong, 4);
+  if (top.length < 4) top.push(...goods.filter((o) => !top.includes(o)).slice(0, 4 - top.length));
+  if (top.length < 4) top.push(...bads.slice(0, 4 - top.length));
   state.activityAt = now;
   state.activities = top;
   saveActivityPlan({ key: planKey, at: now, list: top });
   return top;
+}
+
+// 1 when v sits in [idealLo, idealHi], sloping linearly to 0 at lo and hi, and
+// 0 beyond. A trapezoid so activities can grade comfort instead of hard cutoffs.
+function bandScore(v, lo, idealLo, idealHi, hi) {
+  if (v == null) return 0.5;
+  if (v <= lo || v >= hi) return 0;
+  if (v >= idealLo && v <= idealHi) return 1;
+  return v < idealLo ? (v - lo) / (idealLo - lo) : (hi - v) / (hi - idealHi);
+}
+
+// Quality of the best window for an activity: how much of its relevant hours
+// are suitable (coverage) blended with how pleasant those hours are (comfort).
+function windowQuality(pool, test, comfort, ctx) {
+  if (!pool.length) return 0.5;
+  const ok = pool.filter(test);
+  if (!ok.length) return 0;
+  const coverage = Math.min(1, ok.length / pool.length * 1.4);
+  let feel = 0.6;
+  if (comfort) {
+    const vals = ok.map((p) => Math.max(0, Math.min(1, comfort(p, ctx))));
+    feel = vals.reduce((a, b) => a + b, 0) / vals.length;
+  }
+  return 0.35 * coverage + 0.65 * feel;
 }
 
 function insightTileHTML(icon, label, value, sub) {
