@@ -2,20 +2,25 @@
 // how to judge it against a forecast:
 //   relevance(ctx) -> base appeal for the day (return 0 to rule it out entirely,
 //                     e.g. wrong season or nowhere near warm enough).
-//   suits(p, ctx)  -> is a single forecast hour workable? Used to find the best
-//                     window of the day and whether it's a "good" day at all.
-//   comfort(p, ctx) -> optional 0..1 grade of how *pleasant* a workable hour is,
+//   suits(p, ctx)  -> is a single forecast hour feasible at all? A hard gate.
+//   comfort(p, ctx) -> optional 0..1 grade of how *pleasant* a feasible hour is,
 //                      so a glorious day outranks a merely-passable one. Uses
 //                      ctx.band(value, lo, idealLo, idealHi, hi).
 //   verdict(ctx)   -> for activities judged on the day as a whole rather than an
 //                     hourly window; returns { good, when, quality? }.
-// The library is deliberately kept to things worth suggesting — safety callouts
-// (heat, cold, UV, storms, wind) live in the Quick Hits tiles instead.
+// Granular per-hour modifiers are opt-in flags, applied centrally so each
+// activity stays declarative:
+//   (rain sensitivity is ON by default; rainOk:true exempts snow/fog activities)
+//   sweaty:true -> penalised by a high dew point (muggy, sticky air)
+//   gusty:true  -> penalised when gusts run well above the steady wind
+//   sun:true    -> nudged away from peak-UV hours toward the gentler ends of day
+// Safety callouts (heat, cold, UV, storms, wind) live in the Quick Hits tiles.
 window.WEATHER_ACTIVITIES = [
   {
     id: "walk",
     label: "A run or walk",
     icon: "ph-person-simple-run",
+    sweaty: true, sun: true,
     relevance: () => 2.0,
     suits: (p) => p.precip < 0.1 && p.feelsC >= 2 && p.feelsC <= 27,
     comfort: (p, c) => c.band(p.feelsC, 2, 11, 21, 27) * (1 - 0.25 * (p.wind / 40)),
@@ -27,6 +32,7 @@ window.WEATHER_ACTIVITIES = [
     label: "A bike ride",
     icon: "ph-bicycle",
     seasons: ["spring", "summer", "fall"],
+    sweaty: true, sun: true, gusty: true,
     relevance: (c) => (c.highC >= 6 && c.highC <= 33 ? 1.8 : 0),
     suits: (p) => p.precip < 0.1 && p.tempC >= 4 && p.tempC <= 33 && p.wind < 35,
     comfort: (p, c) => c.band(p.feelsC, 3, 13, 24, 32) * (1 - 0.4 * (p.wind / 35)),
@@ -37,6 +43,7 @@ window.WEATHER_ACTIVITIES = [
     id: "hike",
     label: "A hike",
     icon: "ph-mountains",
+    sweaty: true, sun: true,
     relevance: (c) => (c.highC >= 2 && c.highC <= 30 ? 1.7 : 0.4),
     suits: (p) => p.precip < 0.1 && p.feelsC >= 0 && p.feelsC <= 30,
     comfort: (p, c) => c.band(p.feelsC, 0, 8, 20, 28),
@@ -47,6 +54,7 @@ window.WEATHER_ACTIVITIES = [
     id: "water",
     label: "A day by the water",
     icon: "ph-waves",
+    sun: true,
     relevance: (c) => (c.highC >= 22 ? 2.2 : 0),
     suits: (p) => p.precip < 0.1 && p.tempC >= 23 && p.cloud < 70,
     comfort: (p, c) => c.band(p.tempC, 23, 28, 34, 40) * c.band(100 - p.cloud, 25, 55, 100, 100),
@@ -57,6 +65,7 @@ window.WEATHER_ACTIVITIES = [
     id: "bbq",
     label: "A backyard BBQ",
     icon: "ph-hamburger",
+    gusty: true,
     relevance: (c) => (c.highC >= 16 && c.highC <= 36 ? 1.9 : 0),
     suits: (p) => p.precip < 0.1 && p.tempC >= 15 && p.wind < 30,
     comfort: (p, c) => c.band(p.tempC, 15, 21, 30, 36) * (1 - 0.3 * (p.wind / 30)),
@@ -68,6 +77,7 @@ window.WEATHER_ACTIVITIES = [
     label: "A picnic",
     icon: "ph-basket",
     seasons: ["spring", "summer", "fall"],
+    sun: true, gusty: true,
     relevance: (c) => (c.highC >= 16 && c.highC <= 32 ? 1.6 : 0),
     suits: (p) => p.precip < 0.05 && p.tempC >= 15 && p.tempC <= 33 && p.wind < 28,
     comfort: (p, c) => c.band(p.tempC, 15, 19, 28, 33) * c.band(100 - p.cloud, 15, 45, 100, 100) * (1 - 0.3 * (p.wind / 28)),
@@ -78,7 +88,7 @@ window.WEATHER_ACTIVITIES = [
     id: "campfire",
     label: "A backyard campfire",
     icon: "ph-campfire",
-    nocturnal: true,
+    nocturnal: true, gusty: true,
     relevance: (c) => (!c.wetDay && c.lowC >= -2 && c.lowC <= 20 ? 1.7 : 0.3),
     suits: (p) => p.precip < 0.05 && p.wind < 18 && p.tempC <= 20,
     comfort: (p, c) => c.band(p.tempC, -2, 4, 15, 20) * (1 - 0.4 * (p.wind / 18)),
@@ -90,6 +100,7 @@ window.WEATHER_ACTIVITIES = [
     label: "Gardening",
     icon: "ph-flower",
     seasons: ["spring", "summer", "fall"],
+    sweaty: true, sun: true,
     relevance: (c) => (c.highC >= 6 && c.highC <= 30 ? 1.6 : 0),
     suits: (p) => p.precip < 0.1 && p.tempC >= 5 && p.tempC <= 30,
     comfort: (p, c) => c.band(p.tempC, 5, 12, 24, 30),
@@ -101,6 +112,7 @@ window.WEATHER_ACTIVITIES = [
     label: "Mow the lawn",
     icon: "ph-plant",
     seasons: ["spring", "summer", "fall"],
+    sweaty: true, sun: true,
     relevance: (c) => (c.highC >= 8 && c.highC <= 32 ? 1.4 : 0),
     suits: (p) => p.precip < 0.1 && p.tempC >= 7 && p.tempC <= 32,
     comfort: (p, c) => c.band(p.tempC, 7, 12, 26, 32),
@@ -123,7 +135,9 @@ window.WEATHER_ACTIVITIES = [
     label: "Wash the car",
     icon: "ph-car-profile",
     relevance: () => 1.2,
-    verdict: (c) => (c.rainStart ? { good: false, when: `Rain by ${c.fmtH(c.rainStart)}` } : { good: true, when: "Dry all day", quality: 0.8 }),
+    verdict: (c) => (c.rainStart ? { good: false, when: `Rain by ${c.fmtH(c.rainStart)}` }
+      : c.rainRisk >= 0.5 ? { good: false, when: "Rain likely", quality: 0 }
+        : { good: true, when: "Dry all day", quality: 0.8 }),
     explain: "Only worth it if the forecast stays dry long enough for it to last."
   },
   {
@@ -142,6 +156,7 @@ window.WEATHER_ACTIVITIES = [
     id: "teamsports",
     label: "Pickup team sports",
     icon: "ph-soccer-ball",
+    sweaty: true, sun: true, gusty: true,
     relevance: (c) => (c.highC >= 8 && c.highC <= 30 ? 1.4 : 0),
     suits: (p) => p.precip < 0.05 && p.tempC >= 7 && p.tempC <= 30 && p.wind < 30,
     comfort: (p, c) => c.band(p.feelsC, 7, 12, 22, 28) * (1 - 0.25 * (p.wind / 30)),
@@ -152,6 +167,7 @@ window.WEATHER_ACTIVITIES = [
     id: "yoga",
     label: "Outdoor yoga or tai chi",
     icon: "ph-person-simple-tai-chi",
+    sun: true, gusty: true,
     relevance: (c) => (c.highC >= 12 && c.highC <= 30 ? 1.1 : 0),
     suits: (p) => p.precip < 0.05 && p.tempC >= 10 && p.tempC <= 30 && p.wind < 15,
     comfort: (p, c) => c.band(p.feelsC, 10, 16, 25, 30) * (1 - 0.5 * (p.wind / 15)),
@@ -163,6 +179,7 @@ window.WEATHER_ACTIVITIES = [
     label: "Kayaking or paddleboarding",
     icon: "ph-boat",
     seasons: ["spring", "summer", "fall"],
+    sweaty: true, sun: true, gusty: true,
     relevance: (c) => (c.highC >= 14 ? 1.4 : 0),
     suits: (p) => p.wind < 20 && p.precip < 0.1 && p.tempC >= 14,
     comfort: (p, c) => c.band(p.tempC, 14, 20, 30, 38) * (1 - 0.5 * (p.wind / 20)),
@@ -174,6 +191,7 @@ window.WEATHER_ACTIVITIES = [
     label: "Sailing or windsurfing",
     icon: "ph-sailboat",
     seasons: ["spring", "summer", "fall"],
+    gusty: true,
     relevance: (c) => (c.highC >= 10 ? 1.3 : 0),
     suits: (p) => p.wind >= 12 && p.wind <= 38 && p.precip < 0.1,
     comfort: (p, c) => c.band(p.wind, 12, 18, 30, 38),
@@ -184,6 +202,7 @@ window.WEATHER_ACTIVITIES = [
     id: "kite",
     label: "Fly a kite",
     icon: "ph-paper-plane-tilt",
+    gusty: true,
     relevance: (c) => (c.highC >= 5 ? 1.1 : 0),
     suits: (p) => p.wind >= 10 && p.wind <= 32 && p.precip < 0.1,
     comfort: (p, c) => c.band(p.wind, 10, 16, 26, 32),
@@ -196,6 +215,7 @@ window.WEATHER_ACTIVITIES = [
     id: "dogwalk",
     label: "Walk the dog",
     icon: "ph-dog",
+    sun: true,
     relevance: () => 1.6,
     suits: (p) => p.precip < 0.2 && p.tempC > -12 && p.tempC < 26,
     comfort: (p, c) => c.band(p.tempC, -8, 4, 19, 24),
@@ -206,6 +226,7 @@ window.WEATHER_ACTIVITIES = [
     id: "playground",
     label: "Playground time",
     icon: "ph-puzzle-piece",
+    sun: true,
     relevance: (c) => (c.highC >= 10 && c.highC <= 32 ? 1.3 : 0),
     suits: (p) => p.precip < 0.05 && p.tempC >= 8 && p.tempC <= 32 && p.wind < 30,
     comfort: (p, c) => c.band(p.feelsC, 9, 14, 26, 32),
@@ -217,6 +238,7 @@ window.WEATHER_ACTIVITIES = [
     label: "Sprinkler or splash pad",
     icon: "ph-drop",
     seasons: ["summer"],
+    sun: true,
     relevance: (c) => (c.highC >= 26 ? 1.6 : 0),
     suits: (p) => p.tempC >= 26 && p.precip < 0.1,
     comfort: (p, c) => c.band(p.tempC, 26, 30, 38, 44),
@@ -230,6 +252,7 @@ window.WEATHER_ACTIVITIES = [
     label: "Fall foliage viewing",
     icon: "ph-tree",
     seasons: ["fall"],
+    gusty: true,
     relevance: (c) => (c.lowC <= 12 ? 1.6 : 0.6),
     suits: (p) => p.precip < 0.1 && p.wind < 25,
     comfort: (p, c) => c.band(100 - p.cloud, 15, 45, 100, 100) * (1 - 0.4 * (p.wind / 25)),
@@ -252,6 +275,7 @@ window.WEATHER_ACTIVITIES = [
     label: "Butterfly watching",
     icon: "ph-butterfly",
     seasons: ["spring", "summer"],
+    sun: true,
     relevance: (c) => (c.highC >= 16 ? 1.0 : 0),
     suits: (p) => p.tempC >= 13 && p.wind < 15 && p.precip < 0.05 && p.cloud < 55,
     comfort: (p, c) => c.band(p.tempC, 13, 19, 28, 34) * c.band(100 - p.cloud, 20, 55, 100, 100),
@@ -297,6 +321,7 @@ window.WEATHER_ACTIVITIES = [
     id: "fog",
     label: "Foggy morning walk",
     icon: "ph-cloud-fog",
+    rainOk: true,
     relevance: () => 0.8,
     suits: (p) => p.visibility != null && p.visibility < 1000,
     bad: "No fog expected",
@@ -308,6 +333,7 @@ window.WEATHER_ACTIVITIES = [
     id: "snowplay",
     label: "Sledding or skiing",
     icon: "ph-person-simple-ski",
+    rainOk: true,
     relevance: (c) => (c.snowOnGround ? 2.2 : 0),
     suits: (p) => p.tempC <= 2,
     comfort: (p, c) => c.band(p.tempC, -16, -7, 0, 2),
@@ -318,6 +344,7 @@ window.WEATHER_ACTIVITIES = [
     id: "snowman",
     label: "Build a snowman",
     icon: "ph-snowflake",
+    rainOk: true,
     relevance: (c) => (c.snowOnGround && c.lowC <= 1 ? 1.9 : 0),
     suits: (p) => p.tempC >= -6 && p.tempC <= 1,
     comfort: (p, c) => c.band(p.tempC, -6, -3, 0, 1),
@@ -329,6 +356,7 @@ window.WEATHER_ACTIVITIES = [
     label: "Pond ice skating",
     icon: "ph-footprints",
     seasons: ["winter"],
+    rainOk: true,
     relevance: (c) => (c.lowC <= -6 ? 1.4 : 0),
     suits: (p) => p.tempC <= -5,
     comfort: (p, c) => c.band(p.tempC, -20, -12, -6, -5),
@@ -340,6 +368,7 @@ window.WEATHER_ACTIVITIES = [
     label: "Clear the driveway",
     icon: "ph-shovel",
     seasons: ["winter"],
+    rainOk: true,
     relevance: (c) => (c.snowOnGround ? 1.4 : 0),
     suits: (p) => p.snow <= 0.1 && p.tempC <= 2,
     bad: "Still snowing",
@@ -350,6 +379,7 @@ window.WEATHER_ACTIVITIES = [
     label: "Rake the leaves",
     icon: "ph-leaf",
     seasons: ["fall"],
+    gusty: true,
     relevance: (c) => (c.highC >= 2 && c.highC <= 20 ? 1.1 : 0),
     suits: (p) => p.precip < 0.05 && p.wind < 20,
     comfort: (p, c) => c.band(p.tempC, 2, 8, 18, 24) * (1 - 0.4 * (p.wind / 20)),
@@ -361,6 +391,7 @@ window.WEATHER_ACTIVITIES = [
     label: "Frosty morning photography",
     icon: "ph-snowflake",
     seasons: ["fall", "winter", "spring"],
+    rainOk: true,
     relevance: (c) => (c.lowC <= 0 ? 0.9 : 0),
     suits: (p) => p.tempC <= 0,
     comfort: (p, c) => c.band(100 - p.cloud, 20, 50, 100, 100),
@@ -372,6 +403,7 @@ window.WEATHER_ACTIVITIES = [
     label: "Snowfall photography",
     icon: "ph-camera",
     seasons: ["winter"],
+    rainOk: true,
     relevance: () => 1.0,
     suits: (p) => p.snow > 0.1 && p.wind < 20,
     comfort: (p) => 1 - 0.5 * (p.wind / 20),
@@ -384,6 +416,7 @@ window.WEATHER_ACTIVITIES = [
     id: "drone",
     label: "Drone flying",
     icon: "ph-drone",
+    gusty: true,
     relevance: () => 1.0,
     suits: (p) => p.wind < 29 && p.precip < 0.05 && p.visibility != null && p.visibility >= 3000,
     comfort: (p) => (1 - 0.5 * (p.wind / 29)) * (p.cloud < 80 ? 1 : 0.7),

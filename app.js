@@ -891,18 +891,30 @@ function selectActivities(force) {
     return state.activities;
   }
 
+  // Per-hour UV, aligned by local hour of day (the air feed returns today's 24
+  // hourly values starting at local midnight). Falls back to null when absent.
+  const uvHourly = state.data?.air?.hourly?.uv_index;
+  const uvAt = (dt) => {
+    if (!uvHourly || !uvHourly.length) return null;
+    const h = lh(dt);
+    const v = uvHourly[h];
+    return Number.isFinite(v) ? v : null;
+  };
+
   const pts = source.map((p) => ({
     dt: p.dt,
     tempC: toCelsius(p.main?.temp ?? p.main?.feels_like ?? 0),
     feelsC: toCelsius(p.main?.feels_like ?? p.main?.temp ?? 0),
     humidity: p.main?.humidity ?? 60,
     precip: p.precip || 0,
+    pop: p.pop ?? 0,
     cloud: p.clouds?.all ?? 50,
     wind: windKmh(p.wind?.speed || 0),
     gust: windKmh(p.wind?.gust || p.wind?.speed || 0),
     snow: p.snow?.["1h"] || 0,
     visibility: p.visibility ?? null,
     dewC: p.dew != null ? toCelsius(p.dew) : null,
+    uv: uvAt(p.dt),
     cape: p.cape ?? 0,
     isDay: daylight(p)
   }));
@@ -929,21 +941,6 @@ function selectActivities(force) {
     return "All day";
   };
 
-  const windowOf = (list, ok, fullLabel) => {
-    if (!list.length) return null;
-    const g = list.map((p) => (ok(p) ? 1 : 0));
-    for (let i = 1; i < g.length - 1; i++) if (!g[i] && g[i - 1] && g[i + 1]) g[i] = 1;
-    let bestS = -1, bestLen = 0, s = -1;
-    for (let i = 0; i <= g.length; i++) {
-      if (i < g.length && g[i]) { if (s < 0) s = i; }
-      else { if (s >= 0 && i - s > bestLen) { bestLen = i - s; bestS = s; } s = -1; }
-    }
-    if (bestS < 0) return null;
-    const e = bestS + bestLen - 1;
-    if (bestLen >= list.length - 1) return fullLabel;
-    return bestS === e ? `Around ${fmtH(list[bestS].dt)}` : `${fmtH(list[bestS].dt)} to ${fmtH(list[e].dt)}`;
-  };
-
   const daily = state.daily?.[0] || {};
   const depth = source[0]?.snowDepth;
   const uvArr = state.data?.air?.hourly?.uv_index;
@@ -955,6 +952,7 @@ function selectActivities(force) {
     snowOnGround: depth != null && depth > 0.02,
     wetDay: dayPool.some((p) => p.precip > 0.2),
     rainStart: (pts.find((p) => p.precip > 0.2) || {}).dt || null,
+    rainRisk: dayPool.length ? Math.max(...dayPool.map((p) => p.pop || 0)) : 0,
     uvMax,
     aqi: state.data?.air?.us_aqi ?? null,
     moonIllum: moonPhase().illum,
@@ -979,10 +977,9 @@ function selectActivities(force) {
       quality = v.quality != null ? v.quality : (good ? 0.7 : 0);
     } else {
       const pool = poolFor(a);
-      const test = (p) => a.suits(p, ctx);
-      const w = windowOf(pool, test, labelFor(a));
-      good = !!w; when = w || a.bad || "Not today";
-      quality = good ? windowQuality(pool, test, a.comfort, ctx) : 0;
+      const w = fitWindow(pool, (p) => hourFit(a, p, ctx), labelFor(a), fmtH);
+      good = !!w; when = w ? w.when : (a.bad || "Not today");
+      quality = w ? w.quality : 0;
     }
     // score blends how much you'd want to do it (appeal) with how good today
     // actually is for it (quality). A great-fit day multiplies appeal up; a
@@ -1015,19 +1012,75 @@ function bandScore(v, lo, idealLo, idealHi, hi) {
   return v < idealLo ? (v - lo) / (idealLo - lo) : (hi - v) / (hi - idealHi);
 }
 
-// Quality of the best window for an activity: how much of its relevant hours
-// are suitable (coverage) blended with how pleasant those hours are (comfort).
-function windowQuality(pool, test, comfort, ctx) {
-  if (!pool.length) return 0.5;
-  const ok = pool.filter(test);
-  if (!ok.length) return 0;
-  const coverage = Math.min(1, ok.length / pool.length * 1.4);
-  let feel = 0.6;
-  if (comfort) {
-    const vals = ok.map((p) => Math.max(0, Math.min(1, comfort(p, ctx))));
-    feel = vals.reduce((a, b) => a + b, 0) / vals.length;
+function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
+
+// --- Granular per-hour modifiers, all driven by data we already fetch ---------
+// Each returns a 0..1 multiplier on an hour's fit, so conditions bend the
+// suggestion smoothly instead of flipping a switch.
+
+// Chance of rain: a bone-dry hour is still a gamble if it's likely to rain.
+// pop is 0..1 — full confidence to ~15%, sliding to a fifth by ~70%.
+function rainConfidence(pop) {
+  if (pop == null) return 1;
+  return 1 - 0.85 * clamp01((pop - 0.15) / 0.55);
+}
+// Mugginess: dew point is the honest "sticky" signal (more than humidity %).
+// Comfortable to ~15°C, oppressive by the mid-20s. Only bites sweaty activities.
+function muggyFactor(dewC) {
+  if (dewC == null) return 1;
+  return 1 - 0.55 * clamp01((dewC - 15) / 9);
+}
+// Gustiness: gusts well above the steady wind are unpleasant or unsafe beyond
+// what the average wind implies.
+function gustFactor(wind, gust) {
+  if (gust == null) return 1;
+  return 1 - 0.5 * clamp01((gust - wind - 15) / 25);
+}
+// Strong sun: nudges sun-exposed activities away from the peak-UV hours toward
+// the gentler ends of the day rather than banning them.
+function uvFactor(uv) {
+  if (uv == null) return 1;
+  return 1 - 0.045 * Math.max(0, uv - 6);
+}
+
+// How good a single forecast hour is for an activity, 0..1: its comfort grade,
+// then trimmed by the granular modifiers the activity opts into via flags.
+function hourFit(a, p, ctx) {
+  if (!a.suits(p, ctx)) return 0;
+  let f = a.comfort ? clamp01(a.comfort(p, ctx)) : 0.7;
+  if (!a.rainOk) f *= rainConfidence(p.pop);
+  if (a.sweaty) f *= muggyFactor(p.dewC);
+  if (a.gusty) f *= gustFactor(p.wind, p.gust);
+  if (a.sun) f *= uvFactor(p.uv);
+  return clamp01(f);
+}
+
+// Best contiguous stretch where the hourly fit clears a usable bar (bridging a
+// single dip). Returns a label plus a graded quality blended from how much of
+// the day works (coverage), how good it is on average (mean) and at its best
+// (peak) — a smooth read rather than a yes/no.
+function fitWindow(pool, fitFn, fullLabel, fmtH) {
+  if (!pool.length) return null;
+  const f = pool.map(fitFn);
+  const GOOD = 0.4;
+  const g = f.map((v) => (v >= GOOD ? 1 : 0));
+  for (let i = 1; i < g.length - 1; i++) if (!g[i] && g[i - 1] && g[i + 1]) g[i] = 1;
+  let bestS = -1, bestLen = 0, s = -1;
+  for (let i = 0; i <= g.length; i++) {
+    if (i < g.length && g[i]) { if (s < 0) s = i; }
+    else { if (s >= 0 && i - s > bestLen) { bestLen = i - s; bestS = s; } s = -1; }
   }
-  return 0.35 * coverage + 0.65 * feel;
+  if (bestS < 0) return null;
+  const e = bestS + bestLen - 1;
+  const seg = f.slice(bestS, e + 1);
+  const meanFit = seg.reduce((a, b) => a + b, 0) / seg.length;
+  const peakFit = Math.max(...f);
+  const coverage = Math.min(1, g.reduce((a, b) => a + b, 0) / pool.length * 1.4);
+  const quality = clamp01(0.25 * coverage + 0.45 * meanFit + 0.30 * peakFit);
+  const when = bestLen >= pool.length - 1 ? fullLabel
+    : bestS === e ? `Around ${fmtH(pool[bestS].dt)}`
+      : `${fmtH(pool[bestS].dt)} to ${fmtH(pool[e].dt)}`;
+  return { when, quality };
 }
 
 function insightTileHTML(icon, label, value, sub) {
