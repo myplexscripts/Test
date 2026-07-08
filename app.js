@@ -194,14 +194,15 @@ async function refresh(force) {
   setBusy(true);
   if (force) setStatus("Refreshing…");
   try {
-    const [omj, place, air, alerts] = await Promise.all([
+    const [omj, place, air, alerts, yesterday] = await Promise.all([
       fetchOpenMeteo(state.loc.lat, state.loc.lon, state.units),
       fetchPlaceName(state.loc.lat, state.loc.lon).catch(() => null),
       fetchAir(state.loc.lat, state.loc.lon).catch(() => null),
-      fetchAlerts(state.loc.lat, state.loc.lon).catch(() => null)
+      fetchAlerts(state.loc.lat, state.loc.lon).catch(() => null),
+      fetchYesterday(state.loc.lat, state.loc.lon, state.units).catch(() => null)
     ]);
     const { current, forecast, points, minutely } = adaptOpenMeteo(omj, place, state.loc.lat, state.loc.lon);
-    const data = { current, forecast, air, hourly: points, minutely, alerts };
+    const data = { current, forecast, air, hourly: points, minutely, alerts, yesterday };
     state.data = data;
     saveCache(data);
     render(data);
@@ -318,6 +319,16 @@ async function fetchOpenMeteo(lat, lon, units) {
   const current = "temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation,rain,showers,snowfall,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,cape,freezing_level_height";
   const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&current=${current}&hourly=${hourly}&minutely_15=precipitation&daily=sunrise,sunset&temperature_unit=${tu}&wind_speed_unit=${wu}&timeformat=unixtime&timezone=auto&forecast_days=7`;
   return fetchJSON(url);
+}
+
+async function fetchYesterday(lat, lon, units) {
+  const tu = units === "imperial" ? "fahrenheit" : "celsius";
+  const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&daily=temperature_2m_max,temperature_2m_min&past_days=1&forecast_days=1&temperature_unit=${tu}&timezone=auto`;
+  const j = await fetchJSON(url);
+  const D = j.daily || {};
+  const max = D.temperature_2m_max?.[0], min = D.temperature_2m_min?.[0];
+  if (max == null || min == null) return null;
+  return { max, min };
 }
 
 async function fetchPlaceName(lat, lon) {
@@ -503,6 +514,7 @@ function render(data) {
 
   state.hourly = hourlyPoints();
   state.daily = buildDaily(forecast, tz);
+  state.yesterday = data.yesterday || null;
   state.center = { lat: current.coord?.lat ?? state.loc.lat, lon: current.coord?.lon ?? state.loc.lon };
   state.tz = tz;
   state.placeName = current.name || state.loc.label;
@@ -513,7 +525,7 @@ function render(data) {
   el.condition.textContent = w.description || w.main || "Weather";
   el.tempNum.textContent = `${Math.round(m.temp ?? 0)}`;
   el.temp.classList.remove("is-loading");
-  el.summary.textContent = buildSummary(current, state.daily);
+  el.summary.textContent = buildSummary(current, state.daily, state.yesterday);
   renderQuickHits();
   renderAlerts(data.alerts, tz);
   if (el.alertsInfoBtn) el.alertsInfoBtn.hidden = !inCanada(state.loc?.lat, state.loc?.lon);
@@ -1224,9 +1236,10 @@ function buildDaily(forecast, tz) {
   });
 }
 
-function buildSummary(current, daily) {
+function buildSummary(current, daily, yesterday) {
   const tz = state.tz || current.timezone || 0;
   const today = daily && daily[0];
+  const tomorrow = daily && daily[1];
   const hrs = restOfToday(tz);
   const parts = [];
   const lead = dayLead(current, hrs, today);
@@ -1234,8 +1247,25 @@ function buildSummary(current, daily) {
   else parts.push(`${lead}.`);
   const precip = precipOutlook(hrs, today, tz);
   if (precip) parts.push(precip);
+  const compare = compareOutlook(today, yesterday, tomorrow);
+  if (compare) parts.push(compare);
   for (const note of summaryNotes(current, hrs)) parts.push(note);
   return parts.join(" ");
+}
+
+function tempCompareClause(diff, label) {
+  const d = Math.round(diff);
+  if (d === 0) return `about the same as ${label}`;
+  return `${Math.abs(d)}° ${d > 0 ? "warmer" : "cooler"} than ${label}`;
+}
+
+function compareOutlook(today, yesterday, tomorrow) {
+  if (!today || today.max == null) return null;
+  const clauses = [];
+  if (yesterday && yesterday.max != null) clauses.push(tempCompareClause(today.max - yesterday.max, "yesterday"));
+  if (tomorrow && tomorrow.max != null) clauses.push(tempCompareClause(today.max - tomorrow.max, "tomorrow"));
+  if (!clauses.length) return null;
+  return `That's ${clauses.join(" and ")}.`;
 }
 
 function restOfToday(tz) {
