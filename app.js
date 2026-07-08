@@ -833,7 +833,24 @@ function seasonOf(month, lat) {
   return { winter: "summer", summer: "winter", spring: "fall", fall: "spring" }[north];
 }
 
-function selectActivities() {
+function pickWeighted(list, n) {
+  const pool = list.slice();
+  const picked = [];
+  while (pool.length && picked.length < n) {
+    const total = pool.reduce((s, o) => s + Math.max(o.score, 0.01), 0);
+    let r = Math.random() * total;
+    let idx = pool.length - 1;
+    for (let i = 0; i < pool.length; i++) {
+      r -= Math.max(pool[i].score, 0.01);
+      if (r <= 0) { idx = i; break; }
+    }
+    picked.push(pool[idx]);
+    pool.splice(idx, 1);
+  }
+  return picked;
+}
+
+function selectActivities(force) {
   const catalog = window.WEATHER_ACTIVITIES;
   const tz = state.tz || 0;
   const now = Math.floor(Date.now() / 1000);
@@ -852,7 +869,7 @@ function selectActivities() {
   const lon = state.center?.lon ?? state.loc?.lon ?? 0;
   const planKey = `${today}|${lat.toFixed(2)},${lon.toFixed(2)}`;
   const cached = loadActivityPlan();
-  if (cached && cached.key === planKey && Array.isArray(cached.list) && cached.list.length) {
+  if (!force && cached && cached.key === planKey && Array.isArray(cached.list) && cached.list.length) {
     state.activityAt = cached.at;
     state.activities = cached.list;
     return state.activities;
@@ -943,8 +960,10 @@ function selectActivities() {
     }
     out.push({ icon: a.icon, label: a.label, explain: a.explain, good, when, score: rel + (good ? 1.5 : 0) });
   }
-  out.sort((x, y) => y.score - x.score);
-  const top = out.slice(0, 4);
+  const goodList = out.filter((o) => o.good).sort((x, y) => y.score - x.score);
+  const badList = out.filter((o) => !o.good).sort((x, y) => y.score - x.score);
+  const top = pickWeighted(goodList, 4);
+  if (top.length < 4) top.push(...badList.slice(0, 4 - top.length));
   state.activityAt = now;
   state.activities = top;
   saveActivityPlan({ key: planKey, at: now, list: top });
@@ -958,7 +977,7 @@ function insightTileHTML(icon, label, value, sub) {
 function activityTileHTML() {
   const acts = selectActivities();
   const foot = state.activityAt ? `<div class="activity-foot">Suggested at ${fmtClock(state.activityAt, state.tz || 0)}</div>` : "";
-  return `<div class="insight-card activity-card"><div class="activity-head"><div class="insight-label activity-title">Good day for</div><button class="whats-this" type="button" data-open="activity">What's this?</button></div><div class="activity-rows">${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.when}</span></div>`).join("")}</div>${foot}</div>`;
+  return `<div class="insight-card activity-card"><div class="activity-head"><div class="insight-label activity-title">Good day for</div><div class="activity-head-actions"><button class="activity-refresh" type="button" data-refresh="activity" aria-label="Refresh suggestions"><i class="ph ph-arrow-clockwise" aria-hidden="true"></i></button><button class="whats-this" type="button" data-open="activity">What's this?</button></div></div><div class="activity-rows">${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.when}</span></div>`).join("")}</div>${foot}</div>`;
 }
 
 function stormTileHTML() {
@@ -999,6 +1018,14 @@ function renderQuickHits() {
   el.quickHits.querySelectorAll("[data-open]").forEach((b) => {
     b.onclick = (e) => { e.stopPropagation(); openDetail(b.dataset.open); };
   });
+  const refreshBtn = el.quickHits.querySelector('[data-refresh="activity"]');
+  if (refreshBtn) {
+    refreshBtn.onclick = (e) => {
+      e.stopPropagation();
+      selectActivities(true);
+      renderQuickHits();
+    };
+  }
 }
 
 function renderWind(current) {

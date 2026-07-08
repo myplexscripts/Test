@@ -908,6 +908,21 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .activity-card { flex-direction: column; align-items: stretch; gap: var(--s-3); }
 .activity-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); }
 .activity-title { margin-bottom: 0; }
+.activity-head-actions { display: flex; align-items: center; gap: var(--s-2); flex: 0 0 auto; }
+.activity-refresh {
+  display: grid;
+  place-items: center;
+  width: 2.1rem;
+  height: 2.1rem;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--card-bg-hi);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: transform var(--dur-press) var(--ease-press), background var(--dur-fast) var(--ease-out);
+}
+.activity-refresh i { font-size: 1.05rem; display: block; }
+.activity-refresh:active { transform: scale(0.82) rotate(50deg); background: var(--card-bg-hi); }
 .whats-this {
   flex: 0 0 auto;
   font-size: var(--t-cap);
