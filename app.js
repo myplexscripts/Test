@@ -166,9 +166,9 @@ function wireEvents() {
     const card = e.target.closest("[data-metric]");
     if (card) openDetail(card.dataset.metric, card.dataset.range || "hourly");
   });
-  el.radarPreview.onclick = openRadar;
-  el.radarMore.onclick = openRadar;
-  if (el.nowcast) el.nowcast.onclick = openRadar;
+  el.radarPreview.onclick = () => openRadar();
+  el.radarMore.onclick = () => openRadar();
+  if (el.nowcast) el.nowcast.onclick = () => openRadar();
   el.radarBack.onclick = closeRadar;
   el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.onclick = () => applyMode(b.dataset.layer));
   el.radarPlay.onclick = toggleRadarPlay;
@@ -3030,14 +3030,23 @@ async function initRadarPreview() {
       doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, tap: false
     }).setView([c.lat, c.lon], 9);
     radar.previewBase = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(radar.preview);
-    let previewTileErrs = 0;
+    let previewTileErrs = 0, previewTilesLoaded = 0;
+    radar.previewBase.on("tileload", () => { previewTilesLoaded++; });
     radar.previewBase.on("tileerror", () => {
       if (++previewTileErrs === 8 && radar.previewBase) radar.previewBase.setUrl("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
     });
     setPinMarker(radar.preview, "previewMarker");
     const invalidate = () => radar.preview && radar.preview.invalidateSize();
     requestAnimationFrame(invalidate);
-    [120, 500, 1000].forEach((d) => setTimeout(invalidate, d));
+    [120, 500, 1000, 2000].forEach((d) => setTimeout(invalidate, d));
+    // Self-heal: if the base map created at a 0-size, or CARTO simply never
+    // answers, no tiles paint and the card looks like the black fallback. After
+    // a grace period force a resize, then fall back to OSM if still blank.
+    setTimeout(() => {
+      if (!radar.preview || !radar.previewBase) return;
+      radar.preview.invalidateSize();
+      if (previewTilesLoaded === 0) radar.previewBase.setUrl("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+    }, 4000);
     if ("ResizeObserver" in window && !radar._previewRO) {
       radar._previewRO = new ResizeObserver(invalidate);
       radar._previewRO.observe(el.radarPreviewMap);
@@ -3096,7 +3105,9 @@ function warmRadar() {
 }
 
 function openRadar(mode) {
-  if (mode) radar.mode = mode;
+  // Default to rain every time it's opened; only honour an explicit layer when
+  // one is passed in (e.g. a "Live maps" link that deep-links to lightning).
+  radar.mode = (typeof mode === "string" && mode) ? mode : "radar";
   state.radarOpen = true;
   el.radarSheet.classList.add("is-open");
   el.radarSheet.setAttribute("aria-hidden", "false");
@@ -3108,11 +3119,17 @@ function openRadar(mode) {
     applyMode(radar.mode);
     return;
   }
-  el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.classList.toggle("is-active", b.dataset.layer === "radar"));
+  el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.classList.toggle("is-active", b.dataset.layer === radar.mode));
+  scrollActiveLayerIntoView();
   el.radarTimeline.style.display = "";
   if (el.radarLegend) el.radarLegend.style.display = "";
   updateRadarNote();
   if (radar.ready) { radar.idx = 0; startRadarPlay(); }
+}
+
+function scrollActiveLayerIntoView() {
+  const active = el.layerSeg && el.layerSeg.querySelector(".seg-item.is-active");
+  if (active && active.scrollIntoView) active.scrollIntoView({ inline: "center", block: "nearest" });
 }
 function closeRadar() {
   if (!state.radarOpen) return;
@@ -3128,6 +3145,7 @@ function applyMode(mode) {
   radar.mode = mode;
   el.layerSeg.querySelectorAll("[data-layer]").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.layer === mode));
+  scrollActiveLayerIntoView();
   updateRadarNote();
   if (!haveLeaflet() || !radar.map) return;
   stopRadarPlay();

@@ -1443,6 +1443,22 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .drawer .seg-item.is-active { background: var(--on-surface); color: var(--surface); }
 .segmented.small .seg-item { padding: 0.4rem 0.85rem; }
 
+/* Radar layer switcher: 5 options don't fit next to the back button on a
+   phone, so let the pill shrink and scroll instead of clipping "Lightning". */
+.radar-sheet .sheet-head { gap: var(--s-2); }
+#layerSeg {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+  justify-content: flex-start;
+}
+#layerSeg::-webkit-scrollbar { display: none; }
+#layerSeg .seg-item { flex: 0 0 auto; white-space: nowrap; }
+
 .sheet {
   position: fixed;
   inset: 0;
