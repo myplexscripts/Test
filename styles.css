@@ -761,6 +761,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .card:active { transform: scale(0.95); background: var(--card-bg-hi); }
 .card i { font-size: 2.2rem; color: var(--ink); }
+.hour-card .wx-icon, .day-card .wx-icon { font-size: 3rem; }
 .card strong { font-size: 1.3rem; font-weight: 700; line-height: 1; }
 .card span { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); line-height: 1.2; }
 
