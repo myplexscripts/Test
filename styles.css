@@ -381,9 +381,11 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   padding-top: var(--s-4);
 }
 .hero-icon-wrap { grid-area: icon; display: flex; align-items: flex-start; justify-content: flex-end; }
-/* Meteocon art sits inside ~14% padding in its 64px viewBox; a negative right
-   margin pulls the drawn icon's right edge flush with the date/time below it. */
-.hero-icon { margin-right: -0.12em; }
+/* Meteocon art sits inside ~14% padding in its 64px viewBox. Negative top and
+   right margins pull the drawn icon flush with the temperature top and the
+   date/time's right edge, then let the (mostly circular) art bleed a little
+   past the top-right corner. */
+.hero-icon { margin: -0.16em -0.16em 0 0; }
 .hero-readout {
   grid-area: readout;
   display: flex;
