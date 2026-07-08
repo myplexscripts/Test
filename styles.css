@@ -371,9 +371,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 
 .hero {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
-    "icon readout"
+    "readout icon"
     "cond when";
   column-gap: var(--s-4);
   row-gap: var(--s-4);
@@ -385,8 +385,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   grid-area: readout;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  text-align: right;
+  align-items: flex-start;
+  text-align: left;
   gap: var(--s-2);
   min-width: 0;
 }
