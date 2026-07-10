@@ -1600,9 +1600,9 @@ function wxResolve(w, isNight) {
 }
 let wxUid = 0;
 function wxSVG(code, animated) {
-  // In "Colour" mode use the Meteocons fill (colour) set; otherwise the ink line set.
-  const fill = state.iconColor && typeof METEOCONS_FILL !== "undefined" ? METEOCONS_FILL : null;
-  let svg = (fill && (fill[code] || fill["03d"])) ||
+  // In "Colour" mode use the Meteocons coloured line set; otherwise the ink line set.
+  const colour = state.iconColor && typeof METEOCONS_COLOR !== "undefined" ? METEOCONS_COLOR : null;
+  let svg = (colour && (colour[code] || colour["03d"])) ||
     (typeof METEOCONS !== "undefined" && (METEOCONS[code] || METEOCONS["03d"])) || "";
   if (!svg) return "";
   if (!animated || state.animate === false) svg = svg.replace(/<animate[^>]*\/>/g, "");
