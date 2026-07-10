@@ -2596,13 +2596,14 @@ function dayStatsHTML(day, items) {
 function detailSeries() {
   const m = METRICS[state.detail.metric];
   const tz = state.tz || 0;
+  const withPrecip = state.detail.metric === "temp";
   const raw = state.data?.hourly || [];
   const today = new Date((Math.floor(Date.now() / 1000) + tz) * 1000).toISOString().slice(0, 10);
   const dayKey = (dt) => new Date((dt + tz) * 1000).toISOString().slice(0, 10);
   const day = raw.filter((it) => dayKey(it.dt) === today);
   const src = day.length ? day : (state.hourly || []);
   return src
-    .map((it) => ({ label: fmtHour(it.dt, tz), hi: m.get(it), dt: it.dt }))
+    .map((it) => ({ label: fmtHour(it.dt, tz), hi: m.get(it), dt: it.dt, precip: withPrecip ? (it.precip || 0) : 0 }))
     .filter((r) => Number.isFinite(r.hi));
 }
 
@@ -2612,12 +2613,12 @@ function drawDetailChart() {
     const day = state.daily[state.detail.dayIndex];
     if (!day) return;
     const tz = state.tz || 0;
-    drawChart((day.items || []).map((it) => ({ label: fmtHour(it.dt, tz), hi: it.main.temp, dt: it.dt })), METRICS.temp, false, day.label === "Today");
+    drawChart((day.items || []).map((it) => ({ label: fmtHour(it.dt, tz), hi: it.main.temp, dt: it.dt, precip: it.precip || 0 })), METRICS.temp, false, day.label === "Today");
     return;
   }
   const m = METRICS[state.detail.metric];
   if (state.detail.metric === "temp" && state.detail.range === "daily") {
-    drawChart(state.daily.map((d) => ({ label: d.label, hi: d.max, lo: d.min })), m, true, false);
+    drawChart(state.daily.map((d) => ({ label: d.label, hi: d.max, lo: d.min, precip: (d.items || []).reduce((s, it) => s + (it.precip || 0), 0) })), m, true, false);
   } else {
     drawChart(detailSeries(), m, false, true);
   }
@@ -2837,16 +2838,39 @@ function drawChart(rows, m, dual, showNow) {
   const vals = rows.flatMap((r) => dual ? [r.hi, r.lo] : [r.hi]).filter(Number.isFinite);
   let min = Math.min(...vals), max = Math.max(...vals);
   if (min === max) { min -= 1; max += 1; } else { const pad = (max - min) * 0.18; min -= pad; max += pad; }
-  const padX = 28, padTop = 34, padB = 30;
-  const w = rect.width - padX * 2, h = rect.height - padTop - padB;
-  const X = (i) => padX + (w / Math.max(1, rows.length - 1)) * i;
+  const anyPrecip = rows.some((r) => (r.precip || 0) > 0);
+  const padL = 28, padR = anyPrecip ? 56 : 28, padTop = 34, padB = 30;
+  const w = rect.width - padL - padR, h = rect.height - padTop - padB;
+  const X = (i) => padL + (w / Math.max(1, rows.length - 1)) * i;
   const Y = (v) => padTop + h - ((v - min) / Math.max(1e-6, max - min)) * h;
   const dec = m.decimals || 0;
   const lab = (v) => dec ? v.toFixed(dec) : (m.unit === "°" ? `${Math.round(v)}°` : `${Math.round(v)}`);
 
   ctx.strokeStyle = ink; ctx.globalAlpha = 0.12; ctx.lineWidth = 1;
-  for (let i = 0; i <= 3; i++) { const gy = padTop + (h / 3) * i; ctx.beginPath(); ctx.moveTo(padX, gy); ctx.lineTo(rect.width - padX, gy); ctx.stroke(); }
+  for (let i = 0; i <= 3; i++) { const gy = padTop + (h / 3) * i; ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(rect.width - padR, gy); ctx.stroke(); }
   ctx.globalAlpha = 1;
+
+  // Precipitation bars along the bottom, on their own mm scale (right axis).
+  if (anyPrecip) {
+    const maxP = Math.max(0.1, ...rows.map((r) => r.precip || 0));
+    const barMaxH = h * 0.4;
+    const slotW = w / Math.max(1, rows.length - 1);
+    const barW = Math.min(slotW * 0.55, 12);
+    rows.forEach((r, i) => {
+      const p = r.precip || 0;
+      if (p <= 0) return;
+      const bh = (p / maxP) * barMaxH;
+      ctx.fillStyle = hexA(ink, 0.2);
+      ctx.fillRect(X(i) - barW / 2, padTop + h - bh, barW, bh);
+    });
+    const mmMax = maxP >= 10 ? Math.round(maxP) : Math.round(maxP * 10) / 10;
+    ctx.save();
+    ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.font = "600 11px Inter, system-ui";
+    ctx.fillStyle = hexA(ink, 0.5);
+    ctx.fillText(`${mmMax} mm`, rect.width - 4, padTop + h - barMaxH);
+    ctx.fillText("0", rect.width - 4, padTop + h);
+    ctx.restore();
+  }
 
   const curve = (key) => {
     rows.forEach((r, i) => {
@@ -2891,7 +2915,7 @@ function drawChart(rows, m, dual, showNow) {
       ctx.beginPath(); ctx.moveTo(nx, padTop); ctx.lineTo(nx, padTop + h); ctx.stroke();
       ctx.setLineDash([]);
       ctx.globalAlpha = 0.6; ctx.fillStyle = ink; ctx.font = "700 11px Inter, system-ui"; ctx.textAlign = "center";
-      ctx.fillText("Now", Math.max(padX + 14, Math.min(rect.width - padX - 14, nx)), padTop - 12);
+      ctx.fillText("Now", Math.max(padL + 14, Math.min(rect.width - padR - 14, nx)), padTop - 12);
       ctx.globalAlpha = 1;
     }
   }
@@ -2909,16 +2933,23 @@ function drawChart(rows, m, dual, showNow) {
   }
 
   ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center"; ctx.fillStyle = ink;
+  // Keep the last point's value label clear of the right-hand mm axis.
+  const labelX = (i) => (anyPrecip && i === end) ? rect.width - padR - 4 : X(i);
+  const labelAlign = (i) => (anyPrecip && i === end) ? "right" : "center";
   hiMap.forEach((dy, i) => {
     ctx.beginPath(); ctx.arc(X(i), Y(rows[i].hi), 3.5, 0, Math.PI * 2); ctx.fill();
-    ctx.fillText(lab(rows[i].hi), X(i), Y(rows[i].hi) + dy);
+    ctx.textAlign = labelAlign(i);
+    ctx.fillText(lab(rows[i].hi), labelX(i), Y(rows[i].hi) + dy);
   });
+  ctx.textAlign = "center";
   if (dual) {
     ctx.globalAlpha = 0.7;
     loMap.forEach((dy, i) => {
       ctx.beginPath(); ctx.arc(X(i), Y(rows[i].lo), 3.5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillText(lab(rows[i].lo), X(i), Y(rows[i].lo) + dy);
+      ctx.textAlign = labelAlign(i);
+      ctx.fillText(lab(rows[i].lo), labelX(i), Y(rows[i].lo) + dy);
     });
+    ctx.textAlign = "center";
     ctx.globalAlpha = 1;
   }
 
@@ -2955,7 +2986,8 @@ function showChartPoint(clientX) {
   ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
   const val = g.fmt(r.hi) + (g.dual && r.lo != null ? ` / ${g.fmt(r.lo)}` : "");
-  const text = `${r.label}  ${val}`;
+  const rain = (r.precip || 0) > 0 ? `  ·  ${r.precip >= 10 ? Math.round(r.precip) : Math.round(r.precip * 10) / 10} mm` : "";
+  const text = `${r.label}  ${val}${rain}`;
   ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   const tw = ctx.measureText(text).width + 18, bh = 24;
   let bx = Math.max(2, Math.min(g.rect.width - tw - 2, px - tw / 2));
