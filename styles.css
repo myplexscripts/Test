@@ -121,6 +121,15 @@ h1, h2, h3, p { margin: 0; }
 i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .wx-icon { display: inline-flex; align-items: center; justify-content: center; line-height: 1; color: var(--ink); }
 .wx-icon svg { width: 1em; height: 1em; display: block; }
+/* Colour mode: tint each weather icon by its type (icons draw with currentColor).
+   Ink mode (default) leaves them as --ink. */
+:root[data-icons="color"] .wx-clear-d { color: #ff9500; }
+:root[data-icons="color"] .wx-clear-n { color: #8aa0c8; }
+:root[data-icons="color"] .wx-clouds  { color: #6b7789; }
+:root[data-icons="color"] .wx-rain    { color: #2f86d0; }
+:root[data-icons="color"] .wx-storm   { color: #6a5acd; }
+:root[data-icons="color"] .wx-snow    { color: #4fa8dd; }
+:root[data-icons="color"] .wx-mist    { color: #8b95a1; }
 
 .display, .display-sm,
 .condition, .block-title, .block-head h2,
@@ -1542,19 +1551,22 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
   justify-self: end; text-align: right; font-variant-numeric: tabular-nums;
 }
 .row .row-sub { font-size: var(--t-cap); color: var(--ink-soft); font-weight: 600; }
-.row-wx { grid-template-columns: 1fr 2.4rem auto minmax(3.4rem, auto); }
+.row-wx { grid-template-columns: 1fr 2.4rem auto minmax(3.2rem, auto); gap: var(--s-3); }
+/* Fixed sub-columns keep the drop, chance and mm aligned across every row,
+   whether or not that hour has an mm amount. */
 .row-precip {
-  display: flex;
-  align-items: baseline;
-  gap: 6px;
+  display: grid;
+  grid-template-columns: 1.1rem 2.3rem 3.4rem;
+  align-items: center;
+  column-gap: 5px;
   font-size: var(--t-cap);
   font-weight: 700;
   color: var(--ink-soft);
-  justify-self: end;
   white-space: nowrap;
 }
-.row-precip .ph-drop { font-size: 0.95rem; align-self: center; }
-.row-precip .rp-amt { color: var(--ink); }
+.row-precip .ph-drop { font-size: 1rem; justify-self: center; }
+.rp-chance { text-align: left; font-variant-numeric: tabular-nums; }
+.rp-amt { text-align: left; font-variant-numeric: tabular-nums; color: var(--ink); }
 
 button.row { width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; }
 .row-tap { grid-template-columns: 1fr 2.4rem minmax(3.75rem, auto) 1.5rem; transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast); }

@@ -29,7 +29,7 @@ const el = {
   ptr: $("ptr"), scrim: $("scrim"),
   drawer: $("drawer"), drawerClose: $("drawerClose"),
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
-  unitSeg: $("unitSeg"), animSeg: $("animSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), stormBtn: $("stormBtn"), alertsInfoBtn: $("alertsInfoBtn"),
+  unitSeg: $("unitSeg"), animSeg: $("animSeg"), iconSeg: $("iconSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), alertsInfoBtn: $("alertsInfoBtn"),
   placeName: $("placeName"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), quickHits: $("quickHits"), alerts: $("alerts"),
   heroLo: $("heroLo"), heroHi: $("heroHi"), heroWhen: $("heroWhen"),
@@ -65,6 +65,7 @@ const state = {
   dark: false,
   clock24: false,
   animate: true,
+  iconColor: false,
   drawerOpen: false,
   sheetOpen: false,
   radarOpen: false
@@ -129,7 +130,6 @@ function wireEvents() {
   el.useLocation.onclick = () => { closeDrawer(); useMyLocation(); };
   el.useHome.onclick = () => { state.loc = { ...HOME }; markLoc("home"); saveState(); closeDrawer(); refresh(true); };
   if (el.creditsBtn) el.creditsBtn.onclick = () => { closeDrawer(); openDetail("credits"); };
-  if (el.stormBtn) el.stormBtn.onclick = () => { closeDrawer(); openDetail("storm"); };
   if (el.alertsInfoBtn) el.alertsInfoBtn.onclick = () => { closeDrawer(); openDetail("alerts"); };
 
   el.unitSeg.querySelectorAll("[data-units]").forEach((b) => {
@@ -152,6 +152,16 @@ function wireEvents() {
       syncControls();
       saveState();
       if (state.data) render(state.data);
+    };
+  });
+
+  if (el.iconSeg) el.iconSeg.querySelectorAll("[data-icon]").forEach((b) => {
+    b.onclick = () => {
+      const colour = b.dataset.icon === "color";
+      if (!!state.iconColor === colour) return;
+      state.iconColor = colour;
+      syncControls();
+      saveState();
     };
   });
 
@@ -532,8 +542,9 @@ function render(data) {
   state.tz = tz;
   state.placeName = current.name || state.loc.label;
 
-  el.heroIcon.className = "hero-icon wx-icon";
-  el.heroIcon.innerHTML = wxSVG(wxResolve(w, isNight), true);
+  const heroCode = wxResolve(w, isNight);
+  el.heroIcon.className = `hero-icon wx-icon ${wxCategory(heroCode)}`;
+  el.heroIcon.innerHTML = wxSVG(heroCode, true);
   el.placeName.textContent = current.name ? `${current.name}${sys.country ? ", " + sys.country : ""}` : state.loc.label;
   el.condition.textContent = w.description || w.main || "Weather";
   el.tempNum.textContent = `${Math.round(m.temp ?? 0)}`;
@@ -551,7 +562,7 @@ function render(data) {
   renderAlerts(data.alerts, tz);
   if (el.alertsInfoBtn) el.alertsInfoBtn.hidden = !inCanada(state.loc?.lat, state.loc?.lon);
 
-  if (el.miniIcon) { el.miniIcon.className = "mini-ic wx-icon"; el.miniIcon.innerHTML = wxSVG(wxResolve(w, isNight), true); }
+  if (el.miniIcon) { el.miniIcon.className = `mini-ic wx-icon ${wxCategory(heroCode)}`; el.miniIcon.innerHTML = wxSVG(heroCode, true); }
   if (el.miniPlace) el.miniPlace.textContent = el.placeName.textContent;
   if (el.miniCond) el.miniCond.textContent = w.description || w.main || "Weather";
   if (el.miniTemp) el.miniTemp.textContent = `${Math.round(m.temp ?? 0)}°`;
@@ -1114,17 +1125,8 @@ function activityTileHTML() {
   return `<div class="insight-card activity-card"><div class="activity-head"><div class="insight-label activity-title">Good day for</div><div class="activity-head-actions"><button class="activity-refresh" type="button" data-refresh="activity" aria-label="Refresh suggestions"><i class="ph ph-arrow-clockwise" aria-hidden="true"></i></button><button class="whats-this" type="button" data-open="activity">What's this?</button></div></div><div class="activity-rows">${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.when}</span></div>`).join("")}</div>${foot}</div>`;
 }
 
-function stormTileHTML() {
-  const o = stormOutlook();
-  if (!o.thunder) return "";
-  const value = o.thunder.hail ? "Storms, maybe hail" : "Thunderstorms likely";
-  const sub = `The forecast shows thunderstorms ${o.thunder.when.charAt(0).toLowerCase() + o.thunder.when.slice(1)}. Tap for the full storm readout.`;
-  return `<button class="insight-card insight-tap" type="button" data-open="storm"><i class="ph-duotone ph-cloud-lightning insight-ic" aria-hidden="true"></i><div class="insight-body"><div class="insight-label">Storm watch</div><div class="insight-value">${value}</div><div class="insight-sub">${sub}</div></div><i class="ph ph-caret-right insight-go" aria-hidden="true"></i></button>`;
-}
-
 function renderQuickHits() {
   if (!el.quickHits) return;
-  const stormTile = stormTileHTML();
   const wearTile = insightTileHTML("ph-coat-hanger", "What to wear", "", buildWear(state.data?.current || {}, state.daily || []));
   const s = seasonalCallout();
   const seasonalTile = insightTileHTML(s.icon, s.label, s.value, s.sub);
@@ -1137,7 +1139,7 @@ function renderQuickHits() {
       <span class="qh-head"><i class="ph ph-sparkle qh-ic" aria-hidden="true"></i><span class="qh-label">Quick Hits</span></span>
       <svg class="qh-chev" viewBox="0 0 256 256" aria-hidden="true"><line class="qh-arm qh-arm-l" x1="48" y1="96" x2="128" y2="176" stroke="currentColor" stroke-linecap="round" stroke-width="20"/><line class="qh-arm qh-arm-r" x1="208" y1="96" x2="128" y2="176" stroke="currentColor" stroke-linecap="round" stroke-width="20"/></svg>
     </button>
-    <div class="qh-content"><div class="qh-clip"><div class="qh-tiles">${stormTile}${wearTile}${seasonalTile}${starTile}${activityTileHTML()}</div></div></div>`;
+    <div class="qh-content"><div class="qh-clip"><div class="qh-tiles">${wearTile}${seasonalTile}${starTile}${activityTileHTML()}</div></div></div>`;
   el.quickHits.classList.toggle("is-open", open);
   if (open) {
     requestAnimationFrame(() => requestAnimationFrame(() => el.quickHits.classList.remove("qh-no-anim")));
@@ -1604,8 +1606,21 @@ function wxSVG(code, animated) {
   svg = svg.replace(/\bid="([^"]+)"/g, (mm, v) => `id="${v}${uid}"`).replace(/url\(#([^)]+)\)/g, (mm, v) => `url(#${v}${uid})`);
   return svg;
 }
+// Category class for an icon code, used to tint icons in "Colour" mode.
+function wxCategory(code) {
+  const c = String(code || "").slice(0, 2);
+  const night = String(code || "").endsWith("n");
+  if (c === "01") return night ? "wx-clear-n" : "wx-clear-d";
+  if (c === "02" || c === "03" || c === "04") return "wx-clouds";
+  if (c === "09" || c === "10") return "wx-rain";
+  if (c === "11") return "wx-storm";
+  if (c === "13") return "wx-snow";
+  if (c === "50") return "wx-mist";
+  return "wx-clouds";
+}
 function wxIcon(w, isNight, cls) {
-  return `<i class="wx-icon${cls ? " " + cls : ""}" aria-hidden="true">${wxSVG(wxResolve(w, isNight), true)}</i>`;
+  const code = wxResolve(w, isNight);
+  return `<i class="wx-icon ${wxCategory(code)}${cls ? " " + cls : ""}" aria-hidden="true">${wxSVG(code, true)}</i>`;
 }
 
 function speedUnit() { return state.units === "imperial" ? "mph" : "km/h"; }
@@ -1673,7 +1688,7 @@ function openSheetUI() {
 }
 
 function openDetail(metric, range) {
-  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "activity" || metric === "storm" || metric === "alerts";
+  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "activity" || metric === "alerts";
   if (!METRICS[metric] && !isInfo) metric = "temp";
   const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
   state.nav = [view];
@@ -1720,7 +1735,7 @@ function syncRange() {
 function renderDetailSheet() {
   if (el.sheetHeadAux) { el.sheetHeadAux.innerHTML = ""; el.sheetHeadAux.style.display = "none"; }
   const gc = el.graph.closest(".graph-card");
-  if (["aqi", "uv", "moon", "credits", "sun", "activity", "storm", "alerts"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
+  if (["aqi", "uv", "moon", "credits", "sun", "activity", "alerts"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
   if (gc) gc.style.display = "";
   if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
@@ -1743,7 +1758,6 @@ function renderInfoSheet(kind) {
   else if (kind === "sun") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderSunSheet(); }
   else if (kind === "credits") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderCreditsSheet(); }
   else if (kind === "activity") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderActivitySheet(); }
-  else if (kind === "storm") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderStormSheet(); }
   else if (kind === "alerts") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAlertsSheet(); }
   else if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
@@ -2359,68 +2373,6 @@ function renderActivitySheet() {
       <p class="info-text"><strong>Not today</strong>: conditions do not really suit it today.</p>`, true);
 }
 
-function capeLabel(v) {
-  if (v == null) return null;
-  if (v < 300) return "Little instability";
-  if (v < 1000) return "Marginal instability";
-  if (v < 2500) return "Moderate instability";
-  if (v < 4000) return "Strong instability";
-  return "Extreme instability";
-}
-
-function stormOutlook() {
-  const tz = state.tz || 0;
-  const now = Math.floor(Date.now() / 1000);
-  const fmtH = (dt) => { const h = new Date((dt + tz) * 1000).getUTCHours(); return `${h % 12 || 12}${h < 12 ? "am" : "pm"}`; };
-  const pts = (state.hourly || []).filter((p) => p.dt >= now - 1800).slice(0, 24);
-  const isT = (p) => p.code === 95 || p.code === 96 || p.code === 99;
-  let s = -1, e = -1;
-  for (let i = 0; i < pts.length; i++) { if (isT(pts[i])) { if (s < 0) s = i; e = i; } else if (s >= 0) break; }
-  let thunder = null;
-  if (s >= 0) {
-    const hail = pts.slice(s, e + 1).some((p) => p.code === 96 || p.code === 99);
-    thunder = { when: s === e ? `Around ${fmtH(pts[s].dt)}` : `${fmtH(pts[s].dt)} to ${fmtH(pts[e].dt)}`, hail };
-  }
-  let capePk = null, capeAt = null;
-  for (const p of pts) if (p.cape != null && (capePk == null || p.cape > capePk)) { capePk = p.cape; capeAt = p.dt; }
-  let gustPk = null, gustAt = null;
-  for (const p of pts) { const g = p.wind?.gust; if (g != null && (gustPk == null || g > gustPk)) { gustPk = g; gustAt = p.dt; } }
-  const p0 = pts[0]?.main?.pressure, p6 = pts[6]?.main?.pressure;
-  const press = (p0 != null && p6 != null) ? { d: p6 - p0, dir: (p6 - p0) <= -1.5 ? "falling" : (p6 - p0) >= 1.5 ? "rising" : "steady" } : null;
-  return { thunder, capePk, capeAt, gustPk, gustAt, press, fmtH };
-}
-
-function renderStormSheet() {
-  const cur = state.data?.current || {};
-  const o = stormOutlook();
-  const capeStr = o.capePk != null ? `${groupNum(Math.round(o.capePk))} J/kg` : "unavailable";
-  const capeLab = capeLabel(o.capePk);
-  const thunderText = o.thunder ? `Thunderstorms ${o.thunder.when}${o.thunder.hail ? ", with a chance of hail" : ""}.` : "No thunderstorms in the next day.";
-  const pressStr = o.press ? (o.press.dir === "falling" ? "Falling" : o.press.dir === "rising" ? "Rising" : "Steady") : "unavailable";
-  const pressBlurb = !o.press ? "Pressure data is unavailable right now." :
-    o.press.dir === "falling" ? "Falling pressure often means unsettled or stormy weather is moving in." :
-    o.press.dir === "rising" ? "Rising pressure usually means calmer, clearer conditions are on the way." :
-    "Steady pressure suggests the current conditions will hold for now.";
-
-  el.sheetTitle.textContent = "Storm tracker";
-  el.sheetNote.textContent = "A closer look at the ingredients storm watchers follow through the day: instability, moisture, wind and the trend in the air pressure.";
-  el.sheetList.innerHTML =
-    section("Thunderstorm outlook", `<p class="info-text info-now">${thunderText}</p><p class="info-text">Thunderstorms need warm, moist air and something to lift it. When the forecast flags them, this is the window worth watching.</p>`, false, "ph-cloud-lightning") +
-    section("Instability (CAPE)", `<p class="info-text info-now">${capeStr}${capeLab ? `, ${capeLab.toLowerCase()}` : ""}${(o.capePk != null && o.capeAt) ? `, peaking around ${o.fmtH(o.capeAt)}` : ""}.</p><p class="info-text">CAPE is the energy available for rising air, in joules per kilogram. The higher it climbs, the taller and stronger storms can grow. Above roughly 1,000 hints at thunderstorms, and above 2,500 the air is primed for strong ones.</p>`, false, "ph-lightning") +
-    section("Peak wind gust", `<p class="info-text info-now">${o.gustPk != null ? windText(o.gustPk) : "Light"}${(o.gustPk != null && o.gustAt) ? `, around ${o.fmtH(o.gustAt)}` : ""}.</p><p class="info-text">Gusts are brief spikes above the steady wind. The strongest often arrive with a storm's leading edge or its downdraft.</p>`, false, "ph-wind") +
-    section("Pressure trend", `<p class="info-text info-now">${pressStr}${o.press ? ` over the next few hours (${o.press.d > 0 ? "+" : ""}${o.press.d.toFixed(0)} hPa)` : ""}.</p><p class="info-text">${pressBlurb}</p>`, false, "ph-gauge") +
-    (cur.freezing != null ? section("Freezing level", `<p class="info-text info-now">${groupNum(Math.round(cur.freezing))} m above sea level.</p><p class="info-text">This is the height where the air reaches 0°C. A lower freezing level lets rain turn to snow, and it hints at how far any hail can fall before it melts.</p>`, false, "ph-thermometer-cold") : "") +
-    (cur.dew != null ? section("Dew point", `<p class="info-text info-now">${Math.round(cur.dew)}° right now.</p><p class="info-text">The dew point is the temperature at which air becomes saturated. Higher values mean more moisture in the air, which is fuel for storms. Above about 15° the air starts to feel humid and storm-ready.</p>`, false, "ph-drop") : "") +
-    section("Live maps", `<div class="map-links">
-      <button class="map-link" data-map="radar"><i class="ph-duotone ph-cloud-rain map-link-ic" aria-hidden="true"></i><div class="map-link-body"><div class="map-link-name">Radar</div><div class="map-link-sub">Live precipitation, animated</div></div><i class="ph ph-caret-right map-link-go" aria-hidden="true"></i></button>
-      <button class="map-link" data-map="lightning"><i class="ph-duotone ph-cloud-lightning map-link-ic" aria-hidden="true"></i><div class="map-link-body"><div class="map-link-name">Lightning</div><div class="map-link-sub">Strike density near you</div></div><i class="ph ph-caret-right map-link-go" aria-hidden="true"></i></button>
-    </div>`, false, "ph-map-trifold") +
-    section("A best guess", `<p class="info-text">These readings come from a forecast model and describe the potential in the air, not a certainty that storms will fire. For active warnings, always follow Environment Canada or your local weather service.</p>`, false, "ph-info");
-  el.sheetList.querySelectorAll(".map-link").forEach((b) => {
-    b.onclick = () => { closeSheet(); openRadar(b.dataset.map); };
-  });
-}
-
 function renderAlertsSheet() {
   const tier = (name, key, desc) => `<div class="tier-row tier-${key}"><span class="tier-dot" aria-hidden="true"></span><div class="tier-body"><div class="tier-name">${name}</div><p class="info-text">${desc}</p></div></div>`;
   const type = (name, desc) => `<p class="info-text"><strong>${name}</strong>: ${desc}</p>`;
@@ -2662,7 +2614,7 @@ function renderDetailList() {
     const mm = it.precip != null ? it.precip : (it.rain?.["3h"] || 0) + (it.snow?.["3h"] || 0);
     const mmTxt = mm > 0 ? (mm >= 10 ? Math.round(mm) : Math.round(mm * 10) / 10) : 0;
     const wx = showWx
-      ? `<span class="row-precip"><i class="ph-fill ph-drop"></i><span class="rp-chance">${pop}%</span>${mmTxt ? `<span class="rp-amt">${mmTxt} mm</span>` : ""}</span>`
+      ? `<span class="row-precip"><i class="ph-fill ph-drop"></i><span class="rp-chance">${pop}%</span><span class="rp-amt">${mmTxt ? `${mmTxt} mm` : ""}</span></span>`
       : "";
     return `
     <div class="row${showWx ? " row-wx" : ""}">
@@ -3603,7 +3555,7 @@ function fmtClock(dt, tz) {
 }
 
 function saveState() {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, clock24: state.clock24, animate: state.animate })); } catch {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, clock24: state.clock24, animate: state.animate, iconColor: state.iconColor })); } catch {}
 }
 function loadActivityPlan() { try { return JSON.parse(localStorage.getItem(ACTIVITY_KEY) || "null"); } catch { return null; } }
 function saveActivityPlan(p) { try { localStorage.setItem(ACTIVITY_KEY, JSON.stringify(p)); } catch {} }
@@ -3616,6 +3568,7 @@ function loadState() {
       state.theme = PALETTES[s.theme] ? s.theme : (THEME_REMAP[s.theme] || "lemon");
       state.clock24 = !!s.clock24;
       state.animate = s.animate !== false;
+      state.iconColor = !!s.iconColor;
     }
   } catch {}
 }
@@ -3633,6 +3586,9 @@ function syncControls() {
   if (el.animSeg) el.animSeg.querySelectorAll("[data-anim]").forEach((b) =>
     b.classList.toggle("is-active", (b.dataset.anim === "on") === (state.animate !== false)));
   document.documentElement.setAttribute("data-anim", state.animate === false ? "off" : "on");
+  if (el.iconSeg) el.iconSeg.querySelectorAll("[data-icon]").forEach((b) =>
+    b.classList.toggle("is-active", (b.dataset.icon === "color") === !!state.iconColor));
+  document.documentElement.setAttribute("data-icons", state.iconColor ? "color" : "ink");
   markLoc(state.loc.label === HOME.label ? "home" : "loc");
 }
 
