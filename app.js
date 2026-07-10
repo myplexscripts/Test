@@ -162,6 +162,7 @@ function wireEvents() {
       state.iconColor = colour;
       syncControls();
       saveState();
+      if (state.data) render(state.data);   // swap between the ink and colour icon sets
     };
   });
 
@@ -1599,7 +1600,10 @@ function wxResolve(w, isNight) {
 }
 let wxUid = 0;
 function wxSVG(code, animated) {
-  let svg = (typeof METEOCONS !== "undefined" && (METEOCONS[code] || METEOCONS["03d"])) || "";
+  // In "Colour" mode use the Meteocons fill (colour) set; otherwise the ink line set.
+  const fill = state.iconColor && typeof METEOCONS_FILL !== "undefined" ? METEOCONS_FILL : null;
+  let svg = (fill && (fill[code] || fill["03d"])) ||
+    (typeof METEOCONS !== "undefined" && (METEOCONS[code] || METEOCONS["03d"])) || "";
   if (!svg) return "";
   if (!animated || state.animate === false) svg = svg.replace(/<animate[^>]*\/>/g, "");
   const uid = "w" + (wxUid++);
