@@ -296,7 +296,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 
   .col-now .hero { padding-top: var(--s-2); }
   .col-now .hero-readout .display { font-size: 4.4rem; }
-  .col-now .hero-icon { font-size: 6.25rem; }
+  .col-now .hero-icon { font-size: 7.25rem; }
 
   .app-cols .rail {
     margin-left: 0;
@@ -461,7 +461,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 
 .hero-icon {
-  font-size: clamp(5.75rem, 30vw, 9rem);
+  font-size: clamp(6.75rem, 35vw, 10.5rem);
   color: var(--ink);
   flex: 0 0 auto;
   line-height: 1;
@@ -1780,7 +1780,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 }
 
 @media (min-width: 680px) {
-  .hero-icon { font-size: clamp(7.25rem, 19vw, 9.75rem); }
+  .hero-icon { font-size: clamp(8.25rem, 22vw, 11.25rem); }
   .hero-readout .display { font-size: clamp(5rem, 13vw, 7rem); }
 }
 
