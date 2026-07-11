@@ -155,6 +155,19 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .bg::before { background-image: var(--dyn-a, none); opacity: var(--dyn-op-a, 0); }
 .bg::after { background-image: var(--dyn-b, none); opacity: var(--dyn-op-b, 0); }
 
+/* Bloom: the glow lives at the top of the home screen and dissolves into the
+   flat page colour as you scroll (--bloom-fade is scroll-driven, 1 -> 0). */
+[data-theme="bloom"] .bg::before,
+[data-theme="bloomdark"] .bg::before { opacity: calc(var(--dyn-op-a, 0) * var(--bloom-fade, 1)); transition: opacity 260ms var(--ease-out); }
+[data-theme="bloom"] .bg::after,
+[data-theme="bloomdark"] .bg::after { opacity: calc(var(--dyn-op-b, 0) * var(--bloom-fade, 1)); transition: opacity 260ms var(--ease-out); }
+
+/* Bloom is home-screen only: every other screen sits on the solid background. */
+:root[data-theme="bloom"] body:has(.sheet.is-open) .bg::before,
+:root[data-theme="bloom"] body:has(.sheet.is-open) .bg::after,
+:root[data-theme="bloomdark"] body:has(.sheet.is-open) .bg::before,
+:root[data-theme="bloomdark"] body:has(.sheet.is-open) .bg::after { opacity: 0; }
+
 .status-fade {
   position: fixed;
   top: 0;
@@ -198,6 +211,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 
 [data-theme="night"] .mini-header,
 [data-theme="night"] .drawer,
+[data-theme="bloomdark"] .mini-header,
+[data-theme="bloomdark"] .drawer,
 [data-dyn="dark"] .mini-header,
 [data-dyn="dark"] .drawer {
   --surface: #1c1c1e;
@@ -205,6 +220,11 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   --on-surface-soft: color-mix(in srgb, #fafafa 64%, transparent);
   --surface-accent: #fafafa;
 }
+
+/* Bloom's transparent status area must not leave the sticky mini-header
+   see-through once it slides in. */
+[data-theme="bloom"] .mini-header,
+[data-theme="bloomdark"] .mini-header { background: var(--surface); }
 
 .ptr {
   position: fixed;

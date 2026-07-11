@@ -17,7 +17,12 @@ const PALETTES = {
   orchid: { bg: "#d37bf3", ink: "#050505", surface: "#050505", onSurface: "#d37bf3", accent: "#d37bf3", dark: false },
   sage:   { bg: "#99f37b", ink: "#050505", surface: "#050505", onSurface: "#99f37b", accent: "#99f37b", dark: false },
   night:  { bg: "#050505", ink: "#fafafa", surface: "#fafafa", onSurface: "#050505", accent: "#050505", dark: true, statusBar: "#050505" },
-  dynamic: { bg: "#fafafa", ink: "#050505", surface: "#050505", onSurface: "#fafafa", accent: "#fafafa", dark: false, isDynamic: true }
+  dynamic: { bg: "#fafafa", ink: "#050505", surface: "#050505", onSurface: "#fafafa", accent: "#fafafa", dark: false, isDynamic: true },
+  // Bloom: flat off-white/off-black page with a soft condition-tinted glow at
+  // the top of the home screen. statusBar is transparent so the glow flows up
+  // behind the clock; meta pins the browser chrome to the flat page colour.
+  bloom:     { bg: "#f7f5f0", ink: "#121212", surface: "#121212", onSurface: "#f7f5f0", accent: "#f7f5f0", dark: false, isDynamic: true, bloom: true, statusBar: "transparent", meta: "#f7f5f0" },
+  bloomdark: { bg: "#111113", ink: "#f2f0eb", surface: "#f2f0eb", onSurface: "#111113", accent: "#111113", dark: true, isDynamic: true, bloom: true, statusBar: "transparent", meta: "#111113" }
 };
 
 const THEME_REMAP = {
@@ -161,6 +166,8 @@ function wireEvents() {
   });
 
   el.themeGrid.querySelectorAll("[data-theme]").forEach((b) => b.onclick = () => setTheme(b.dataset.theme));
+
+  window.addEventListener("scroll", onBloomScroll, { passive: true });
 
   if (el.animSeg) el.animSeg.querySelectorAll("[data-anim]").forEach((b) => {
     b.onclick = () => {
@@ -604,7 +611,7 @@ function render(data) {
   syncMaps();
   setupScrollFx();
 
-  if (themeKind() === "dynamic") updateDynamicBackground();
+  if (PALETTES[themeKind()]?.isDynamic) updateDynamicBackground();
   if (state.sheetOpen) renderDetailSheet();
 }
 
@@ -1675,10 +1682,12 @@ function applyPalette(kind) {
   const sb = p.statusBar || p.surface;
   r.setProperty("--statusbar", sb);
   r.setProperty("--theme", sb);
-  document.querySelector('meta[name="theme-color"]').setAttribute("content", sb);
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", p.meta || sb);
   document.documentElement.setAttribute("data-theme", kind);
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;
+  if (p.bloom) { syncBloomFade(); document.documentElement.removeAttribute("data-dyn"); }
+  else r.removeProperty("--bloom-fade");
   updateMapTheme();
   if (state.data) drawTrend();
 
@@ -2136,6 +2145,65 @@ function skyGradientAt(bands, nowH) {
   return { top: lerpHex(a.top, b.top, frac), bottom: lerpHex(a.bottom, b.bottom, frac) };
 }
 
+// Bloom hue pairs per condition — chosen to read as soft, saturated glows on
+// an off-white or off-black page rather than literal sky colours.
+const BLOOM_HUES = {
+  ClearHot:     ["#ff8a5c", "#ff5e7d"], // coral / warm pink
+  Clear:        ["#ffb95e", "#ff8f6b"], // amber / peach
+  ClearCold:    ["#8fd0ff", "#c7b9ff"], // ice blue / periwinkle
+  ClearNight:   ["#6f7ff0", "#a883f0"], // indigo / violet
+  Clouds:       ["#9fb3d1", "#c9b8d8"], // slate blue / dusty lavender
+  CloudsNight:  ["#5f6fa8", "#8a7fc0"],
+  Mist:         ["#b9c6d3", "#d5d0e2"], // silver / pale lilac
+  Drizzle:      ["#59c4e0", "#7aa8e8"],
+  Rain:         ["#38bde8", "#4a86e8"], // cyan / cobalt
+  RainNight:    ["#3a7bd5", "#6a5fd3"],
+  Snow:         ["#a8dcf5", "#c8c8f0"], // frost blue / periwinkle
+  Thunderstorm: ["#8a75e8", "#4a5fc0"]  // violet / storm blue
+};
+
+function bloomHues(main, tempC, isNight) {
+  if (main === "Thunderstorm") return BLOOM_HUES.Thunderstorm;
+  if (main === "Snow") return BLOOM_HUES.Snow;
+  if (main === "Rain") return isNight ? BLOOM_HUES.RainNight : BLOOM_HUES.Rain;
+  if (main === "Drizzle") return BLOOM_HUES.Drizzle;
+  if (main === "Mist") return BLOOM_HUES.Mist;
+  if (main === "Clouds") return isNight ? BLOOM_HUES.CloudsNight : BLOOM_HUES.Clouds;
+  if (isNight) return BLOOM_HUES.ClearNight;
+  if (tempC >= 27) return BLOOM_HUES.ClearHot;
+  if (tempC <= 5) return BLOOM_HUES.ClearCold;
+  return BLOOM_HUES.Clear;
+}
+
+// Layered radial glows anchored above the top edge, dissolving to transparent
+// so the flat page colour takes over — the "bloom" from the reference mock.
+function bloomGradient(sky, dark) {
+  const main = state.data?.current?.weather?.[0]?.main || "Clear";
+  const tempC = toCelsius(state.data?.current?.main?.temp ?? 18);
+  let [c1, c2] = bloomHues(main, tempC, curIsNight());
+  // Ground the hues in the time of day so a golden-hour bloom warms and a
+  // night bloom deepens, without losing the condition's identity.
+  c1 = lerpHex(c1, sky.top, 0.18);
+  c2 = lerpHex(c2, sky.bottom, 0.18);
+  const mid = lerpHex(c1, c2, 0.5);
+  const a = dark ? [0.5, 0.44, 0.26] : [0.85, 0.75, 0.4];
+  return `radial-gradient(90% 62% at 16% -8%, ${hexA(c1, a[0])} 0%, ${hexA(c1, 0)} 100%),` +
+    ` radial-gradient(92% 64% at 84% -6%, ${hexA(c2, a[1])} 0%, ${hexA(c2, 0)} 100%),` +
+    ` radial-gradient(150% 52% at 50% -16%, ${hexA(mid, a[2])} 0%, ${hexA(mid, 0)} 100%)`;
+}
+
+// Fade the bloom out over the first ~420px of scroll so the page settles onto
+// the flat background. Driven by a CSS var so the layers stay crossfadeable.
+let bloomScrollRaf = null;
+function syncBloomFade() {
+  const f = Math.max(0, Math.min(1, 1 - (window.scrollY || 0) / 420));
+  document.documentElement.style.setProperty("--bloom-fade", f.toFixed(3));
+}
+function onBloomScroll() {
+  if (!PALETTES[themeKind()]?.bloom || bloomScrollRaf) return;
+  bloomScrollRaf = requestAnimationFrame(() => { bloomScrollRaf = null; syncBloomFade(); });
+}
+
 function weatherVeil(main, cloudPct) {
   const v = WEATHER_VEIL[main] || WEATHER_VEIL.Clouds;
   let mix = v.mix;
@@ -2183,11 +2251,19 @@ function updateDynamicBackground() {
     const bands = bandsFromSunTimes(t, tz);
     const nowH = hourOfDay(nowUnix, tz);
     sky = skyGradientAt(bands, nowH);
+    const p = PALETTES[themeKind()];
+    if (p?.bloom) {
+      // Bloom: keep the fixed off-white/off-black palette; only the glow moves.
+      setDynamicGradient(bloomGradient(sky, !!p.dark));
+      return;
+    }
     const w = state.data?.current?.weather?.[0]?.main;
     const cloudPct = state.data?.current?.clouds?.all;
     if (w) sky = applyWeatherVeil(sky, w, cloudPct);
   } else {
     sky = DYNAMIC_SKY.day;
+    const p = PALETTES[themeKind()];
+    if (p?.bloom) { setDynamicGradient(bloomGradient(sky, !!p.dark)); return; }
   }
 
   setDynamicPalette((luminance(sky.top) + luminance(sky.bottom)) / 2 < 0.42);
