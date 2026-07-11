@@ -19,10 +19,9 @@ const PALETTES = {
   night:  { bg: "#050505", ink: "#fafafa", surface: "#fafafa", onSurface: "#050505", accent: "#050505", dark: true, statusBar: "#050505" },
   dynamic: { bg: "#fafafa", ink: "#050505", surface: "#050505", onSurface: "#fafafa", accent: "#fafafa", dark: false, isDynamic: true },
   // Bloom: flat off-white/off-black page with a soft condition-tinted glow at
-  // the top of the home screen. statusBar is transparent so the glow flows up
-  // behind the clock; meta pins the browser chrome to the flat page colour.
-  bloom:     { bg: "#f7f5f0", ink: "#121212", surface: "#121212", onSurface: "#f7f5f0", accent: "#f7f5f0", dark: false, isDynamic: true, bloom: true, statusBar: "transparent", meta: "#f7f5f0" },
-  bloomdark: { bg: "#111113", ink: "#f2f0eb", surface: "#f2f0eb", onSurface: "#111113", accent: "#111113", dark: true, isDynamic: true, bloom: true, statusBar: "transparent", meta: "#111113" }
+  // the top of the home screen (the glow uses the Dynamic theme's colours).
+  bloom:     { bg: "#f7f5f0", ink: "#121212", surface: "#121212", onSurface: "#f7f5f0", accent: "#f7f5f0", dark: false, isDynamic: true, bloom: true, statusBar: "#050505" },
+  bloomdark: { bg: "#111113", ink: "#f2f0eb", surface: "#f2f0eb", onSurface: "#111113", accent: "#111113", dark: true, isDynamic: true, bloom: true, statusBar: "#050505" }
 };
 
 const THEME_REMAP = {
@@ -1682,7 +1681,7 @@ function applyPalette(kind) {
   const sb = p.statusBar || p.surface;
   r.setProperty("--statusbar", sb);
   r.setProperty("--theme", sb);
-  document.querySelector('meta[name="theme-color"]').setAttribute("content", p.meta || sb);
+  document.querySelector('meta[name="theme-color"]').setAttribute("content", sb);
   document.documentElement.setAttribute("data-theme", kind);
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;

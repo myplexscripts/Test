@@ -221,11 +221,6 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   --surface-accent: #fafafa;
 }
 
-/* Bloom's transparent status area must not leave the sticky mini-header
-   see-through once it slides in. */
-[data-theme="bloom"] .mini-header,
-[data-theme="bloomdark"] .mini-header { background: var(--surface); }
-
 .ptr {
   position: fixed;
   top: calc(var(--safe-t) + 6px);
@@ -1320,11 +1315,19 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .map-pin i { font-size: 15px; color: #fff; }
 
 .foot {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-1);
   font-size: var(--t-cap);
   font-weight: 600;
   color: var(--ink-soft);
   text-align: center;
   min-height: 1.2em;
+}
+.foot-credit {
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--ink-faint);
 }
 
 .scrim {
