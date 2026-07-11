@@ -2145,46 +2145,20 @@ function skyGradientAt(bands, nowH) {
   return { top: lerpHex(a.top, b.top, frac), bottom: lerpHex(a.bottom, b.bottom, frac) };
 }
 
-// Bloom hue pairs per condition — chosen to read as soft, saturated glows on
-// an off-white or off-black page rather than literal sky colours.
-const BLOOM_HUES = {
-  ClearHot:     ["#ff8a5c", "#ff5e7d"], // coral / warm pink
-  Clear:        ["#ffb95e", "#ff8f6b"], // amber / peach
-  ClearCold:    ["#8fd0ff", "#c7b9ff"], // ice blue / periwinkle
-  ClearNight:   ["#6f7ff0", "#a883f0"], // indigo / violet
-  Clouds:       ["#9fb3d1", "#c9b8d8"], // slate blue / dusty lavender
-  CloudsNight:  ["#5f6fa8", "#8a7fc0"],
-  Mist:         ["#b9c6d3", "#d5d0e2"], // silver / pale lilac
-  Drizzle:      ["#59c4e0", "#7aa8e8"],
-  Rain:         ["#38bde8", "#4a86e8"], // cyan / cobalt
-  RainNight:    ["#3a7bd5", "#6a5fd3"],
-  Snow:         ["#a8dcf5", "#c8c8f0"], // frost blue / periwinkle
-  Thunderstorm: ["#8a75e8", "#4a5fc0"]  // violet / storm blue
-};
-
-function bloomHues(main, tempC, isNight) {
-  if (main === "Thunderstorm") return BLOOM_HUES.Thunderstorm;
-  if (main === "Snow") return BLOOM_HUES.Snow;
-  if (main === "Rain") return isNight ? BLOOM_HUES.RainNight : BLOOM_HUES.Rain;
-  if (main === "Drizzle") return BLOOM_HUES.Drizzle;
-  if (main === "Mist") return BLOOM_HUES.Mist;
-  if (main === "Clouds") return isNight ? BLOOM_HUES.CloudsNight : BLOOM_HUES.Clouds;
-  if (isNight) return BLOOM_HUES.ClearNight;
-  if (tempC >= 27) return BLOOM_HUES.ClearHot;
-  if (tempC <= 5) return BLOOM_HUES.ClearCold;
-  return BLOOM_HUES.Clear;
-}
-
 // Layered radial glows anchored above the top edge, dissolving to transparent
 // so the flat page colour takes over — the "bloom" from the reference mock.
+// The colours are exactly the Dynamic background's sky pair (time-of-day sky
+// with the weather veil already applied); only the shape differs. A luminance
+// guard keeps ink readable: near-black night skies are lifted toward the light
+// page (keeping their hue), and pale skies deepened slightly on the dark page.
 function bloomGradient(sky, dark) {
-  const main = state.data?.current?.weather?.[0]?.main || "Clear";
-  const tempC = toCelsius(state.data?.current?.main?.temp ?? 18);
-  let [c1, c2] = bloomHues(main, tempC, curIsNight());
-  // Ground the hues in the time of day so a golden-hour bloom warms and a
-  // night bloom deepens, without losing the condition's identity.
-  c1 = lerpHex(c1, sky.top, 0.18);
-  c2 = lerpHex(c2, sky.bottom, 0.18);
+  const legible = (c) => {
+    const l = luminance(c);
+    if (!dark && l < 0.4) return lerpHex(c, "#ffffff", (0.4 - l) * 1.5);
+    if (dark && l > 0.75) return lerpHex(c, "#000000", (l - 0.75) * 1.2);
+    return c;
+  };
+  const c1 = legible(sky.top), c2 = legible(sky.bottom);
   const mid = lerpHex(c1, c2, 0.5);
   const a = dark ? [0.5, 0.44, 0.26] : [0.85, 0.75, 0.4];
   return `radial-gradient(90% 62% at 16% -8%, ${hexA(c1, a[0])} 0%, ${hexA(c1, 0)} 100%),` +
@@ -2251,19 +2225,19 @@ function updateDynamicBackground() {
     const bands = bandsFromSunTimes(t, tz);
     const nowH = hourOfDay(nowUnix, tz);
     sky = skyGradientAt(bands, nowH);
-    const p = PALETTES[themeKind()];
-    if (p?.bloom) {
-      // Bloom: keep the fixed off-white/off-black palette; only the glow moves.
-      setDynamicGradient(bloomGradient(sky, !!p.dark));
-      return;
-    }
     const w = state.data?.current?.weather?.[0]?.main;
     const cloudPct = state.data?.current?.clouds?.all;
     if (w) sky = applyWeatherVeil(sky, w, cloudPct);
   } else {
     sky = DYNAMIC_SKY.day;
-    const p = PALETTES[themeKind()];
-    if (p?.bloom) { setDynamicGradient(bloomGradient(sky, !!p.dark)); return; }
+  }
+
+  const p = PALETTES[themeKind()];
+  if (p?.bloom) {
+    // Bloom: same sky colours as the Dynamic theme, rendered as the top glow.
+    // The page palette stays fixed off-white/off-black.
+    setDynamicGradient(bloomGradient(sky, !!p.dark));
+    return;
   }
 
   setDynamicPalette((luminance(sky.top) + luminance(sky.bottom)) / 2 < 0.42);
