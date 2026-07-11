@@ -30,7 +30,7 @@ const el = {
   ptr: $("ptr"), scrim: $("scrim"),
   drawer: $("drawer"), drawerClose: $("drawerClose"),
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
-  unitSeg: $("unitSeg"), animSeg: $("animSeg"), iconSeg: $("iconSeg"), themeGrid: $("themeGrid"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), alertsInfoBtn: $("alertsInfoBtn"),
+  unitSeg: $("unitSeg"), animSeg: $("animSeg"), themeToggle: $("themeToggle"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), alertsInfoBtn: $("alertsInfoBtn"),
   placeName: $("placeName"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), quickHits: $("quickHits"), alerts: $("alerts"),
   heroLo: $("heroLo"), heroHi: $("heroHi"), heroWhen: $("heroWhen"),
@@ -66,7 +66,6 @@ const state = {
   dark: false,
   clock24: false,
   animate: true,
-  iconColor: false,
   drawerOpen: false,
   sheetOpen: false,
   radarOpen: false
@@ -161,7 +160,8 @@ function wireEvents() {
     };
   });
 
-  el.themeGrid.querySelectorAll("[data-theme]").forEach((b) => b.onclick = () => setTheme(b.dataset.theme));
+  if (el.themeToggle) el.themeToggle.onclick = () =>
+    setTheme(PALETTES[state.theme] && PALETTES[state.theme].dark ? "bloom" : "bloomdark");
 
   window.addEventListener("scroll", onBloomScroll, { passive: true });
 
@@ -173,17 +173,6 @@ function wireEvents() {
       syncControls();
       saveState();
       if (state.data) render(state.data);
-    };
-  });
-
-  if (el.iconSeg) el.iconSeg.querySelectorAll("[data-icon]").forEach((b) => {
-    b.onclick = () => {
-      const colour = b.dataset.icon === "color";
-      if (!!state.iconColor === colour) return;
-      state.iconColor = colour;
-      syncControls();
-      saveState();
-      if (state.data) render(state.data);   // swap between the ink and colour icon sets
     };
   });
 
@@ -1683,8 +1672,7 @@ function themeKind() {
 function setTheme(theme) {
   state.theme = PALETTES[theme] ? theme : "bloom";
   saveState();
-  el.themeGrid.querySelectorAll("[data-theme]").forEach((b) =>
-    b.classList.toggle("is-active", b.dataset.theme === state.theme));
+  if (el.themeToggle) el.themeToggle.setAttribute("aria-checked", PALETTES[state.theme] && PALETTES[state.theme].dark ? "true" : "false");
   applyPalette(themeKind());
 }
 
@@ -1706,10 +1694,7 @@ function wxResolve(w, isNight) {
 }
 let wxUid = 0;
 function wxSVG(code, animated) {
-  // In "Colour" mode use the Meteocons coloured line set; otherwise the ink line set.
-  const colour = state.iconColor && typeof METEOCONS_COLOR !== "undefined" ? METEOCONS_COLOR : null;
-  let svg = (colour && (colour[code] || colour["03d"])) ||
-    (typeof METEOCONS !== "undefined" && (METEOCONS[code] || METEOCONS["03d"])) || "";
+  let svg = (typeof METEOCONS !== "undefined" && (METEOCONS[code] || METEOCONS["03d"])) || "";
   if (!svg) return "";
   if (!animated || state.animate === false) svg = svg.replace(/<animate[^>]*\/>/g, "");
   const uid = "w" + (wxUid++);
@@ -1840,6 +1825,16 @@ function setRange(range) {
 function syncRange() {
   el.tabSeg.querySelectorAll("[data-tab]").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.tab === state.detail.range));
+  syncSlide(el.tabSeg);
+}
+
+// Position the sliding thumb behind a two-option segmented control by writing
+// the active item's index to data-pos; the CSS transitions the transform.
+function syncSlide(seg) {
+  if (!seg) return;
+  const items = [...seg.querySelectorAll(".seg-item")];
+  const i = items.findIndex((b) => b.classList.contains("is-active"));
+  if (i >= 0) seg.dataset.pos = i;
 }
 
 function renderDetailSheet() {
@@ -3688,7 +3683,7 @@ function fmtClock(dt, tz) {
 }
 
 function saveState() {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, clock24: state.clock24, animate: state.animate, iconColor: state.iconColor })); } catch {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, clock24: state.clock24, animate: state.animate })); } catch {}
 }
 function loadActivityPlan() { try { return JSON.parse(localStorage.getItem(ACTIVITY_KEY) || "null"); } catch { return null; } }
 function saveActivityPlan(p) { try { localStorage.setItem(ACTIVITY_KEY, JSON.stringify(p)); } catch {} }
@@ -3701,7 +3696,6 @@ function loadState() {
       state.theme = PALETTES[s.theme] ? s.theme : (THEME_REMAP[s.theme] || "bloom");
       state.clock24 = !!s.clock24;
       state.animate = s.animate !== false;
-      state.iconColor = !!s.iconColor;
     }
   } catch {}
 }
@@ -3714,14 +3708,11 @@ function loadCache() {
 function syncControls() {
   el.unitSeg.querySelectorAll("[data-units]").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.units === state.units));
-  el.themeGrid.querySelectorAll("[data-theme]").forEach((b) =>
-    b.classList.toggle("is-active", b.dataset.theme === state.theme));
+  if (el.themeToggle) el.themeToggle.setAttribute("aria-checked", PALETTES[state.theme] && PALETTES[state.theme].dark ? "true" : "false");
   if (el.animSeg) el.animSeg.querySelectorAll("[data-anim]").forEach((b) =>
     b.classList.toggle("is-active", (b.dataset.anim === "on") === (state.animate !== false)));
   document.documentElement.setAttribute("data-anim", state.animate === false ? "off" : "on");
-  if (el.iconSeg) el.iconSeg.querySelectorAll("[data-icon]").forEach((b) =>
-    b.classList.toggle("is-active", (b.dataset.icon === "color") === !!state.iconColor));
-  document.documentElement.setAttribute("data-icons", state.iconColor ? "color" : "ink");
+  syncSlide(el.unitSeg); syncSlide(el.animSeg);
   markLoc(state.loc.label === HOME.label ? "home" : "loc");
 }
 

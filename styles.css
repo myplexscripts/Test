@@ -121,15 +121,6 @@ h1, h2, h3, p { margin: 0; }
 i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .wx-icon { display: inline-flex; align-items: center; justify-content: center; line-height: 1; color: var(--ink); }
 .wx-icon svg { width: 1em; height: 1em; display: block; }
-/* Colour mode: tint each weather icon by its type (icons draw with currentColor).
-   Ink mode (default) leaves them as --ink. */
-:root[data-icons="color"] .wx-clear-d { color: #ff9500; }
-:root[data-icons="color"] .wx-clear-n { color: #8aa0c8; }
-:root[data-icons="color"] .wx-clouds  { color: #6b7789; }
-:root[data-icons="color"] .wx-rain    { color: #2f86d0; }
-:root[data-icons="color"] .wx-storm   { color: #6a5acd; }
-:root[data-icons="color"] .wx-snow    { color: #4fa8dd; }
-:root[data-icons="color"] .wx-mist    { color: #8b95a1; }
 
 .display, .display-sm,
 .condition, .block-title, .block-head h2,
@@ -1375,33 +1366,44 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .drawer-group { display: flex; flex-direction: column; gap: var(--s-3); }
 .drawer-label { font-weight: 700; font-size: var(--t-sm); }
 
-.theme-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-2); }
-.theme-swatch {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
-  padding: var(--s-2) 0;
-  border-radius: var(--r-sm);
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: var(--on-surface);
-  opacity: 0.55;
-  transition: opacity var(--dur-fast), background var(--dur-fast), transform var(--dur-fast) var(--ease-spring);
+/* Light/Dark appearance switch. aria-checked=true means dark. The thumb and
+   the sun/moon icons cross-fade and slide as the state flips. */
+.switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 62px;
+  height: 34px;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.14);
+  transition: background var(--dur) var(--ease-out);
 }
-.theme-swatch:active { transform: scale(0.94); background: rgba(255, 255, 255, 0.08); }
-.theme-swatch.is-active { opacity: 1; }
-.theme-swatch .sw {
-  width: 36px;
-  height: 36px;
+.switch[aria-checked="true"] { background: rgba(255, 255, 255, 0.24); }
+.switch:active { transform: scale(0.96); }
+.switch-thumb {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.28);
-  transition: box-shadow var(--dur-fast);
+  background: var(--on-surface);
+  transition: transform var(--dur) var(--ease-spring);
 }
-.theme-swatch.is-active .sw {
-  border-color: transparent;
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--on-surface);
+.switch[aria-checked="true"] .switch-thumb { transform: translateX(28px); }
+.switch-ic {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 1rem;
+  line-height: 1;
+  color: var(--on-surface);
+  transition: opacity var(--dur) var(--ease-out);
+  pointer-events: none;
 }
+.switch-ic-sun { left: 8px; }
+.switch-ic-moon { right: 8px; }
+.switch[aria-checked="true"] .switch-ic-sun { opacity: 0.35; }
+.switch[aria-checked="false"] .switch-ic-moon { opacity: 0.35; }
 .seg-row {
   display: flex;
   align-items: center;
@@ -1474,6 +1476,33 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .drawer .seg-item.is-active { background: var(--on-surface); color: var(--surface); }
 .segmented.small .seg-item { padding: 0.4rem 0.85rem; }
+
+/* Two-option toggles: a single thumb slides between the options instead of the
+   active background snapping across. Items become equal-width and transparent
+   so the thumb (::after) shows through; only the text colour cross-fades. */
+.seg-slide { position: relative; }
+.seg-slide .seg-item {
+  flex: 1 1 0;
+  text-align: center;
+  position: relative;
+  z-index: 1;
+}
+.seg-slide .seg-item.is-active,
+.drawer .seg-slide .seg-item.is-active { background: transparent; }
+.seg-slide::after {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  top: 4px;
+  bottom: 4px;
+  left: 4px;
+  width: calc((100% - 10px) / 2);
+  border-radius: var(--r-pill);
+  background: var(--ink);
+  transition: transform var(--dur) var(--ease-spring);
+}
+.drawer .seg-slide::after { background: var(--on-surface); }
+.seg-slide[data-pos="1"]::after { transform: translateX(calc(100% + 2px)); }
 
 /* Radar layer switcher: 5 options don't fit next to the back button on a
    phone, so let the pill shrink and scroll instead of clipping "Lightning". */
@@ -1600,7 +1629,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 
 .card:active, .detail:active, .sun-card:active, .moon-card:active, .wind-card:active,
 .radar-preview:active, .trend-card:active, .row-tap:active, .alert:active, .nowcast:active,
-.drawer-action:active, .drawer-credits:active, .theme-swatch:active,
+.drawer-action:active, .drawer-credits:active, .switch:active,
 .icon-btn:active, .arrow-btn:active, .back-btn:active, .radar-play:active,
 .alert-modal-close:active {
   transition-duration: var(--dur-press);

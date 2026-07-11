@@ -59,32 +59,25 @@
     <div class="drawer-group">
       <div class="seg-row">
         <span>Temperature</span>
-        <div class="segmented small" id="unitSeg" role="group" aria-label="Units">
+        <div class="segmented small seg-slide" id="unitSeg" role="group" aria-label="Units">
           <button class="seg-item is-active" data-units="metric">°C</button>
           <button class="seg-item" data-units="imperial">°F</button>
         </div>
       </div>
       <div class="seg-row">
         <span>Animated icons</span>
-        <div class="segmented small" id="animSeg" role="group" aria-label="Animated weather icons">
+        <div class="segmented small seg-slide" id="animSeg" role="group" aria-label="Animated weather icons">
           <button class="seg-item is-active" data-anim="on">On</button>
           <button class="seg-item" data-anim="off">Off</button>
         </div>
       </div>
       <div class="seg-row">
-        <span>Icon style</span>
-        <div class="segmented small" id="iconSeg" role="group" aria-label="Icon style">
-          <button class="seg-item is-active" data-icon="ink">Ink</button>
-          <button class="seg-item" data-icon="color">Colour</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="drawer-group">
-      <span class="drawer-label">Theme</span>
-      <div class="theme-grid" id="themeGrid" role="group" aria-label="App theme">
-        <button class="theme-swatch is-active" data-theme="bloom"><span class="sw" style="background-image:radial-gradient(circle at 32% 26%, #ff9a6b 0%, #38bde8 52%, #f7f5f0 100%);background-repeat:no-repeat;background-size:100% 100%"></span>Light</button>
-        <button class="theme-swatch" data-theme="bloomdark"><span class="sw" style="background-image:radial-gradient(circle at 32% 26%, #6f7ff0 0%, #3a7bd5 52%, #111113 100%);background-repeat:no-repeat;background-size:100% 100%"></span>Dark</button>
+        <span>Appearance</span>
+        <button class="switch" id="themeToggle" role="switch" aria-checked="false" aria-label="Dark mode">
+          <i class="ph ph-sun switch-ic switch-ic-sun" aria-hidden="true"></i>
+          <i class="ph ph-moon switch-ic switch-ic-moon" aria-hidden="true"></i>
+          <span class="switch-thumb"></span>
+        </button>
       </div>
     </div>
 
@@ -242,7 +235,7 @@
     <div class="sheet-scroll" id="sheetScroll">
       <div class="sheet-head">
         <button class="back-btn" id="sheetBack" aria-label="Back"><i class="ph ph-arrow-left"></i></button>
-        <div class="segmented" id="tabSeg" role="group" aria-label="Forecast range">
+        <div class="segmented seg-slide" id="tabSeg" role="group" aria-label="Forecast range">
           <button class="seg-item is-active" data-tab="hourly">Hourly</button>
           <button class="seg-item" data-tab="daily">Daily</button>
         </div>
@@ -292,7 +285,6 @@
   </div>
 
   <script src="vendor/meteocons/icons.js" defer></script>
-  <script src="vendor/meteocons/icons-color.js" defer></script>
   <script src="vendor/worldmap/land.js" defer></script>
   <script src="app.js" defer></script>
 </body>
