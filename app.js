@@ -12,20 +12,17 @@ const ACTIVITY_KEY = "hw_activityplan_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
 
 const PALETTES = {
-  lemon:  { bg: "#ffe442", ink: "#050505", surface: "#050505", onSurface: "#ffe442", accent: "#ffe442", dark: false },
-  sand:   { bg: "#f3bf7b", ink: "#050505", surface: "#050505", onSurface: "#f3bf7b", accent: "#f3bf7b", dark: false },
-  orchid: { bg: "#d37bf3", ink: "#050505", surface: "#050505", onSurface: "#d37bf3", accent: "#d37bf3", dark: false },
-  sage:   { bg: "#99f37b", ink: "#050505", surface: "#050505", onSurface: "#99f37b", accent: "#99f37b", dark: false },
-  night:  { bg: "#050505", ink: "#fafafa", surface: "#fafafa", onSurface: "#050505", accent: "#050505", dark: true, statusBar: "#050505" },
-  dynamic: { bg: "#fafafa", ink: "#050505", surface: "#050505", onSurface: "#fafafa", accent: "#fafafa", dark: false, isDynamic: true },
   // Bloom: flat off-white/off-black page with a soft condition-tinted glow at
-  // the top of the home screen (the glow uses the Dynamic theme's colours).
+  // the top of the home screen (the glow uses the Dynamic sky colours).
   bloom:     { bg: "#f7f5f0", ink: "#121212", surface: "#121212", onSurface: "#f7f5f0", accent: "#f7f5f0", dark: false, isDynamic: true, bloom: true, statusBar: "#050505" },
   bloomdark: { bg: "#111113", ink: "#f2f0eb", surface: "#f2f0eb", onSurface: "#111113", accent: "#111113", dark: true, isDynamic: true, bloom: true, statusBar: "#050505" }
 };
 
+// Any previously-saved theme now maps into the Bloom set.
 const THEME_REMAP = {
-  rose: "orchid", ocean: "orchid", lilac: "orchid", slate: "night", newmoon: "night"
+  night: "bloomdark", newmoon: "bloomdark", slate: "bloomdark",
+  lemon: "bloom", sand: "bloom", orchid: "bloom", sage: "bloom", dynamic: "bloom",
+  rose: "bloom", ocean: "bloom", lilac: "bloom"
 };
 
 const $ = (id) => document.getElementById(id);
@@ -62,7 +59,7 @@ const state = {
   hourly: [],
   daily: [],
   detail: { metric: "temp", range: "hourly" },
-  theme: "lemon",
+  theme: "bloom",
   center: { ...HOME },
   tz: 0,
   placeName: "",
@@ -952,8 +949,8 @@ function renderNowcast() {
   if (!n) { el.nowcast.style.display = "none"; return; }
   el.nowcast.style.display = "";
   el.nowcast.classList.toggle("is-wet", !!n.wet);
-  const icon = n.wet ? "ph-cloud-rain" : n.maybe ? "ph-cloud" : "ph-cloud-sun";
-  el.nowcast.innerHTML = `<i class="ph-duotone ${icon} nowcast-ic" aria-hidden="true"></i><span class="nowcast-text">${n.text}</span><i class="ph ph-caret-right nowcast-go" aria-hidden="true"></i>`;
+  const code = n.wet ? "10d" : n.maybe ? "02d" : "01d";
+  el.nowcast.innerHTML = `<i class="wx-icon nowcast-ic" aria-hidden="true">${wxSVG(code, true)}</i><span class="nowcast-text">${n.text}</span><i class="ph ph-caret-right nowcast-go" aria-hidden="true"></i>`;
 }
 
 function stargazingTonight() {
@@ -1241,12 +1238,6 @@ function insightTileHTML(icon, label, value, sub) {
   return `<div class="insight-card"><i class="ph-duotone ${icon} insight-ic" aria-hidden="true"></i><div class="insight-body"><div class="insight-label">${label}</div>${value ? `<div class="insight-value">${value}</div>` : ""}<div class="insight-sub">${sub}</div></div></div>`;
 }
 
-function activityTileHTML() {
-  const acts = selectActivities();
-  const foot = state.activityAt ? `<div class="activity-foot">Suggested at ${fmtClock(state.activityAt, state.tz || 0)}</div>` : "";
-  return `<div class="insight-card activity-card"><div class="activity-head"><div class="insight-label activity-title">Good day for</div><div class="activity-head-actions"><button class="activity-refresh" type="button" data-refresh="activity" aria-label="Refresh suggestions"><i class="ph ph-arrow-clockwise" aria-hidden="true"></i></button><button class="whats-this" type="button" data-open="activity">What's this?</button></div></div><div class="activity-rows">${acts.map((a) => `<div class="activity-row${a.good ? " is-good" : ""}"><i class="ph-duotone ${a.icon}" aria-hidden="true"></i><span class="activity-name">${a.label}</span><span class="activity-verdict">${a.when}</span></div>`).join("")}</div>${foot}</div>`;
-}
-
 function renderQuickHits() {
   if (!el.quickHits) return;
   const wearTile = insightTileHTML("ph-coat-hanger", "What to wear", "", buildWear(state.data?.current || {}, state.daily || []));
@@ -1261,7 +1252,7 @@ function renderQuickHits() {
       <span class="qh-head"><i class="ph ph-sparkle qh-ic" aria-hidden="true"></i><span class="qh-label">Quick Hits</span></span>
       <svg class="qh-chev" viewBox="0 0 256 256" aria-hidden="true"><line class="qh-arm qh-arm-l" x1="48" y1="96" x2="128" y2="176" stroke="currentColor" stroke-linecap="round" stroke-width="20"/><line class="qh-arm qh-arm-r" x1="208" y1="96" x2="128" y2="176" stroke="currentColor" stroke-linecap="round" stroke-width="20"/></svg>
     </button>
-    <div class="qh-content"><div class="qh-clip"><div class="qh-tiles">${wearTile}${seasonalTile}${starTile}${activityTileHTML()}</div></div></div>`;
+    <div class="qh-content"><div class="qh-clip"><div class="qh-tiles">${wearTile}${seasonalTile}${starTile}</div></div></div>`;
   el.quickHits.classList.toggle("is-open", open);
   if (open) {
     requestAnimationFrame(() => requestAnimationFrame(() => el.quickHits.classList.remove("qh-no-anim")));
@@ -1276,14 +1267,6 @@ function renderQuickHits() {
   el.quickHits.querySelectorAll("[data-open]").forEach((b) => {
     b.onclick = (e) => { e.stopPropagation(); openDetail(b.dataset.open); };
   });
-  const refreshBtn = el.quickHits.querySelector('[data-refresh="activity"]');
-  if (refreshBtn) {
-    refreshBtn.onclick = (e) => {
-      e.stopPropagation();
-      selectActivities(true);
-      renderQuickHits();
-    };
-  }
 }
 
 function renderWind(current) {
@@ -1694,11 +1677,11 @@ function applyPalette(kind) {
 }
 
 function themeKind() {
-  return PALETTES[state.theme] ? state.theme : "lemon";
+  return PALETTES[state.theme] ? state.theme : "bloom";
 }
 
 function setTheme(theme) {
-  state.theme = PALETTES[theme] ? theme : "lemon";
+  state.theme = PALETTES[theme] ? theme : "bloom";
   saveState();
   el.themeGrid.querySelectorAll("[data-theme]").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.theme === state.theme));
@@ -1815,7 +1798,7 @@ function openSheetUI() {
 }
 
 function openDetail(metric, range) {
-  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "activity" || metric === "alerts";
+  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "alerts";
   if (!METRICS[metric] && !isInfo) metric = "temp";
   const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
   state.nav = [view];
@@ -1862,7 +1845,7 @@ function syncRange() {
 function renderDetailSheet() {
   if (el.sheetHeadAux) { el.sheetHeadAux.innerHTML = ""; el.sheetHeadAux.style.display = "none"; }
   const gc = el.graph.closest(".graph-card");
-  if (["aqi", "uv", "moon", "credits", "sun", "activity", "alerts"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
+  if (["aqi", "uv", "moon", "credits", "sun", "alerts"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
   if (gc) gc.style.display = "";
   if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
@@ -1884,7 +1867,6 @@ function renderInfoSheet(kind) {
   if (kind === "moon") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderMoonSheet(); }
   else if (kind === "sun") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderSunSheet(); }
   else if (kind === "credits") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderCreditsSheet(); }
-  else if (kind === "activity") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderActivitySheet(); }
   else if (kind === "alerts") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAlertsSheet(); }
   else if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
@@ -2523,23 +2505,6 @@ const CREDITS = [
     ["SunCalc", "Algorithms behind the sun and moon times.", "https://github.com/mourner/suncalc"]
   ]]
 ];
-
-function renderActivitySheet() {
-  const acts = (state.activities && state.activities.length) ? state.activities : selectActivities();
-  const how = acts.map((a) => `<p class="info-text"><strong>${a.label}</strong>: ${a.explain}</p>`).join("");
-  el.sheetTitle.textContent = "Good day for";
-  el.sheetNote.textContent = "A quick read on whether today suits a few everyday outdoor tasks, based on the hourly forecast.";
-  el.sheetList.innerHTML =
-    section("What this shows", `<p class="info-text">Each row looks at the hours ahead and estimates when today's conditions suit that task. The time beside it is the best stretch of the day for it, or a short note when the whole day works or none of it does.</p><p class="info-text">The list is drawn from a wider set and adapts to the season and the day's weather, so what appears changes: a warm dry day might offer a BBQ or a bike ride, a snowy one sledding, a wet one a cozy day in.</p>`) +
-    section("Today's picks", how || `<p class="info-text">Suggestions appear once the forecast has loaded.</p>`, true) +
-    section("It is a best guess", `<p class="info-text">These are simple rules of thumb built on the forecast, not a promise. Forecasts shift through the day, so the suggested times can move as fresh data arrives. Treat them as a starting point and check the sky before you commit.</p>`) +
-    section("Examples you might see", `
-      <p class="info-text"><strong>Most of the day</strong>: conditions stay good from morning to evening.</p>
-      <p class="info-text"><strong>12pm to 5pm</strong>: the best window falls in the afternoon.</p>
-      <p class="info-text"><strong>Around 2pm</strong>: only a brief window looks good.</p>
-      <p class="info-text"><strong>Rain by 6pm</strong>: dry for now, but rain is expected later.</p>
-      <p class="info-text"><strong>Not today</strong>: conditions do not really suit it today.</p>`, true);
-}
 
 function renderAlertsSheet() {
   const tier = (name, key, desc) => `<div class="tier-row tier-${key}"><span class="tier-dot" aria-hidden="true"></span><div class="tier-body"><div class="tier-name">${name}</div><p class="info-text">${desc}</p></div></div>`;
@@ -3733,7 +3698,7 @@ function loadState() {
     if (s) {
       state.units = s.units || "metric";
       state.loc = s.loc || { ...HOME };
-      state.theme = PALETTES[s.theme] ? s.theme : (THEME_REMAP[s.theme] || "lemon");
+      state.theme = PALETTES[s.theme] ? s.theme : (THEME_REMAP[s.theme] || "bloom");
       state.clock24 = !!s.clock24;
       state.animate = s.animate !== false;
       state.iconColor = !!s.iconColor;
