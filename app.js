@@ -3216,31 +3216,47 @@ async function initRadarPreview() {
   }
   try {
     const c = state.center;
-    radar.preview = L.map(el.radarPreviewMap, {
+    // Assign radar.preview BEFORE setView: if anything below throws, the guard
+    // (`if (radar.preview) return`) still holds, so we never re-run L.map on the
+    // now-tagged container and hit "Map container is already initialized".
+    const map = L.map(el.radarPreviewMap, {
       zoomControl: false, attributionControl: false, dragging: false, scrollWheelZoom: false,
       doubleClickZoom: false, boxZoom: false, keyboard: false, touchZoom: false, tap: false
-    }).setView([c.lat, c.lon], 9);
-    radar.previewBase = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(radar.preview);
+    });
+    radar.preview = map;
+    map.setView([c.lat, c.lon], 9);
+    radar.previewBase = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1 }).addTo(map);
     let previewTileErrs = 0, previewTilesLoaded = 0;
     radar.previewBase.on("tileload", () => { previewTilesLoaded++; });
     radar.previewBase.on("tileerror", () => {
       if (++previewTileErrs === 8 && radar.previewBase) radar.previewBase.setUrl("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
     });
-    setPinMarker(radar.preview, "previewMarker");
-    const invalidate = () => radar.preview && radar.preview.invalidateSize();
-    requestAnimationFrame(invalidate);
-    [120, 500, 1000, 2000].forEach((d) => setTimeout(invalidate, d));
-    // Self-heal: if the base map created at a 0-size, or CARTO simply never
-    // answers, no tiles paint and the card looks like the black fallback. After
-    // a grace period force a resize, then fall back to OSM if still blank.
-    setTimeout(() => {
+    setPinMarker(map, "previewMarker");
+    // The preview lives below the fold, so it's often created/measured before
+    // it has a real size and never fetches tiles — the card then looks like the
+    // black fallback. Re-measure and, while still blank, force the base layer to
+    // redraw; as a last resort swap CARTO for OSM. This runs on a short timer
+    // ramp, on resize, AND when the card actually scrolls into view.
+    const heal = (lastResort) => {
       if (!radar.preview || !radar.previewBase) return;
       radar.preview.invalidateSize();
-      if (previewTilesLoaded === 0) radar.previewBase.setUrl("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
-    }, 4000);
+      if (previewTilesLoaded === 0) {
+        if (lastResort) radar.previewBase.setUrl("https://tile.openstreetmap.org/{z}/{x}/{y}.png");
+        else radar.previewBase.redraw();
+      }
+    };
+    requestAnimationFrame(() => heal(false));
+    [120, 500, 1000, 2000].forEach((d) => setTimeout(() => heal(false), d));
+    setTimeout(() => heal(true), 4000);
     if ("ResizeObserver" in window && !radar._previewRO) {
-      radar._previewRO = new ResizeObserver(invalidate);
+      radar._previewRO = new ResizeObserver(() => heal(false));
       radar._previewRO.observe(el.radarPreviewMap);
+    }
+    if ("IntersectionObserver" in window && !radar._previewIO) {
+      radar._previewIO = new IntersectionObserver((ents) => {
+        if (ents.some((e) => e.isIntersecting)) heal(false);
+      }, { threshold: 0.05 });
+      radar._previewIO.observe(el.radarPreviewMap);
     }
     if (inCanada(c.lat, c.lon)) {
       const frames = await ensureEccc().catch(() => null);
