@@ -549,21 +549,17 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   padding: var(--s-4);
   transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
 }
-.alert:active { transform: scale(0.98); filter: brightness(0.97); }
+.alert:active { transform: scale(0.98); background: var(--card-bg-hi); }
 .alert-ic { font-size: 2.2rem; color: var(--ink); flex: 0 0 auto; line-height: 1; }
 .alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s-1); }
 .alert-title { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.05rem; line-height: 1.2; }
 .alert-meta { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 .alert-go { font-size: 1.8rem; color: var(--ink); flex: 0 0 auto; }
-/* No coloured edge — the card body carries a faint wash of the alert colour. */
-.alert--yellow { background: color-mix(in srgb, #d9a400 14%, var(--card-bg)); }
-.alert--orange { background: color-mix(in srgb, #e0701a 14%, var(--card-bg)); }
-.alert--red    { background: color-mix(in srgb, #d63a2f 15%, var(--card-bg)); }
-/* Dark page: the tinted card is dark enough for the coloured icon to pop.
-   Light page (default): the icon stays --ink so it doesn't wash into the tint. */
-[data-theme="bloomdark"] .alert--yellow .alert-ic { color: #f0b71a; }
-[data-theme="bloomdark"] .alert--orange .alert-ic { color: #ef8236; }
-[data-theme="bloomdark"] .alert--red    .alert-ic { color: #ec5346; }
+/* No fill tint — just a thin border in the alert colour. The icon stays
+   --ink (black on the light page, white on the dark page) for clean contrast. */
+.alert--yellow { border-color: #d9a400; }
+.alert--orange { border-color: #e0701a; }
+.alert--red    { border-color: #d63a2f; }
 .alert-help {
   display: inline-flex;
   align-items: center;
