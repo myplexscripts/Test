@@ -1161,9 +1161,10 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .radar-note { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 
-/* Search by map: full map with a fixed centre pin; the map moves under it. */
-.mappick-sheet {
-  gap: var(--s-3);
+/* Search by map: full map with a fixed centre pin; the map moves under it.
+   Padding needs .sheet.mappick-sheet specificity to beat `.sheet { padding: 0 }`. */
+.sheet.mappick-sheet {
+  gap: var(--s-4);
   padding:
     calc(var(--safe-t) + var(--s-4))
     calc(var(--gutter) + var(--safe-r))
