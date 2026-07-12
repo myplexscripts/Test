@@ -2396,7 +2396,7 @@ function renderSunSheet() {
   }).join("");
 
   const mt = moonTimes(localMidnight, lat, lon);
-  const bR = 14, RB_OUT = RO + 42;
+  const bR = 16, RB_OUT = RO + 42;
   const wxInline = (code, cx, cy, size) => wxSVG(code, false).replace(/^<svg /, `<svg x="${(cx - size / 2).toFixed(1)}" y="${(cy - size / 2).toFixed(1)}" width="${size}" height="${size}" `);
   let connectors = "", marks = "";
   const placeMark = (label, u, inner) => {
@@ -2407,10 +2407,10 @@ function renderSunSheet() {
     connectors += `<line x1="${c1x}" y1="${c1y}" x2="${c2x}" y2="${c2y}" class="sc-connector"/>`;
     marks += `<g class="sc-mark sc-wxmark" data-cap="${label} · ${fmtClock(u, tz)}"><circle cx="${bx}" cy="${by}" r="${bR}" class="sc-badge"/>${inner(+bx, +by)}</g>`;
   };
-  placeMark("Sunrise", t.sunrise.up, (bx, by) => wxInline("sunrise", bx, by, 20));
-  placeMark("Sunset", t.sunrise.down, (bx, by) => wxInline("sunset", bx, by, 20));
-  placeMark("Moonrise", mt.rise, (bx, by) => wxInline("moonrise", bx, by, 20));
-  placeMark("Moonset", mt.set, (bx, by) => wxInline("moonset", bx, by, 20));
+  placeMark("Sunrise", t.sunrise.up, (bx, by) => wxInline("sunrise", bx, by, 24));
+  placeMark("Sunset", t.sunrise.down, (bx, by) => wxInline("sunset", bx, by, 24));
+  placeMark("Moonrise", mt.rise, (bx, by) => wxInline("moonrise", bx, by, 24));
+  placeMark("Moonset", mt.set, (bx, by) => wxInline("moonset", bx, by, 24));
 
   const nowH = toH(nowUnix);
   const [sx, sy] = pol(RO, ang(nowH));
