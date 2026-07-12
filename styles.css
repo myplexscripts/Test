@@ -52,6 +52,9 @@
   --dur-fast: 160ms;
   --dur: 280ms;
   --dur-slow: 460ms;
+  /* Buttery toggle motion: longer travel with a gentle spring settle. */
+  --dur-toggle: 440ms;
+  --ease-toggle: cubic-bezier(0.34, 1.26, 0.36, 1);
 
   --safe-t: env(safe-area-inset-top, 0px);
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -1377,7 +1380,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   height: 34px;
   border-radius: var(--r-pill);
   background: rgba(255, 255, 255, 0.14);
-  transition: background var(--dur) var(--ease-out);
+  transition: background var(--dur-toggle) var(--ease-out);
 }
 .switch[aria-checked="true"] { background: rgba(255, 255, 255, 0.24); }
 .switch:active { transform: scale(0.96); }
@@ -1389,7 +1392,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   height: 28px;
   border-radius: 50%;
   background: var(--on-surface);
-  transition: transform var(--dur) var(--ease-spring);
+  transition: transform var(--dur-toggle) var(--ease-toggle);
 }
 .switch[aria-checked="true"] .switch-thumb { transform: translateX(28px); }
 .switch-ic {
@@ -1399,7 +1402,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   font-size: 1rem;
   line-height: 1;
   color: var(--on-surface);
-  transition: opacity var(--dur) var(--ease-out);
+  transition: opacity var(--dur-toggle) var(--ease-out);
   pointer-events: none;
 }
 .switch-ic-sun { left: 8px; }
@@ -1469,7 +1472,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   font-weight: 700;
   color: inherit;
   opacity: 0.6;
-  transition: background var(--dur-fast), opacity var(--dur-fast), color var(--dur-fast);
+  transition: background var(--dur-fast), opacity var(--dur-toggle) var(--ease-out), color var(--dur-toggle) var(--ease-out);
 }
 .seg-item.is-active {
   opacity: 1;
@@ -1501,14 +1504,15 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   width: calc((100% - 10px) / 2);
   border-radius: var(--r-pill);
   background: var(--ink);
-  transition: transform var(--dur) var(--ease-spring);
+  transition: transform var(--dur-toggle) var(--ease-toggle);
 }
 .drawer .seg-slide::after { background: var(--on-surface); }
 .seg-slide[data-pos="1"]::after { transform: translateX(calc(100% + 2px)); }
 
-/* Radar layer switcher: icon-only toggles (rain, clouds, temp, wind,
-   lightning). Kept scrollable as a fallback if they ever overflow. */
-.radar-sheet .sheet-head { gap: var(--s-2); }
+/* Radar layer switcher: a collapsible icon control. Collapsed, it shows only
+   the active layer's icon; tapping it expands the full set (icons animate out),
+   and picking one collapses it again. Kept scrollable as an overflow fallback. */
+.radar-sheet .sheet-head { gap: var(--s-3); justify-content: flex-start; }
 #layerSeg {
   flex: 0 1 auto;
   min-width: 0;
@@ -1518,6 +1522,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   -webkit-overflow-scrolling: touch;
   scroll-behavior: smooth;
   justify-content: flex-start;
+  transition: gap var(--dur-toggle) var(--ease-toggle);
 }
 #layerSeg::-webkit-scrollbar { display: none; }
 #layerSeg .seg-item {
@@ -1526,10 +1531,27 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   align-items: center;
   justify-content: center;
   min-height: 44px;      /* HIG-minimum tap target */
+  max-width: 60px;
   padding: 0 0.8rem;
+  overflow: hidden;
+  transition: max-width var(--dur-toggle) var(--ease-toggle),
+              padding var(--dur-toggle) var(--ease-toggle),
+              opacity var(--dur-toggle) var(--ease-out),
+              transform var(--dur-toggle) var(--ease-toggle),
+              background var(--dur-fast);
 }
 #layerSeg .seg-item .ph { font-size: 1.75rem; line-height: 1; opacity: 0.85; }
 #layerSeg .seg-item.is-active .ph { opacity: 1; }
+/* Collapsed: every layer except the active one folds away. */
+#layerSeg.is-collapsed { gap: 0; }
+#layerSeg.is-collapsed .seg-item:not(.is-active) {
+  max-width: 0;
+  padding-left: 0;
+  padding-right: 0;
+  opacity: 0;
+  transform: scale(0.4);
+  pointer-events: none;
+}
 
 .sheet {
   position: fixed;

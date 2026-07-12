@@ -191,7 +191,17 @@ function wireEvents() {
   el.radarMore.onclick = () => openRadar();
   if (el.nowcast) el.nowcast.onclick = () => openRadar();
   el.radarBack.onclick = closeRadar;
-  el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.onclick = () => applyMode(b.dataset.layer));
+  el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.onclick = () => {
+    // Collapsed: only the active icon is tappable — the tap opens the picker.
+    // Expanded: the tap chooses a layer, then the picker folds back up.
+    if (!layerExpanded) { setLayerExpanded(true); return; }
+    if (b.dataset.layer !== radar.mode) applyMode(b.dataset.layer);
+    setLayerExpanded(false);
+  });
+  // Tapping anywhere outside the open picker collapses it gracefully.
+  el.radarSheet.addEventListener("click", (e) => {
+    if (layerExpanded && !e.target.closest("#layerSeg")) setLayerExpanded(false);
+  });
   el.radarPlay.onclick = toggleRadarPlay;
   el.radarScrub.oninput = () => { stopRadarPlay(); showFrame(Number(el.radarScrub.value), true); };
   el.tabSeg.querySelectorAll("[data-tab]").forEach((b) => {
@@ -3293,6 +3303,7 @@ function openRadar(mode) {
   document.body.style.overflow = "hidden";
   initRadarMap();
   setTimeout(() => radar.map && radar.map.invalidateSize(), 320);
+  setLayerExpanded(false);   // always open showing just the active layer's icon
   const warmed = radar.mode === "radar" && radar.layers.length;
   if (!warmed) {
     applyMode(radar.mode);
@@ -3306,6 +3317,12 @@ function openRadar(mode) {
   if (radar.ready) { radar.idx = 0; startRadarPlay(); }
 }
 
+let layerExpanded = false;
+function setLayerExpanded(on) {
+  layerExpanded = on;
+  el.layerSeg.classList.toggle("is-collapsed", !on);
+  if (on) scrollActiveLayerIntoView();
+}
 function scrollActiveLayerIntoView() {
   const active = el.layerSeg && el.layerSeg.querySelector(".seg-item.is-active");
   if (active && active.scrollIntoView) active.scrollIntoView({ inline: "center", block: "nearest" });
