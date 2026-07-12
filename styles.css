@@ -1170,27 +1170,20 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
     calc(var(--safe-b) + var(--s-6))
     calc(var(--gutter) + var(--safe-l));
 }
-.mappick-wrap {
-  position: relative;
-  flex: 1;
-  min-height: 0;
-  border: 2px solid var(--card-border);
-  border-radius: var(--r-lg);
-  overflow: hidden;
-  background: #141414;
-}
+.mappick-wrap { position: relative; }   /* map treatment inherited from .radar-map-full */
 .mappick-map { position: absolute; inset: 0; }
+/* Pin matches the sun-map marker (.sm-pin): ink teardrop with a bg outline so
+   it reads on the dark tiles in either theme. */
 .mappick-pin {
   position: absolute;
   left: 50%;
   top: 50%;
-  transform: translate(-50%, -100%);   /* pin tip rests on the exact map centre */
+  width: 46px;
+  height: 46px;
+  transform: translate(-50%, -91.6%);   /* teardrop tip rests on the exact map centre */
   z-index: 500;
-  font-size: 2.75rem;
-  line-height: 1;
-  color: #ff5b4d;
   pointer-events: none;
-  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.45));
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.4));
 }
 .mappick-confirm {
   display: flex;
