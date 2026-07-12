@@ -141,6 +141,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   position: absolute;
   inset: 0;
   pointer-events: none;
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
   transition: opacity 1.4s var(--ease-out);
 }
 .bg::before { background-image: var(--dyn-a, none); opacity: var(--dyn-op-a, 0); }

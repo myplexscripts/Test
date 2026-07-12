@@ -2121,14 +2121,16 @@ function skyGradientAt(bands, nowH) {
   return { top: lerpHex(a.top, b.top, frac), bottom: lerpHex(a.bottom, b.bottom, frac) };
 }
 
-// Two soft plumes of colour billowing from the upper screen and diffusing into
-// the flat page like ink in water — the "bloom" from the reference mock. The
-// colours are exactly the Dynamic background's sky pair (time-of-day sky with
-// the weather veil already applied); only the shape differs. Each plume has a
-// saturated core inside the viewport and a long, multi-stop falloff to
-// transparent so the two hues melt together and dissolve downward. A luminance
-// guard keeps ink readable: near-black night skies are lifted toward the light
-// page (keeping their hue), and pale skies deepened slightly on the dark page.
+// Bloom rendered as a gradient mesh: colour is pooled around a handful of
+// control points via inverse-distance weighting, giving soft organic plumes
+// instead of hard radial rings — the "ink in water" look of the reference mock.
+// The two Dynamic sky colours (time-of-day sky with the weather veil already
+// applied) seed the plumes; a per-pixel vertical alpha fade dissolves the bloom
+// into the flat page. Returned as a data-URL so it drops straight into the
+// existing crossfade / scroll-fade background layers. A luminance guard keeps
+// ink readable: near-black night skies are lifted toward the light page
+// (keeping their hue), pale skies deepened slightly on the dark page.
+let bloomCanvas = null;
 function bloomGradient(sky, dark) {
   const legible = (c) => {
     const l = luminance(c);
@@ -2136,18 +2138,38 @@ function bloomGradient(sky, dark) {
     if (dark && l > 0.75) return lerpHex(c, "#000000", (l - 0.75) * 1.2);
     return c;
   };
-  const c1 = legible(sky.top), c2 = legible(sky.bottom);
-  const mid = lerpHex(c1, c2, 0.5);
-  // Core opacity per plume plus a wide base wash that ties the two hues
-  // together; the dark page needs less to read as the same intensity.
-  const k = dark ? { core: 0.5, base: 0.28 } : { core: 0.78, base: 0.4 };
-  // Big ellipses (wider/taller than the viewport) so the falloff is gradual;
-  // cores offset like organic clouds. Stops: dense core -> half -> gone by ~66%.
-  return (
-    `radial-gradient(120% 88% at 72% 15%, ${hexA(c1, k.core)} 0%, ${hexA(c1, k.core * 0.5)} 30%, ${hexA(c1, 0)} 66%),` +
-    ` radial-gradient(124% 92% at 25% 27%, ${hexA(c2, k.core)} 0%, ${hexA(c2, k.core * 0.5)} 32%, ${hexA(c2, 0)} 68%),` +
-    ` radial-gradient(165% 78% at 50% -6%, ${hexA(mid, k.base)} 0%, ${hexA(mid, k.base * 0.4)} 42%, ${hexA(mid, 0)} 80%)`
-  );
+  const c1 = hexToRgb(legible(sky.top)), c2 = hexToRgb(legible(sky.bottom));
+  const mid = [(c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2, (c1[2] + c2[2]) / 2];
+  // Two plumes: c2 pools on the left, c1 upper-right, blends where they meet.
+  const grid = [
+    { x: 0.16, y: 0.06, c: c2 }, { x: 0.72, y: 0.05, c: c1 }, { x: 0.98, y: 0.17, c: c1 },
+    { x: 0.05, y: 0.30, c: c2 }, { x: 0.50, y: 0.27, c: mid }, { x: 1.02, y: 0.42, c: c1 },
+    { x: 0.30, y: 0.55, c: mid }, { x: 0.82, y: 0.58, c: mid }
+  ];
+  const W = 150, H = 320, power = 2.4, peak = dark ? 0.62 : 0.88;
+  const cv = bloomCanvas || (bloomCanvas = document.createElement("canvas"));
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext("2d");
+  const img = ctx.createImageData(W, H), d = img.data;
+  for (let y = 0; y < H; y++) {
+    const ny = y / H;
+    // Vertical dissolve: opaque up top, gone by ~62% so the page takes over.
+    const t = Math.max(0, Math.min(1, (ny - 0.1) / 0.52));
+    const alpha = Math.round(255 * peak * (1 - t * t * (3 - 2 * t)));
+    for (let x = 0; x < W; x++) {
+      const nx = x / W;
+      let r = 0, g = 0, b = 0, wsum = 0;
+      for (const p of grid) {
+        const dx = nx - p.x, dy = ny - p.y;
+        const w = 1 / Math.pow(dx * dx + dy * dy + 1e-4, power / 2);
+        r += p.c[0] * w; g += p.c[1] * w; b += p.c[2] * w; wsum += w;
+      }
+      const i = (y * W + x) * 4;
+      d[i] = r / wsum; d[i + 1] = g / wsum; d[i + 2] = b / wsum; d[i + 3] = alpha;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  return `url("${cv.toDataURL()}")`;
 }
 
 // Fade the bloom out over the first ~420px of scroll so the page settles onto
