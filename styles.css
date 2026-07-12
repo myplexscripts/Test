@@ -1525,9 +1525,10 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 0.4rem 0.7rem;
+  min-height: 44px;      /* HIG-minimum tap target */
+  padding: 0 0.8rem;
 }
-#layerSeg .seg-item .ph { font-size: 1.35rem; line-height: 1; opacity: 0.85; }
+#layerSeg .seg-item .ph { font-size: 1.75rem; line-height: 1; opacity: 0.85; }
 #layerSeg .seg-item.is-active .ph { opacity: 1; }
 
 .sheet {
