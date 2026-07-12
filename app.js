@@ -30,8 +30,10 @@ const el = {
   ptr: $("ptr"), scrim: $("scrim"),
   drawer: $("drawer"), drawerClose: $("drawerClose"),
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
-  unitSeg: $("unitSeg"), animSeg: $("animSeg"), themeToggle: $("themeToggle"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), alertsInfoBtn: $("alertsInfoBtn"),
+  unitSeg: $("unitSeg"), animSeg: $("animSeg"), themeToggle: $("themeToggle"), useHome: $("useHome"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), alertsInfoBtn: $("alertsInfoBtn"),
   locSearch: $("locSearch"), searchResults: $("searchResults"), searchClear: $("searchClear"),
+  drawerGreeting: $("drawerGreeting"), searchMap: $("searchMap"), settingsAccordion: $("settingsAccordion"), settingsToggle: $("settingsToggle"),
+  mapPickSheet: $("mapPickSheet"), mapPickMap: $("mapPickMap"), mapPickBack: $("mapPickBack"), mapPickConfirm: $("mapPickConfirm"),
   placeName: $("placeName"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), quickHits: $("quickHits"), alerts: $("alerts"),
   heroLo: $("heroLo"), heroHi: $("heroHi"), heroWhen: $("heroWhen"),
@@ -146,7 +148,13 @@ function wireEvents() {
   el.scrim.onclick = () => { closeDrawer(); };
   el.refreshBtn.onclick = () => { closeDrawer(); refresh(true); };
   el.locBtn.onclick = useMyLocation;
-  el.useLocation.onclick = () => { closeDrawer(); useMyLocation(); };
+  if (el.searchMap) el.searchMap.onclick = openMapPick;
+  if (el.mapPickBack) el.mapPickBack.onclick = closeMapPick;
+  if (el.mapPickConfirm) el.mapPickConfirm.onclick = confirmMapPick;
+  if (el.settingsToggle) el.settingsToggle.onclick = () => {
+    const open = el.settingsAccordion.classList.toggle("is-open");
+    el.settingsToggle.setAttribute("aria-expanded", open ? "true" : "false");
+  };
   el.useHome.onclick = () => { state.loc = { ...HOME }; markLoc("home"); saveState(); closeDrawer(); refresh(true); };
   wireLocationSearch();
   if (el.creditsBtn) el.creditsBtn.onclick = () => { closeDrawer(); openDetail("credits"); };
@@ -221,7 +229,7 @@ function wireEvents() {
   el.graph.addEventListener("pointerleave", endScrub);
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { closeAlertModal(); closeSheet(); closeDrawer(); closeRadar(); }
+    if (e.key === "Escape") { closeAlertModal(); closeSheet(); closeDrawer(); closeRadar(); closeMapPick(); }
   });
 
   if (el.alertModalClose) el.alertModalClose.onclick = closeAlertModal;
@@ -3159,7 +3167,14 @@ function showChartPoint(clientX) {
   ctx.restore();
 }
 
+function greetingForHour(h) {
+  if (h >= 5 && h < 12) return "Good morning";
+  if (h >= 12 && h < 17) return "Good afternoon";
+  if (h >= 17 && h < 22) return "Good evening";
+  return "Good night";
+}
 function openDrawer() {
+  if (el.drawerGreeting) el.drawerGreeting.textContent = greetingForHour(new Date().getHours());
   state.drawerOpen = true;
   el.drawer.classList.add("is-open");
   el.scrim.classList.add("is-open");
@@ -3749,9 +3764,50 @@ function useMyLocation() {
   );
 }
 
+// ---- Search by map: drop a pin to pick any spot -----------------------------
+let mapPick = null;
+function openMapPick() {
+  closeDrawer();
+  if (!el.mapPickSheet) return;
+  el.mapPickSheet.classList.add("is-open");
+  el.mapPickSheet.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  if (!haveLeaflet()) {
+    el.mapPickMap.innerHTML = '<div class="map-fallback">The map needs an internet connection.</div>';
+    return;
+  }
+  const c = state.center || state.loc || HOME;
+  if (mapPick) {
+    mapPick.setView([c.lat, c.lon], mapPick.getZoom() || 9);
+  } else {
+    mapPick = L.map(el.mapPickMap, { zoomControl: true, attributionControl: false, minZoom: 3, maxZoom: 14 })
+      .setView([c.lat, c.lon], 9);
+    const base = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; OpenStreetMap &copy; CARTO" }).addTo(mapPick);
+    let errs = 0;
+    base.on("tileerror", () => { if (++errs === 8) base.setUrl("https://tile.openstreetmap.org/{z}/{x}/{y}.png"); });
+  }
+  // The pin is a fixed centre overlay; moving the map moves the world under it.
+  setTimeout(() => mapPick && mapPick.invalidateSize(), 320);
+  [120, 500, 1000].forEach((d) => setTimeout(() => mapPick && mapPick.invalidateSize(), d));
+}
+function closeMapPick() {
+  if (!el.mapPickSheet || !el.mapPickSheet.classList.contains("is-open")) return;
+  el.mapPickSheet.classList.remove("is-open");
+  el.mapPickSheet.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+}
+function confirmMapPick() {
+  if (!mapPick) { closeMapPick(); return; }
+  const c = mapPick.getCenter();
+  state.loc = { lat: c.lat, lon: c.lng, label: "Dropped pin" };
+  markLoc("loc");
+  saveState();
+  closeMapPick();
+  refresh(true);
+}
+
 function markLoc(which) {
   el.useHome.classList.toggle("is-active", which === "home");
-  el.useLocation.classList.toggle("is-active", which === "loc");
 }
 
 // ---- Location search (Open-Meteo geocoding, no API key) --------------------

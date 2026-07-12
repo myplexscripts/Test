@@ -50,35 +50,10 @@
 
   <div class="scrim" id="scrim" aria-hidden="true"></div>
 
-  <aside class="drawer" id="drawer" aria-label="Settings" aria-hidden="true">
+  <aside class="drawer" id="drawer" aria-label="Menu" aria-hidden="true">
     <div class="drawer-head">
-      <h2>Settings</h2>
-      <button class="icon-btn" id="drawerClose" aria-label="Close settings"><i class="ph ph-x"></i></button>
-    </div>
-
-    <div class="drawer-group">
-      <div class="seg-row">
-        <span>Temperature</span>
-        <div class="segmented small seg-slide" id="unitSeg" role="group" aria-label="Units">
-          <button class="seg-item is-active" data-units="metric">°C</button>
-          <button class="seg-item" data-units="imperial">°F</button>
-        </div>
-      </div>
-      <div class="seg-row">
-        <span>Animated icons</span>
-        <div class="segmented small seg-slide" id="animSeg" role="group" aria-label="Animated weather icons">
-          <button class="seg-item is-active" data-anim="on">On</button>
-          <button class="seg-item" data-anim="off">Off</button>
-        </div>
-      </div>
-      <div class="seg-row">
-        <span>Appearance</span>
-        <button class="switch" id="themeToggle" role="switch" aria-checked="false" aria-label="Dark mode">
-          <i class="ph ph-sun switch-ic switch-ic-sun" aria-hidden="true"></i>
-          <i class="ph ph-moon switch-ic switch-ic-moon" aria-hidden="true"></i>
-          <span class="switch-thumb"></span>
-        </button>
-      </div>
+      <h2 id="drawerGreeting">Hello</h2>
+      <button class="icon-btn" id="drawerClose" aria-label="Close menu"><i class="ph ph-x"></i></button>
     </div>
 
     <div class="drawer-search">
@@ -93,13 +68,44 @@
     </div>
 
     <div class="drawer-actions">
-      <button class="drawer-action is-active" id="useHome"><i class="ph ph-house"></i><span>Home · London, ON</span></button>
-      <button class="drawer-action" id="useLocation"><i class="ph ph-crosshair"></i><span>Use my location</span></button>
-      <button class="drawer-action" id="refreshBtn"><i class="ph ph-arrows-clockwise"></i><span>Refresh now</span></button>
+      <button class="drawer-action" id="searchMap"><i class="ph ph-map-trifold"></i><span>Search by map</span></button>
     </div>
 
     <div class="drawer-actions">
+      <button class="drawer-action is-active" id="useHome"><i class="ph ph-house"></i><span>Home · London, ON</span></button>
+      <button class="drawer-action" id="refreshBtn"><i class="ph ph-arrows-clockwise"></i><span>Refresh now</span></button>
       <button class="drawer-action" id="alertsInfoBtn" hidden><i class="ph ph-warning"></i><span>Weather alerts explained</span></button>
+    </div>
+
+    <div class="drawer-settings" id="settingsAccordion">
+      <button class="ds-toggle" id="settingsToggle" type="button" aria-expanded="false" aria-controls="settingsBody">
+        <span class="ds-head"><i class="ph ph-gear-six ds-ic" aria-hidden="true"></i><span class="ds-label">Settings</span></span>
+        <svg class="ds-chev" viewBox="0 0 256 256" aria-hidden="true"><line class="qh-arm qh-arm-l" x1="48" y1="96" x2="128" y2="176" stroke="currentColor" stroke-linecap="round" stroke-width="20"/><line class="qh-arm qh-arm-r" x1="208" y1="96" x2="128" y2="176" stroke="currentColor" stroke-linecap="round" stroke-width="20"/></svg>
+      </button>
+      <div class="ds-content"><div class="ds-clip"><div class="ds-body" id="settingsBody">
+        <div class="seg-row">
+          <span>Temperature</span>
+          <div class="segmented small seg-slide" id="unitSeg" role="group" aria-label="Units">
+            <button class="seg-item is-active" data-units="metric">°C</button>
+            <button class="seg-item" data-units="imperial">°F</button>
+          </div>
+        </div>
+        <div class="seg-row">
+          <span>Animated icons</span>
+          <div class="segmented small seg-slide" id="animSeg" role="group" aria-label="Animated weather icons">
+            <button class="seg-item is-active" data-anim="on">On</button>
+            <button class="seg-item" data-anim="off">Off</button>
+          </div>
+        </div>
+        <div class="seg-row">
+          <span>Appearance</span>
+          <button class="switch" id="themeToggle" role="switch" aria-checked="false" aria-label="Dark mode">
+            <i class="ph ph-sun switch-ic switch-ic-sun" aria-hidden="true"></i>
+            <i class="ph ph-moon switch-ic switch-ic-moon" aria-hidden="true"></i>
+            <span class="switch-thumb"></span>
+          </button>
+        </div>
+      </div></div></div>
     </div>
 
     <button class="drawer-credits" id="creditsBtn"><i class="ph ph-heart"></i><span>Acknowledgements</span></button>
@@ -280,6 +286,19 @@
     <div class="radar-legend" id="radarLegend"><span>Light</span><div class="legend-bar"></div><span>Heavy</span></div>
     <div class="radar-legend wind-legend" id="windLegend" style="display:none"><span>Calm</span><div class="legend-bar wind-bar"></div><span>Strong</span></div>
     <p class="radar-note" id="radarNote">Live precipitation radar.</p>
+  </section>
+
+  <section class="sheet mappick-sheet" id="mapPickSheet" aria-label="Pick a location on the map" aria-hidden="true">
+    <div class="sheet-head">
+      <button class="back-btn" id="mapPickBack" aria-label="Back"><i class="ph ph-arrow-left"></i></button>
+      <h1 class="sheet-title">Search by map</h1>
+    </div>
+    <p class="sheet-note">Move the map to place the pin, then use that spot.</p>
+    <div class="mappick-wrap">
+      <div class="mappick-map" id="mapPickMap"></div>
+      <div class="mappick-pin" aria-hidden="true"><i class="ph ph-map-pin"></i></div>
+    </div>
+    <button class="mappick-confirm" id="mapPickConfirm"><i class="ph ph-check" aria-hidden="true"></i><span>Use this location</span></button>
   </section>
 
   <div class="alert-overlay" id="alertOverlay" aria-hidden="true">
