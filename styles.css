@@ -1892,19 +1892,29 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .sm-pin path { fill: var(--ink); stroke: var(--bg); stroke-width: 2.4; stroke-linejoin: round; }
 .sm-pinhole { fill: var(--bg); }
 .sunclock-wrap { display: flex; justify-content: center; padding: var(--s-3) 0 var(--s-2); }
-.sunclock { width: min(340px, 92%); height: auto; display: block; }
-.sc-band { cursor: pointer; stroke: color-mix(in srgb, var(--ink) 22%, transparent); stroke-width: 1.5; stroke-linejoin: round; transition: opacity var(--dur-fast); }
+.sunclock { width: min(440px, 100%); height: auto; display: block; }
+/* Clean bg-coloured gaps between bands so the stages read apart. */
+.sc-band { cursor: pointer; stroke: var(--bg); stroke-width: 2; stroke-linejoin: round; transition: opacity var(--dur-fast); }
 .sc-band:hover { opacity: 0.82; }
+/* Optional per-band texture, kept subtle and legible via difference blend. */
+.sc-band-pat { pointer-events: none; mix-blend-mode: difference; opacity: 0.3; }
 .sc-ring { stroke: var(--ink); opacity: 0.22; stroke-width: 2; }
-.sc-tick { stroke: var(--ink); opacity: 0.35; }
 .sc-hour { fill: var(--ink); font-size: 13px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; font-family: Inter, sans-serif; }
-.sc-connector { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
 .sc-badge { fill: transparent; stroke: var(--ink); stroke-width: 2; opacity: 0.22; }
 .sc-wxmark { color: var(--ink); }
-.sc-hand { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; cursor: pointer; }
-.sc-sun { fill: var(--ink); }
-.sc-center { fill: var(--ink); cursor: pointer; }
+/* Indicator marks are drawn white and difference-blended, so they always
+   invert against whatever band shade sits behind them and stay visible. */
+.sc-tick { stroke: #fff; stroke-linecap: round; mix-blend-mode: difference; opacity: 0.7; }
+.sc-connector { stroke: #fff; stroke-width: 3; stroke-linecap: round; mix-blend-mode: difference; }
+.sc-hand { stroke: #fff; stroke-width: 3.5; stroke-linecap: round; cursor: pointer; mix-blend-mode: difference; }
+.sc-sun { fill: #fff; mix-blend-mode: difference; }
+.sc-center { fill: #fff; cursor: pointer; mix-blend-mode: difference; }
 .sc-mark { cursor: pointer; }
+.sc-controls { display: flex; align-items: center; justify-content: center; gap: var(--s-3); margin: var(--s-1) 0 var(--s-3); }
+.sc-controls-label { font-weight: 700; font-size: var(--t-cap); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); }
+.sc-switch { background: color-mix(in srgb, var(--ink) 16%, transparent); }
+.sc-switch[aria-checked="true"] { background: color-mix(in srgb, var(--ink) 42%, transparent); }
+.sc-switch .switch-thumb { background: var(--ink); }
 .sun-key { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); justify-content: center; margin: var(--s-2) 0 var(--s-4); }
 .sun-key-item { display: flex; align-items: center; gap: 6px; font-size: var(--t-cap); font-weight: 700; color: var(--ink-soft); }
 .sun-swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; border: 1px solid color-mix(in srgb, var(--ink) 28%, transparent); }

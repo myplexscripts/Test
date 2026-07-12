@@ -68,6 +68,7 @@ const state = {
   placeName: "",
   dark: false,
   clock24: false,
+  clockPattern: false,
   animate: true,
   drawerOpen: false,
   sheetOpen: false,
@@ -2070,6 +2071,18 @@ const SUN_BANDS = {
   night:    { name: "Night",                 color: "color-mix(in srgb, var(--ink) 100%, transparent)" }
 };
 
+// Optional per-band textures (toggle) so the stages read apart from just their
+// shade. Drawn in white and composited with mix-blend-mode so they stay subtle
+// and legible on any shade in either theme. Each twilight stage gets its own
+// texture; "day" is left clean.
+const SUN_PATTERN_DEFS =
+  `<pattern id="scpat-golden" width="11" height="11" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="11" stroke="#fff" stroke-width="1.6"/></pattern>` +
+  `<pattern id="scpat-civil" width="11" height="11" patternUnits="userSpaceOnUse" patternTransform="rotate(-45)"><line x1="0" y1="0" x2="0" y2="11" stroke="#fff" stroke-width="1.6"/></pattern>` +
+  `<pattern id="scpat-nautical" width="12" height="12" patternUnits="userSpaceOnUse"><path d="M0 0V12M0 0H12" stroke="#fff" stroke-width="1.4"/></pattern>` +
+  `<pattern id="scpat-astro" width="10" height="10" patternUnits="userSpaceOnUse"><circle cx="5" cy="5" r="1.7" fill="#fff"/></pattern>` +
+  `<pattern id="scpat-night" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="9" stroke="#fff" stroke-width="1.6"/></pattern>`;
+const SUN_PATTERN_TYPES = { golden: 1, civil: 1, nautical: 1, astro: 1, night: 1 };
+
 const DYNAMIC_SKY = {
   night:    { top: "#05070f", bottom: "#10152b" },
   astro:    { top: "#0b1130", bottom: "#1c2049" },
@@ -2382,7 +2395,13 @@ function renderSunSheet() {
   };
 
   const bandInfo = bands.map((b) => ({ name: SUN_BANDS[b[2]].name, from: hToClock(b[0]), to: hToClock(b[1]) }));
-  const bandPaths = bands.map((b, i) => `<path class="sc-band" data-i="${i}" d="${arc(RI, RO, b[0], b[1])}" fill="${SUN_BANDS[b[2]].color}"/>`).join("");
+  const patOn = state.clockPattern;
+  const bandPaths = bands.map((b, i) => {
+    const d = arc(RI, RO, b[0], b[1]);
+    let s = `<path class="sc-band" data-i="${i}" d="${d}" fill="${SUN_BANDS[b[2]].color}"/>`;
+    if (patOn && SUN_PATTERN_TYPES[b[2]]) s += `<path class="sc-band-pat" d="${d}" fill="url(#scpat-${b[2]})"/>`;
+    return s;
+  }).join("");
 
   let ticks = "";
   for (let h = 0; h < 24; h++) {
@@ -2420,6 +2439,7 @@ function renderSunSheet() {
   const noonCap = t.noon != null ? `Solar noon · ${fmtClock(t.noon, tz)}` : "";
 
   const svg = `<svg viewBox="-46 -46 392 392" class="sunclock" role="img" aria-label="24-hour sun clock">
+    ${patOn ? `<defs>${SUN_PATTERN_DEFS}</defs>` : ""}
     ${bandPaths}
     <circle cx="${CX}" cy="${CY}" r="${RO}" class="sc-ring" fill="none"/>
     ${ticks}${hourLabels}${connectors}${marks}${sunHand}
@@ -2473,7 +2493,9 @@ function renderSunSheet() {
     </div>`;
   el.sheetHeadAux.innerHTML = toggle;
   el.sheetHeadAux.style.display = "";
-  el.sheetList.innerHTML = `<div class="sc-caption" id="scCaption">${defaultCap}</div><div class="sunclock-wrap">${svg}</div>${keyRow}${list}`;
+  const controls = `<div class="sc-controls"><span class="sc-controls-label">Band patterns</span>` +
+    `<button class="switch sc-switch" id="scPattern" type="button" role="switch" aria-checked="${patOn ? "true" : "false"}" aria-label="Band patterns"><span class="switch-thumb"></span></button></div>`;
+  el.sheetList.innerHTML = `<div class="sc-caption" id="scCaption">${defaultCap}</div><div class="sunclock-wrap">${svg}</div>${controls}${keyRow}${list}`;
 
   const capEl = el.sheetList.querySelector("#scCaption");
   const setCap = (txt) => { if (capEl) capEl.textContent = txt || defaultCap; };
@@ -2484,6 +2506,8 @@ function renderSunSheet() {
   el.sheetHeadAux.querySelectorAll("[data-fmt]").forEach((b) => {
     b.addEventListener("click", () => { state.clock24 = b.dataset.fmt === "24"; saveState(); renderSunSheet(); });
   });
+  const patBtn = el.sheetList.querySelector("#scPattern");
+  if (patBtn) patBtn.addEventListener("click", () => { state.clockPattern = !state.clockPattern; saveState(); renderSunSheet(); });
   const moonLink = el.sheetList.querySelector('.sun-link[data-open="moon"]');
   if (moonLink) moonLink.addEventListener("click", () => {
     const v = { metric: "moon", range: "hourly" };
@@ -3976,7 +4000,7 @@ function fmtClock(dt, tz) {
 }
 
 function saveState() {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, clock24: state.clock24, animate: state.animate })); } catch {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, clock24: state.clock24, clockPattern: state.clockPattern, animate: state.animate })); } catch {}
 }
 function loadActivityPlan() { try { return JSON.parse(localStorage.getItem(ACTIVITY_KEY) || "null"); } catch { return null; } }
 function saveActivityPlan(p) { try { localStorage.setItem(ACTIVITY_KEY, JSON.stringify(p)); } catch {} }
@@ -3988,6 +4012,7 @@ function loadState() {
       state.loc = s.loc || { ...HOME };
       state.theme = PALETTES[s.theme] ? s.theme : (THEME_REMAP[s.theme] || "bloom");
       state.clock24 = !!s.clock24;
+      state.clockPattern = !!s.clockPattern;
       state.animate = s.animate !== false;
     }
   } catch {}
