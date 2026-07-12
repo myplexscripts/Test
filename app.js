@@ -31,6 +31,7 @@ const el = {
   drawer: $("drawer"), drawerClose: $("drawerClose"),
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
   unitSeg: $("unitSeg"), animSeg: $("animSeg"), themeToggle: $("themeToggle"), useHome: $("useHome"), useLocation: $("useLocation"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), alertsInfoBtn: $("alertsInfoBtn"),
+  locSearch: $("locSearch"), searchResults: $("searchResults"), searchClear: $("searchClear"),
   placeName: $("placeName"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), quickHits: $("quickHits"), alerts: $("alerts"),
   heroLo: $("heroLo"), heroHi: $("heroHi"), heroWhen: $("heroWhen"),
@@ -147,6 +148,7 @@ function wireEvents() {
   el.locBtn.onclick = useMyLocation;
   el.useLocation.onclick = () => { closeDrawer(); useMyLocation(); };
   el.useHome.onclick = () => { state.loc = { ...HOME }; markLoc("home"); saveState(); closeDrawer(); refresh(true); };
+  wireLocationSearch();
   if (el.creditsBtn) el.creditsBtn.onclick = () => { closeDrawer(); openDetail("credits"); };
   if (el.alertsInfoBtn) el.alertsInfoBtn.onclick = () => { closeDrawer(); openDetail("alerts"); };
 
@@ -3750,6 +3752,124 @@ function useMyLocation() {
 function markLoc(which) {
   el.useHome.classList.toggle("is-active", which === "home");
   el.useLocation.classList.toggle("is-active", which === "loc");
+}
+
+// ---- Location search (Open-Meteo geocoding, no API key) --------------------
+const GEOCODE_BASE = "https://geocoding-api.open-meteo.com/v1/search";
+let searchTimer = null, searchSeq = 0, searchItems = [], searchActive = -1;
+
+function wireLocationSearch() {
+  if (!el.locSearch) return;
+  el.locSearch.addEventListener("input", () => {
+    const q = el.locSearch.value.trim();
+    el.searchClear.hidden = !q;
+    clearTimeout(searchTimer);
+    if (q.length < 2) { renderSearchResults(null); return; }
+    searchTimer = setTimeout(() => runGeocode(q), 220);   // debounce keystrokes
+  });
+  el.locSearch.addEventListener("keydown", onSearchKey);
+  el.searchClear.onclick = () => { clearSearch(); el.locSearch.focus(); };
+  // Tapping a suggestion.
+  el.searchResults.addEventListener("click", (e) => {
+    const li = e.target.closest("[data-idx]");
+    if (li) pickSearchResult(searchItems[+li.dataset.idx]);
+  });
+}
+
+async function runGeocode(q) {
+  const seq = ++searchSeq;
+  try {
+    const url = `${GEOCODE_BASE}?name=${encodeURIComponent(q)}&count=6&language=en&format=json`;
+    const data = await fetchJSON(url, 8000);
+    if (seq !== searchSeq) return;   // a newer keystroke already superseded this
+    renderSearchResults(Array.isArray(data.results) ? data.results : []);
+  } catch {
+    if (seq === searchSeq) renderSearchResults([]);
+  }
+}
+
+// "London, Ontario, Canada" style — region and country when they add signal.
+function geoLabel(r) {
+  const parts = [r.name];
+  if (r.admin1 && r.admin1 !== r.name) parts.push(r.admin1);
+  if (r.country && r.country !== r.admin1) parts.push(r.country);
+  return parts.join(", ");
+}
+
+function renderSearchResults(results) {
+  searchItems = results || [];
+  searchActive = -1;
+  if (results == null) {            // idle / query too short
+    el.searchResults.hidden = true;
+    el.searchResults.innerHTML = "";
+    el.locSearch.setAttribute("aria-expanded", "false");
+    return;
+  }
+  if (!results.length) {
+    el.searchResults.hidden = false;
+    el.searchResults.innerHTML = `<li class="search-empty" role="presentation">No places found</li>`;
+    el.locSearch.setAttribute("aria-expanded", "false");
+    return;
+  }
+  el.searchResults.innerHTML = results.map((r, i) => {
+    const flag = r.country_code ? countryFlag(r.country_code) : "";
+    const sub = [r.admin1, r.country].filter(Boolean).join(", ");
+    return `<li class="search-item" role="option" id="searchopt${i}" data-idx="${i}" aria-selected="false">` +
+      `<span class="search-flag" aria-hidden="true">${flag}</span>` +
+      `<span class="search-text"><span class="search-name">${escapeHTML(r.name)}</span>` +
+      `<span class="search-sub">${escapeHTML(sub)}</span></span></li>`;
+  }).join("");
+  el.searchResults.hidden = false;
+  el.locSearch.setAttribute("aria-expanded", "true");
+}
+
+function onSearchKey(e) {
+  if (e.key === "Escape") { clearSearch(); return; }
+  if (!searchItems.length) return;
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    e.preventDefault();
+    const dir = e.key === "ArrowDown" ? 1 : -1;
+    searchActive = (searchActive + dir + searchItems.length) % searchItems.length;
+    highlightSearch();
+  } else if (e.key === "Enter") {
+    e.preventDefault();
+    pickSearchResult(searchItems[searchActive >= 0 ? searchActive : 0]);
+  }
+}
+
+function highlightSearch() {
+  [...el.searchResults.children].forEach((li, i) => {
+    const on = i === searchActive;
+    li.classList.toggle("is-active", on);
+    li.setAttribute("aria-selected", on ? "true" : "false");
+    if (on) { li.scrollIntoView({ block: "nearest" }); el.locSearch.setAttribute("aria-activedescendant", li.id); }
+  });
+}
+
+function pickSearchResult(r) {
+  if (!r || !Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) return;
+  state.loc = { lat: r.latitude, lon: r.longitude, label: geoLabel(r) };
+  markLoc("loc");
+  saveState();
+  clearSearch();
+  closeDrawer();
+  refresh(true);
+}
+
+function clearSearch() {
+  clearTimeout(searchTimer);
+  searchSeq++;
+  el.locSearch.value = "";
+  el.searchClear.hidden = true;
+  el.locSearch.removeAttribute("aria-activedescendant");
+  renderSearchResults(null);
+}
+
+// Turn a 2-letter country code into its flag emoji (regional indicators).
+function countryFlag(cc) {
+  const c = String(cc).trim().toUpperCase();
+  if (!/^[A-Z]{2}$/.test(c)) return "";
+  return String.fromCodePoint(...[...c].map((ch) => 0x1f1e6 + ch.charCodeAt(0) - 65));
 }
 
 function setBusy(b) {
