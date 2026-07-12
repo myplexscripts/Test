@@ -1512,9 +1512,12 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 /* Radar layer switcher: a collapsible icon control. Collapsed, it shows only
    the active layer's icon; tapping it expands the full set (icons animate out),
    and picking one collapses it again. Kept scrollable as an overflow fallback. */
-.radar-sheet .sheet-head { gap: var(--s-3); justify-content: flex-start; }
+/* Picker sits at the map's right edge and fans out to the left; row-reverse
+   keeps the selected icon pinned right while the other options unfold leftward. */
+.radar-sheet .sheet-head { gap: var(--s-3); justify-content: space-between; }
 #layerSeg {
   flex: 0 1 auto;
+  flex-direction: row-reverse;
   min-width: 0;
   overflow-x: auto;
   overflow-y: hidden;
