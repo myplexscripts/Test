@@ -2121,10 +2121,12 @@ function skyGradientAt(bands, nowH) {
   return { top: lerpHex(a.top, b.top, frac), bottom: lerpHex(a.bottom, b.bottom, frac) };
 }
 
-// Layered radial glows anchored above the top edge, dissolving to transparent
-// so the flat page colour takes over — the "bloom" from the reference mock.
-// The colours are exactly the Dynamic background's sky pair (time-of-day sky
-// with the weather veil already applied); only the shape differs. A luminance
+// Two soft plumes of colour billowing from the upper screen and diffusing into
+// the flat page like ink in water — the "bloom" from the reference mock. The
+// colours are exactly the Dynamic background's sky pair (time-of-day sky with
+// the weather veil already applied); only the shape differs. Each plume has a
+// saturated core inside the viewport and a long, multi-stop falloff to
+// transparent so the two hues melt together and dissolve downward. A luminance
 // guard keeps ink readable: near-black night skies are lifted toward the light
 // page (keeping their hue), and pale skies deepened slightly on the dark page.
 function bloomGradient(sky, dark) {
@@ -2136,10 +2138,16 @@ function bloomGradient(sky, dark) {
   };
   const c1 = legible(sky.top), c2 = legible(sky.bottom);
   const mid = lerpHex(c1, c2, 0.5);
-  const a = dark ? [0.5, 0.44, 0.26] : [0.85, 0.75, 0.4];
-  return `radial-gradient(90% 62% at 16% -8%, ${hexA(c1, a[0])} 0%, ${hexA(c1, 0)} 100%),` +
-    ` radial-gradient(92% 64% at 84% -6%, ${hexA(c2, a[1])} 0%, ${hexA(c2, 0)} 100%),` +
-    ` radial-gradient(150% 52% at 50% -16%, ${hexA(mid, a[2])} 0%, ${hexA(mid, 0)} 100%)`;
+  // Core opacity per plume plus a wide base wash that ties the two hues
+  // together; the dark page needs less to read as the same intensity.
+  const k = dark ? { core: 0.5, base: 0.28 } : { core: 0.78, base: 0.4 };
+  // Big ellipses (wider/taller than the viewport) so the falloff is gradual;
+  // cores offset like organic clouds. Stops: dense core -> half -> gone by ~66%.
+  return (
+    `radial-gradient(120% 88% at 72% 15%, ${hexA(c1, k.core)} 0%, ${hexA(c1, k.core * 0.5)} 30%, ${hexA(c1, 0)} 66%),` +
+    ` radial-gradient(124% 92% at 25% 27%, ${hexA(c2, k.core)} 0%, ${hexA(c2, k.core * 0.5)} 32%, ${hexA(c2, 0)} 68%),` +
+    ` radial-gradient(165% 78% at 50% -6%, ${hexA(mid, k.base)} 0%, ${hexA(mid, k.base * 0.4)} 42%, ${hexA(mid, 0)} 80%)`
+  );
 }
 
 // Fade the bloom out over the first ~420px of scroll so the page settles onto
