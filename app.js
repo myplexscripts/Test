@@ -2088,6 +2088,43 @@ function luminance(hex) {
   const [r, g, b] = hexToRgb(hex);
   return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 }
+function rgbToHsl([r, g, b]) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), dd = max - min;
+  const l = (max + min) / 2;
+  let h = 0, s = 0;
+  if (dd) {
+    s = l > 0.5 ? dd / (2 - max - min) : dd / (max + min);
+    if (max === r) h = (g - b) / dd + (g < b ? 6 : 0);
+    else if (max === g) h = (b - r) / dd + 2;
+    else h = (r - g) / dd + 4;
+    h /= 6;
+  }
+  return [h, s, l];
+}
+function hslToRgb(h, s, l) {
+  if (!s) { const v = l * 255; return [v, v, v]; }
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, p = 2 * l - q;
+  const hue = (t) => {
+    t = (t % 1 + 1) % 1;
+    if (t < 1 / 6) return p + (q - p) * 6 * t;
+    if (t < 1 / 2) return q;
+    if (t < 2 / 3) return p + (q - p) * (2 / 3 - t) * 6;
+    return p;
+  };
+  return [hue(h + 1 / 3) * 255, hue(h) * 255, hue(h - 1 / 3) * 255];
+}
+// Take a sky colour straight from the weather-background logic and make it more
+// vibrant: boost saturation, and pull washed-out pastels a little off the white/
+// black extremes so the extra saturation actually reads. Same hue, no new palette.
+function vivid(hex, dark) {
+  const [h, s, l] = rgbToHsl(hexToRgb(hex));
+  const s2 = Math.min(1, s * 1.55 + 0.12);
+  let l2 = l;
+  if (!dark && l > 0.66) l2 = l - (l - 0.66) * 0.55;
+  if (dark && l < 0.42) l2 = l + (0.42 - l) * 0.4;
+  return rgbToHex(hslToRgb(h, s2, Math.min(1, Math.max(0, l2))));
+}
 function setDynamicPalette(dark) {
   const r = document.documentElement.style;
   const vars = dark
@@ -2138,7 +2175,7 @@ function bloomGradient(sky, dark) {
     if (dark && l > 0.75) return lerpHex(c, "#000000", (l - 0.75) * 1.2);
     return c;
   };
-  const c1 = hexToRgb(legible(sky.top)), c2 = hexToRgb(legible(sky.bottom));
+  const c1 = hexToRgb(legible(vivid(sky.top, dark))), c2 = hexToRgb(legible(vivid(sky.bottom, dark)));
   const mid = [(c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2, (c1[2] + c2[2]) / 2];
   // Two plumes: c2 pools on the left, c1 upper-right, blends where they meet.
   const grid = [
