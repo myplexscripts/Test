@@ -1506,8 +1506,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .drawer .seg-slide::after { background: var(--on-surface); }
 .seg-slide[data-pos="1"]::after { transform: translateX(calc(100% + 2px)); }
 
-/* Radar layer switcher: 5 options don't fit next to the back button on a
-   phone, so let the pill shrink and scroll instead of clipping "Lightning". */
+/* Radar layer switcher: icon-only toggles (rain, clouds, temp, wind,
+   lightning). Kept scrollable as a fallback if they ever overflow. */
 .radar-sheet .sheet-head { gap: var(--s-2); }
 #layerSeg {
   flex: 0 1 auto;
@@ -1520,7 +1520,15 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   justify-content: flex-start;
 }
 #layerSeg::-webkit-scrollbar { display: none; }
-#layerSeg .seg-item { flex: 0 0 auto; white-space: nowrap; }
+#layerSeg .seg-item {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.4rem 0.7rem;
+}
+#layerSeg .seg-item .ph { font-size: 1.35rem; line-height: 1; opacity: 0.85; }
+#layerSeg .seg-item.is-active .ph { opacity: 1; }
 
 .sheet {
   position: fixed;
