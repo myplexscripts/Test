@@ -549,18 +549,21 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   padding: var(--s-4);
   transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
 }
-.alert:active { transform: scale(0.98); background: var(--card-bg-hi); }
+.alert:active { transform: scale(0.98); filter: brightness(0.97); }
 .alert-ic { font-size: 2.2rem; color: var(--ink); flex: 0 0 auto; line-height: 1; }
 .alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s-1); }
 .alert-title { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.05rem; line-height: 1.2; }
 .alert-meta { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 .alert-go { font-size: 1.8rem; color: var(--ink); flex: 0 0 auto; }
-.alert--yellow { border-left: 5px solid #d9a400; }
-.alert--orange { border-left: 5px solid #e0701a; }
-.alert--red { border-left: 5px solid #d63a2f; }
-.alert--yellow .alert-ic { color: #d9a400; }
-.alert--orange .alert-ic { color: #e0701a; }
-.alert--red .alert-ic { color: #d63a2f; }
+/* No coloured edge — the card body carries a faint wash of the alert colour. */
+.alert--yellow { background: color-mix(in srgb, #d9a400 14%, var(--card-bg)); }
+.alert--orange { background: color-mix(in srgb, #e0701a 14%, var(--card-bg)); }
+.alert--red    { background: color-mix(in srgb, #d63a2f 15%, var(--card-bg)); }
+/* Dark page: the tinted card is dark enough for the coloured icon to pop.
+   Light page (default): the icon stays --ink so it doesn't wash into the tint. */
+[data-theme="bloomdark"] .alert--yellow .alert-ic { color: #f0b71a; }
+[data-theme="bloomdark"] .alert--orange .alert-ic { color: #ef8236; }
+[data-theme="bloomdark"] .alert--red    .alert-ic { color: #ec5346; }
 .alert-help {
   display: inline-flex;
   align-items: center;
@@ -781,7 +784,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .card:active { transform: scale(0.95); background: var(--card-bg-hi); }
 .card i { font-size: 2.2rem; color: var(--ink); }
-.hour-card .wx-icon, .day-card .wx-icon { font-size: 3rem; }
+.hour-card .wx-icon, .day-card .wx-icon { font-size: 3.6rem; }
 .card strong { font-size: 1.3rem; font-weight: 700; line-height: 1; }
 .card span { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); line-height: 1.2; }
 
@@ -958,7 +961,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .nowcast:active { transform: scale(0.98); background: var(--card-bg-hi); }
 .nowcast.is-wet { border-color: color-mix(in srgb, var(--ink) 34%, transparent); }
-.nowcast-ic { font-size: 1.7rem; flex: 0 0 auto; }
+.nowcast-ic { font-size: 2.2rem; flex: 0 0 auto; }
 .nowcast-text { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: var(--t-body); line-height: 1.25; }
 .nowcast-go { margin-left: auto; font-size: 1rem; color: var(--ink-faint); flex: 0 0 auto; }
 
