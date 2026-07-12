@@ -1899,7 +1899,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .sc-tick { stroke: var(--ink); opacity: 0.35; }
 .sc-hour { fill: var(--ink); font-size: 13px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; font-family: Inter, sans-serif; }
 .sc-connector { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; }
-.sc-badge { fill: transparent; stroke: var(--ink); stroke-width: 2; }
+.sc-badge { fill: transparent; stroke: var(--ink); stroke-width: 2; opacity: 0.22; }
 .sc-wxmark { color: var(--ink); }
 .sc-hand { stroke: var(--ink); stroke-width: 3; stroke-linecap: round; cursor: pointer; }
 .sc-sun { fill: var(--ink); }

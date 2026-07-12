@@ -2396,7 +2396,8 @@ function renderSunSheet() {
   }).join("");
 
   const mt = moonTimes(localMidnight, lat, lon);
-  const bR = 16, RB_OUT = RO + 42;
+  // Badges sit well outside the hour labels (RO+20) so they never overlap them.
+  const bR = 16, RB_OUT = RO + 54;
   const wxInline = (code, cx, cy, size) => wxSVG(code, false).replace(/^<svg /, `<svg x="${(cx - size / 2).toFixed(1)}" y="${(cy - size / 2).toFixed(1)}" width="${size}" height="${size}" `);
   let connectors = "", marks = "";
   const placeMark = (label, u, inner) => {
@@ -2418,7 +2419,7 @@ function renderSunSheet() {
   const sunHand = `<line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand" data-cap="Now · ${fmtClock(nowUnix, tz)}"/><circle cx="${sx}" cy="${sy}" r="6.5" class="sc-sun"/>`;
   const noonCap = t.noon != null ? `Solar noon · ${fmtClock(t.noon, tz)}` : "";
 
-  const svg = `<svg viewBox="-26 -26 352 352" class="sunclock" role="img" aria-label="24-hour sun clock">
+  const svg = `<svg viewBox="-46 -46 392 392" class="sunclock" role="img" aria-label="24-hour sun clock">
     ${bandPaths}
     <circle cx="${CX}" cy="${CY}" r="${RO}" class="sc-ring" fill="none"/>
     ${ticks}${hourLabels}${connectors}${marks}${sunHand}
