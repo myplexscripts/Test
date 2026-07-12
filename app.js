@@ -192,6 +192,8 @@ function wireEvents() {
   if (el.nowcast) el.nowcast.onclick = () => openRadar();
   el.radarBack.onclick = closeRadar;
   el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.onclick = () => {
+    // A tap means the user found the picker — cancel the one-time reveal timer.
+    if (radarHintTimer) { clearTimeout(radarHintTimer); radarHintTimer = null; }
     // Collapsed: only the active icon is tappable — the tap opens the picker.
     // Expanded: the tap chooses a layer, then the picker folds back up.
     if (!layerExpanded) { setLayerExpanded(true); return; }
@@ -3303,7 +3305,18 @@ function openRadar(mode) {
   document.body.style.overflow = "hidden";
   initRadarMap();
   setTimeout(() => radar.map && radar.map.invalidateSize(), 320);
-  setLayerExpanded(false);   // always open showing just the active layer's icon
+  // First radar open of the session: reveal the picker expanded, then let it
+  // fold away gracefully so the user learns the other layers are in there.
+  if (!radarHintShown) {
+    radarHintShown = true;
+    setLayerExpanded(true);
+    radarHintTimer = setTimeout(() => {
+      radarHintTimer = null;
+      if (state.radarOpen) setLayerExpanded(false);
+    }, 1500);
+  } else {
+    setLayerExpanded(false);   // open showing just the active layer's icon
+  }
   const warmed = radar.mode === "radar" && radar.layers.length;
   if (!warmed) {
     applyMode(radar.mode);
@@ -3318,6 +3331,8 @@ function openRadar(mode) {
 }
 
 let layerExpanded = false;
+let radarHintShown = false;   // once per app session
+let radarHintTimer = null;
 function setLayerExpanded(on) {
   layerExpanded = on;
   el.layerSeg.classList.toggle("is-collapsed", !on);
@@ -3330,6 +3345,7 @@ function scrollActiveLayerIntoView() {
 function closeRadar() {
   if (!state.radarOpen) return;
   state.radarOpen = false;
+  if (radarHintTimer) { clearTimeout(radarHintTimer); radarHintTimer = null; }
   stopRadarPlay();
   disableWindArrows();
   el.radarSheet.classList.remove("is-open");
