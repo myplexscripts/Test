@@ -2365,7 +2365,7 @@ function sunMapSVG(lat, lon) {
   </svg>`;
 }
 
-function renderSunSheet() {
+function renderSunSheet(keepHead) {
   el.sheetTitle.textContent = "Sun Clock";
   const tz = state.tz || state.data?.current?.timezone || 0;
   const c = state.center || {};
@@ -2395,7 +2395,7 @@ function renderSunSheet() {
   const bandPaths = bands.map((b, i) => {
     const d = arc(RI, RO, b[0], b[1]);
     let s = `<path class="sc-band" data-i="${i}" d="${d}" fill="${SUN_BANDS[b[2]].color}"/>`;
-    if (patOn && SUN_PATTERN_TYPES[b[2]]) s += `<path class="sc-band-pat" d="${d}" fill="url(#scpat-${b[2]})"/>`;
+    if (SUN_PATTERN_TYPES[b[2]]) s += `<path class="sc-band-pat" d="${d}" fill="url(#scpat-${b[2]})"/>`;
     return s;
   }).join("");
 
@@ -2412,34 +2412,19 @@ function renderSunSheet() {
   }).join("");
 
   const mt = moonTimes(localMidnight, lat, lon);
-  // Badges sit well outside the hour labels (RO+20) so they never overlap them.
-  const bR = 16, RB_OUT = RO + 54;
-  const wxInline = (code, cx, cy, size) => wxSVG(code, false).replace(/^<svg /, `<svg x="${(cx - size / 2).toFixed(1)}" y="${(cy - size / 2).toFixed(1)}" width="${size}" height="${size}" `);
-  let connectors = "", marks = "";
-  const placeMark = (label, u, inner) => {
-    if (u == null) return;
-    const A = ang(toH(u));
-    const [bx, by] = pol(RB_OUT, A);
-    const [c1x, c1y] = pol(RO - 16, A), [c2x, c2y] = pol(RO + 8, A);
-    connectors += `<line x1="${c1x}" y1="${c1y}" x2="${c2x}" y2="${c2y}" class="sc-connector"/>`;
-    marks += `<g class="sc-mark sc-wxmark" data-cap="${label} · ${fmtClock(u, tz)}"><circle cx="${bx}" cy="${by}" r="${bR}" class="sc-badge"/>${inner(+bx, +by)}</g>`;
-  };
-  placeMark("Sunrise", t.sunrise.up, (bx, by) => wxInline("sunrise", bx, by, 24));
-  placeMark("Sunset", t.sunrise.down, (bx, by) => wxInline("sunset", bx, by, 24));
-  placeMark("Moonrise", mt.rise, (bx, by) => wxInline("moonrise", bx, by, 24));
-  placeMark("Moonset", mt.set, (bx, by) => wxInline("moonset", bx, by, 24));
-
   const nowH = toH(nowUnix);
   const [sx, sy] = pol(RO, ang(nowH));
   const sunUp = t.sunrise.up != null && nowUnix >= t.sunrise.up && nowUnix < t.sunrise.down;
   const sunHand = `<line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand" data-cap="Now · ${fmtClock(nowUnix, tz)}"/><circle cx="${sx}" cy="${sy}" r="8" class="sc-sun"/>`;
   const noonCap = t.noon != null ? `Solar noon · ${fmtClock(t.noon, tz)}` : "";
 
-  const svg = `<svg viewBox="-46 -46 392 392" class="sunclock" role="img" aria-label="24-hour sun clock">
-    ${patOn ? `<defs>${SUN_PATTERN_DEFS}</defs>` : ""}
+  // No badges/markers — a tight viewBox so the dial fills the width. Patterns are
+  // always drawn and shown/hidden with a class, so the toggle can animate in place.
+  const svg = `<svg viewBox="-6 -6 312 312" class="sunclock" role="img" aria-label="24-hour sun clock">
+    <defs>${SUN_PATTERN_DEFS}</defs>
     ${bandPaths}
     <circle cx="${CX}" cy="${CY}" r="${RO}" class="sc-ring" fill="none"/>
-    ${ticks}${hourLabels}${connectors}${marks}${sunHand}
+    ${ticks}${hourLabels}${sunHand}
     <circle cx="${CX}" cy="${CY}" r="5" class="sc-center" data-cap="${noonCap}"/>
   </svg>`;
 
@@ -2448,7 +2433,7 @@ function renderSunSheet() {
   const goldenAm = t.sunrise.up != null && t.golden.up != null ? `${fmtClock(t.sunrise.up, tz)} to ${fmtClock(t.golden.up, tz)}` : "--";
   const goldenPm = t.golden.down != null && t.sunrise.down != null ? `${fmtClock(t.golden.down, tz)} to ${fmtClock(t.sunrise.down, tz)}` : "--";
   const sectionD = (title, desc, body) => section(title, `<p class="info-desc">${desc}</p>${body}`);
-  const intro = `<p class="sun-intro">A 24-hour map of light for your location. Midnight sits at the bottom and noon at the top; the hand shows where the sun is <em>right now</em>. Each shaded band is a stage of light, from bright <strong>day</strong> at the pale end down to full <strong>night</strong> at the dark end, so you can see daylight and darkness fall across the whole day. The little moons mark when the moon rises and sets. Tap any band, the sun, the moon, or the centre to read its exact times.</p>`;
+  const intro = `<p class="sun-intro">A 24-hour map of light for your location. Midnight sits at the bottom and noon at the top; the hand shows where the sun is <em>right now</em>. Each shaded band is a stage of light, from bright <strong>day</strong> at the pale end down to full <strong>night</strong> at the dark end, so you can see daylight and darkness fall across the whole day. Tap any band, the sun, or the centre to read its exact times.</p>`;
   const sunMap = sunMapSVG(lat, lon);
   const mapSection = sunMap ? section("Sun map", `<p class="info-desc">Day and night across the world right now. The pin marks your location.</p>${sunMap}`) : "";
   const keyRow = `<div class="sun-key">` + Object.entries(SUN_BANDS).map(([k, v]) => `<span class="sun-key-item"><span class="sun-swatch" style="background:${v.color}"></span>${v.name}</span>`).join("") + `</div>`;
@@ -2484,18 +2469,19 @@ function renderSunSheet() {
   const curBand = bands.find((b) => nowH >= b[0] && nowH < b[1]) || bands[bands.length - 1];
   const curName = curBand ? SUN_BANDS[curBand[2]].name : "";
   const defaultCap = curName ? `Right now: ${curName}` : "";
-  const toggle = `<div class="segmented small sun-fmt" role="group" aria-label="Clock format">
+  const toggle = `<div class="segmented small seg-slide sun-fmt" role="group" aria-label="Clock format" data-pos="${state.clock24 ? 1 : 0}">
       <button class="seg-item ${state.clock24 ? "" : "is-active"}" data-fmt="12">12h</button>
       <button class="seg-item ${state.clock24 ? "is-active" : ""}" data-fmt="24">24h</button>
     </div>`;
-  el.sheetHeadAux.innerHTML = toggle;
-  el.sheetHeadAux.style.display = "";
+  // Keep the head toggle across re-renders so its thumb can slide (a fresh
+  // element would just jump to the new position).
+  if (!keepHead) { el.sheetHeadAux.innerHTML = toggle; el.sheetHeadAux.style.display = ""; }
   const controls = `<div class="sc-controls"><span class="sc-controls-label">Band patterns</span>` +
     `<button class="switch sc-switch" id="scPattern" type="button" role="switch" aria-checked="${patOn ? "true" : "false"}" aria-label="Band patterns">` +
     `<i class="ph ph-circle switch-ic switch-ic-off" aria-hidden="true"></i>` +
     `<i class="ph ph-dots-nine switch-ic switch-ic-on" aria-hidden="true"></i>` +
     `<span class="switch-thumb"></span></button></div>`;
-  el.sheetList.innerHTML = `<div class="sc-caption" id="scCaption">${defaultCap}</div><div class="sunclock-wrap">${svg}</div>${controls}${keyRow}${list}`;
+  el.sheetList.innerHTML = `<div class="sc-caption" id="scCaption">${defaultCap}</div><div class="sunclock-wrap${patOn ? "" : " sc-nopat"}">${svg}</div>${controls}${keyRow}${list}`;
 
   const capEl = el.sheetList.querySelector("#scCaption");
   const setCap = (txt) => { if (capEl) capEl.textContent = txt || defaultCap; };
@@ -2503,11 +2489,28 @@ function renderSunSheet() {
     p.addEventListener("click", () => { const b = bandInfo[+p.dataset.i]; setCap(`${b.name} · ${b.from} to ${b.to}`); });
   });
   el.sheetList.querySelectorAll("[data-cap]").forEach((n) => n.addEventListener("click", () => setCap(n.dataset.cap)));
+  // 12h/24h: slide the head toggle in place, then re-render the dial/times only.
   el.sheetHeadAux.querySelectorAll("[data-fmt]").forEach((b) => {
-    b.addEventListener("click", () => { state.clock24 = b.dataset.fmt === "24"; saveState(); renderSunSheet(); });
+    b.addEventListener("click", () => {
+      const to24 = b.dataset.fmt === "24";
+      if (state.clock24 === to24) return;
+      state.clock24 = to24;
+      saveState();
+      const seg = el.sheetHeadAux.querySelector(".sun-fmt");
+      if (seg) { seg.dataset.pos = to24 ? 1 : 0; seg.querySelectorAll("[data-fmt]").forEach((x) => x.classList.toggle("is-active", (x.dataset.fmt === "24") === to24)); }
+      renderSunSheet(true);
+    });
   });
+  // Band patterns: the overlays are always drawn, so just slide the switch and
+  // show/hide them with a class — no re-render, so the thumb animates.
   const patBtn = el.sheetList.querySelector("#scPattern");
-  if (patBtn) patBtn.addEventListener("click", () => { state.clockPattern = !state.clockPattern; saveState(); renderSunSheet(); });
+  if (patBtn) patBtn.addEventListener("click", () => {
+    state.clockPattern = !state.clockPattern;
+    saveState();
+    patBtn.setAttribute("aria-checked", state.clockPattern ? "true" : "false");
+    const wrap = el.sheetList.querySelector(".sunclock-wrap");
+    if (wrap) wrap.classList.toggle("sc-nopat", !state.clockPattern);
+  });
   const moonLink = el.sheetList.querySelector('.sun-link[data-open="moon"]');
   if (moonLink) moonLink.addEventListener("click", () => {
     const v = { metric: "moon", range: "hourly" };

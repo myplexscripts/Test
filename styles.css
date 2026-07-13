@@ -1893,27 +1893,25 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .sm-frame { fill: none; stroke: var(--ink); opacity: 0.18; stroke-width: 2; }
 .sm-pin path { fill: var(--ink); stroke: var(--bg); stroke-width: 2.4; stroke-linejoin: round; }
 .sm-pinhole { fill: var(--bg); }
-.sunclock-wrap { display: flex; justify-content: center; padding: var(--s-3) 0 var(--s-2); }
-.sunclock { width: min(440px, 100%); height: auto; display: block; }
+.sunclock-wrap { display: flex; justify-content: center; padding: var(--s-2) 0; }
+.sunclock { width: min(480px, 100%); height: auto; display: block; }
 /* Thin bg-coloured gaps between bands so the stages read apart without a busy
    "barcode" of thick separators. */
 .sc-band { cursor: pointer; stroke: var(--bg); stroke-width: 1; stroke-linejoin: round; transition: opacity var(--dur-fast); }
 .sc-band:hover { opacity: 0.82; }
-/* Optional per-band texture, kept subtle and legible via difference blend. */
+/* Optional per-band texture, kept subtle and legible via difference blend.
+   Always drawn; hidden by .sc-nopat so the toggle can animate without a redraw. */
 .sc-band-pat { pointer-events: none; mix-blend-mode: difference; opacity: 0.24; }
+.sc-nopat .sc-band-pat { display: none; }
 .sc-ring { stroke: var(--ink); opacity: 0.3; stroke-width: 2; }
 .sc-hour { fill: var(--ink); font-size: 13px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; font-family: Inter, sans-serif; }
-.sc-badge { fill: transparent; stroke: var(--ink); stroke-width: 2; opacity: 0.22; }
-.sc-wxmark { color: var(--ink); }
 /* Indicator marks are drawn white and difference-blended, so they always
    invert against whatever band shade sits behind them and stay visible. */
 .sc-tick { stroke: #fff; stroke-linecap: round; mix-blend-mode: difference; opacity: 0.4; }
 .sc-tick-major { opacity: 0.8; }
-.sc-connector { stroke: #fff; stroke-width: 3; stroke-linecap: round; mix-blend-mode: difference; }
 .sc-hand { stroke: #fff; stroke-width: 4; stroke-linecap: round; cursor: pointer; mix-blend-mode: difference; }
 .sc-sun { fill: #fff; mix-blend-mode: difference; }
 .sc-center { fill: #fff; cursor: pointer; mix-blend-mode: difference; }
-.sc-mark { cursor: pointer; }
 .sc-controls { display: flex; align-items: center; justify-content: center; gap: var(--s-4); margin: var(--s-1) 0 var(--s-3); }
 .sc-controls-label { font-weight: 700; font-size: var(--t-cap); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); }
 /* Same design + spring animation as the appearance toggle, adapted to the
