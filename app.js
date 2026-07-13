@@ -30,7 +30,7 @@ const el = {
   ptr: $("ptr"), scrim: $("scrim"),
   drawer: $("drawer"), drawerClose: $("drawerClose"),
   menuBtn: $("menuBtn"), locBtn: $("locBtn"),
-  unitSeg: $("unitSeg"), animSeg: $("animSeg"), themeToggle: $("themeToggle"), useHome: $("useHome"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), alertsInfoBtn: $("alertsInfoBtn"),
+  unitSeg: $("unitSeg"), animToggle: $("animToggle"), themeToggle: $("themeToggle"), useHome: $("useHome"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), alertsInfoBtn: $("alertsInfoBtn"),
   locSearch: $("locSearch"), searchResults: $("searchResults"), searchClear: $("searchClear"),
   drawerGreeting: $("drawerGreeting"), searchMap: $("searchMap"), settingsAccordion: $("settingsAccordion"), settingsToggle: $("settingsToggle"),
   mapPickSheet: $("mapPickSheet"), mapPickMap: $("mapPickMap"), mapPickBack: $("mapPickBack"), mapPickConfirm: $("mapPickConfirm"),
@@ -176,16 +176,12 @@ function wireEvents() {
 
   window.addEventListener("scroll", onBloomScroll, { passive: true });
 
-  if (el.animSeg) el.animSeg.querySelectorAll("[data-anim]").forEach((b) => {
-    b.onclick = () => {
-      const on = b.dataset.anim === "on";
-      if ((state.animate !== false) === on) return;
-      state.animate = on;
-      syncControls();
-      saveState();
-      if (state.data) render(state.data);
-    };
-  });
+  if (el.animToggle) el.animToggle.onclick = () => {
+    state.animate = !(state.animate !== false);   // flip on/off
+    syncControls();
+    saveState();
+    if (state.data) render(state.data);
+  };
 
   el.hourlyMore.onclick = () => openDetail("temp", "hourly");
   el.dailyMore.onclick = () => openDetail("temp", "daily");
@@ -2063,11 +2059,11 @@ function bandsFromSunTimes(t, tz) {
 }
 
 const SUN_BANDS = {
-  day:      { name: "Day",                   color: "color-mix(in srgb, var(--ink) 6%, transparent)" },
-  golden:   { name: "Golden hour",           color: "color-mix(in srgb, var(--ink) 28%, transparent)" },
-  civil:    { name: "Civil twilight",        color: "color-mix(in srgb, var(--ink) 50%, transparent)" },
-  nautical: { name: "Nautical twilight",     color: "color-mix(in srgb, var(--ink) 72%, transparent)" },
-  astro:    { name: "Astronomical twilight", color: "color-mix(in srgb, var(--ink) 89%, transparent)" },
+  day:      { name: "Day",                   color: "color-mix(in srgb, var(--ink) 13%, transparent)" },
+  golden:   { name: "Golden hour",           color: "color-mix(in srgb, var(--ink) 32%, transparent)" },
+  civil:    { name: "Civil twilight",        color: "color-mix(in srgb, var(--ink) 52%, transparent)" },
+  nautical: { name: "Nautical twilight",     color: "color-mix(in srgb, var(--ink) 70%, transparent)" },
+  astro:    { name: "Astronomical twilight", color: "color-mix(in srgb, var(--ink) 86%, transparent)" },
   night:    { name: "Night",                 color: "color-mix(in srgb, var(--ink) 100%, transparent)" }
 };
 
@@ -2405,8 +2401,9 @@ function renderSunSheet() {
 
   let ticks = "";
   for (let h = 0; h < 24; h++) {
-    const [x1, y1] = pol(RO, ang(h)), [x2, y2] = pol(RO + (h % 6 === 0 ? 8 : 4), ang(h));
-    ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="sc-tick" stroke-width="${h % 6 === 0 ? 2 : 1}"/>`;
+    const major = h % 3 === 0;   // 3-hour marks (aligned with the labels) read; hourly ones stay faint
+    const [x1, y1] = pol(RO, ang(h)), [x2, y2] = pol(RO + (major ? 7 : 3), ang(h));
+    ticks += `<line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" class="sc-tick${major ? " sc-tick-major" : ""}" stroke-width="${major ? 2 : 1}"/>`;
   }
   const hourText = (h) => { if (state.clock24) return String(h); const hh = h % 12 || 12; return `${hh}${h < 12 ? "a" : "p"}`; };
   const hourLabels = [0, 3, 6, 9, 12, 15, 18, 21].map((h) => {
@@ -2435,7 +2432,7 @@ function renderSunSheet() {
   const nowH = toH(nowUnix);
   const [sx, sy] = pol(RO, ang(nowH));
   const sunUp = t.sunrise.up != null && nowUnix >= t.sunrise.up && nowUnix < t.sunrise.down;
-  const sunHand = `<line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand" data-cap="Now · ${fmtClock(nowUnix, tz)}"/><circle cx="${sx}" cy="${sy}" r="6.5" class="sc-sun"/>`;
+  const sunHand = `<line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand" data-cap="Now · ${fmtClock(nowUnix, tz)}"/><circle cx="${sx}" cy="${sy}" r="8" class="sc-sun"/>`;
   const noonCap = t.noon != null ? `Solar noon · ${fmtClock(t.noon, tz)}` : "";
 
   const svg = `<svg viewBox="-46 -46 392 392" class="sunclock" role="img" aria-label="24-hour sun clock">
@@ -2494,7 +2491,10 @@ function renderSunSheet() {
   el.sheetHeadAux.innerHTML = toggle;
   el.sheetHeadAux.style.display = "";
   const controls = `<div class="sc-controls"><span class="sc-controls-label">Band patterns</span>` +
-    `<button class="switch sc-switch" id="scPattern" type="button" role="switch" aria-checked="${patOn ? "true" : "false"}" aria-label="Band patterns"><span class="switch-thumb"></span></button></div>`;
+    `<button class="switch sc-switch" id="scPattern" type="button" role="switch" aria-checked="${patOn ? "true" : "false"}" aria-label="Band patterns">` +
+    `<i class="ph ph-circle switch-ic switch-ic-off" aria-hidden="true"></i>` +
+    `<i class="ph ph-dots-nine switch-ic switch-ic-on" aria-hidden="true"></i>` +
+    `<span class="switch-thumb"></span></button></div>`;
   el.sheetList.innerHTML = `<div class="sc-caption" id="scCaption">${defaultCap}</div><div class="sunclock-wrap">${svg}</div>${controls}${keyRow}${list}`;
 
   const capEl = el.sheetList.querySelector("#scCaption");
@@ -4027,10 +4027,9 @@ function syncControls() {
   el.unitSeg.querySelectorAll("[data-units]").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.units === state.units));
   if (el.themeToggle) el.themeToggle.setAttribute("aria-checked", PALETTES[state.theme] && PALETTES[state.theme].dark ? "true" : "false");
-  if (el.animSeg) el.animSeg.querySelectorAll("[data-anim]").forEach((b) =>
-    b.classList.toggle("is-active", (b.dataset.anim === "on") === (state.animate !== false)));
+  if (el.animToggle) el.animToggle.setAttribute("aria-checked", state.animate !== false ? "true" : "false");
   document.documentElement.setAttribute("data-anim", state.animate === false ? "off" : "on");
-  syncSlide(el.unitSeg); syncSlide(el.animSeg);
+  syncSlide(el.unitSeg);
   markLoc(state.loc.label === HOME.label ? "home" : "loc");
 }
 

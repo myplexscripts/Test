@@ -1445,10 +1445,12 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   transition: opacity var(--dur-toggle) var(--ease-out);
   pointer-events: none;
 }
-.switch-ic-sun { left: 8px; }
-.switch-ic-moon { right: 8px; }
-.switch[aria-checked="true"] .switch-ic-sun { opacity: 0.35; }
-.switch[aria-checked="false"] .switch-ic-moon { opacity: 0.35; }
+.switch-ic-sun, .switch-ic-off { left: 8px; }
+.switch-ic-moon, .switch-ic-on { right: 8px; }
+.switch[aria-checked="true"] .switch-ic-sun,
+.switch[aria-checked="true"] .switch-ic-off { opacity: 0.35; }
+.switch[aria-checked="false"] .switch-ic-moon,
+.switch[aria-checked="false"] .switch-ic-on { opacity: 0.35; }
 .seg-row {
   display: flex;
   align-items: center;
@@ -1893,28 +1895,33 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .sm-pinhole { fill: var(--bg); }
 .sunclock-wrap { display: flex; justify-content: center; padding: var(--s-3) 0 var(--s-2); }
 .sunclock { width: min(440px, 100%); height: auto; display: block; }
-/* Clean bg-coloured gaps between bands so the stages read apart. */
-.sc-band { cursor: pointer; stroke: var(--bg); stroke-width: 2; stroke-linejoin: round; transition: opacity var(--dur-fast); }
+/* Thin bg-coloured gaps between bands so the stages read apart without a busy
+   "barcode" of thick separators. */
+.sc-band { cursor: pointer; stroke: var(--bg); stroke-width: 1; stroke-linejoin: round; transition: opacity var(--dur-fast); }
 .sc-band:hover { opacity: 0.82; }
 /* Optional per-band texture, kept subtle and legible via difference blend. */
-.sc-band-pat { pointer-events: none; mix-blend-mode: difference; opacity: 0.3; }
-.sc-ring { stroke: var(--ink); opacity: 0.22; stroke-width: 2; }
+.sc-band-pat { pointer-events: none; mix-blend-mode: difference; opacity: 0.24; }
+.sc-ring { stroke: var(--ink); opacity: 0.3; stroke-width: 2; }
 .sc-hour { fill: var(--ink); font-size: 13px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; font-family: Inter, sans-serif; }
 .sc-badge { fill: transparent; stroke: var(--ink); stroke-width: 2; opacity: 0.22; }
 .sc-wxmark { color: var(--ink); }
 /* Indicator marks are drawn white and difference-blended, so they always
    invert against whatever band shade sits behind them and stay visible. */
-.sc-tick { stroke: #fff; stroke-linecap: round; mix-blend-mode: difference; opacity: 0.7; }
+.sc-tick { stroke: #fff; stroke-linecap: round; mix-blend-mode: difference; opacity: 0.4; }
+.sc-tick-major { opacity: 0.8; }
 .sc-connector { stroke: #fff; stroke-width: 3; stroke-linecap: round; mix-blend-mode: difference; }
-.sc-hand { stroke: #fff; stroke-width: 3.5; stroke-linecap: round; cursor: pointer; mix-blend-mode: difference; }
+.sc-hand { stroke: #fff; stroke-width: 4; stroke-linecap: round; cursor: pointer; mix-blend-mode: difference; }
 .sc-sun { fill: #fff; mix-blend-mode: difference; }
 .sc-center { fill: #fff; cursor: pointer; mix-blend-mode: difference; }
 .sc-mark { cursor: pointer; }
-.sc-controls { display: flex; align-items: center; justify-content: center; gap: var(--s-3); margin: var(--s-1) 0 var(--s-3); }
+.sc-controls { display: flex; align-items: center; justify-content: center; gap: var(--s-4); margin: var(--s-1) 0 var(--s-3); }
 .sc-controls-label { font-weight: 700; font-size: var(--t-cap); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); }
-.sc-switch { background: color-mix(in srgb, var(--ink) 16%, transparent); }
-.sc-switch[aria-checked="true"] { background: color-mix(in srgb, var(--ink) 42%, transparent); }
+/* Same design + spring animation as the appearance toggle, adapted to the
+   page surface (ink-based instead of on-surface). */
+.sc-switch { background: color-mix(in srgb, var(--ink) 14%, transparent); }
+.sc-switch[aria-checked="true"] { background: color-mix(in srgb, var(--ink) 26%, transparent); }
 .sc-switch .switch-thumb { background: var(--ink); }
+.sc-switch .switch-ic { color: var(--ink); }
 .sun-key { display: flex; flex-wrap: wrap; gap: var(--s-2) var(--s-4); justify-content: center; margin: var(--s-2) 0 var(--s-4); }
 .sun-key-item { display: flex; align-items: center; gap: 6px; font-size: var(--t-cap); font-weight: 700; color: var(--ink-soft); }
 .sun-swatch { width: 12px; height: 12px; border-radius: 3px; flex: 0 0 auto; border: 1px solid color-mix(in srgb, var(--ink) 28%, transparent); }
