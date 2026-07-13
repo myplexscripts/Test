@@ -1116,7 +1116,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .trend-legend {
   display: flex;
   gap: var(--s-4);
-  padding: 0 var(--s-1) var(--s-2);
+  /* Inset from the card's rounded corner — the card itself has no side
+     padding so the chart can run full width, so the legend carries its own. */
+  padding: var(--s-2) var(--s-5) var(--s-3);
 }
 .tl-item {
   display: flex;
@@ -1224,6 +1226,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
    sheet's other children float over it (they already carry z-index 1). */
 .map-host { position: relative; }
 .map-fill { position: absolute; inset: 0; }
+/* Matches the leaflet zoom control and the radar layer picker: a solid,
+   theme-aware surface chip so every floating map control reads as one family. */
 .map-full-btn {
   position: absolute;
   top: 10px;
@@ -1234,19 +1238,23 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   display: grid;
   place-items: center;
   border-radius: var(--r-pill);
-  background: rgba(20, 20, 20, 0.78);
-  color: #fafafa;
+  background: var(--surface);
+  color: var(--on-surface);
   font-size: 1.3rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.28);
   transition: transform var(--dur-fast) var(--ease-spring);
 }
 .map-full-btn:active { transform: scale(0.9); }
-/* Full screen: the floating controls share the sheet's gutter insets so the
-   left column (back button, zoom) and right column (layer picker / toggle)
-   line up on a single left and right edge. Vertically the zoom and the toggle
-   drop below the head row. */
-.sheet.is-full .leaflet-top.leaflet-left { top: calc(var(--safe-t) + 72px); }
+/* Full screen: the back arrow is dropped (the collapse control replaces it),
+   so the zoom rises to the top-left corner. Controls share the sheet's gutter
+   insets to line up on one left and one right edge. */
+.sheet.is-full .back-btn { display: none; }
+/* With the back arrow gone the head row has only the layer picker; keep it
+   pinned to the right edge (space-between would otherwise float it left). */
+.sheet.is-full .sheet-head { justify-content: flex-end; }
+.sheet.is-full .leaflet-top.leaflet-left { top: calc(var(--safe-t) + 16px); }
 .sheet.is-full .leaflet-left .leaflet-control { margin-left: calc(var(--gutter) + var(--safe-l)); }
-.sheet.is-full .map-full-btn { top: calc(var(--safe-t) + 10px); right: calc(var(--gutter) + var(--safe-r)); }
+.sheet.is-full .map-full-btn { top: calc(var(--safe-t) + 16px); right: calc(var(--gutter) + var(--safe-r)); }
 .radar-sheet.is-full .map-full-btn { top: calc(var(--safe-t) + 72px); }
 
 /* With the nav bar hidden there is no reason to hold its clearance. */
@@ -1261,14 +1269,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   border-radius: 0;
 }
 /* Floating chrome gets page-coloured panels so the existing ink styling
-   stays readable over the dark tiles, in both themes. */
-.sheet.is-full .back-btn {
-  place-items: center;
-  margin-left: 0;
-  background: var(--bg);
-  border-radius: var(--r-pill);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
-}
+   stays readable over the map tiles, in both themes. */
 .radar-sheet.is-full #layerSeg {
   background-color: var(--bg);
   background-image: linear-gradient(var(--card-bg-hi), var(--card-bg-hi));
