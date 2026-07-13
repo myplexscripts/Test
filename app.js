@@ -2055,15 +2055,24 @@ function bandsFromSunTimes(t, tz) {
   const bands = []; let cur = 0;
   for (const b of raw) { if (b[0] > cur + 0.001) bands.push([cur, b[0], deep]); bands.push(b); cur = Math.max(cur, b[1]); }
   if (cur < 24) bands.push([cur, 24, deep]);
+  // Night wraps through midnight — merge the evening + morning night segments
+  // into one continuous band (end > 24) so there's no split at 12a.
+  if (bands.length > 1) {
+    const first = bands[0], last = bands[bands.length - 1];
+    if (first[2] === last[2] && first[0] <= 0.001 && Math.abs(last[1] - 24) < 0.001) {
+      bands.shift(); bands.pop();
+      bands.push([last[0], first[1] + 24, first[2]]);
+    }
+  }
   return bands;
 }
 
 const SUN_BANDS = {
-  day:      { name: "Day",                   color: "color-mix(in srgb, var(--ink) 13%, transparent)" },
-  golden:   { name: "Golden hour",           color: "color-mix(in srgb, var(--ink) 32%, transparent)" },
-  civil:    { name: "Civil twilight",        color: "color-mix(in srgb, var(--ink) 52%, transparent)" },
-  nautical: { name: "Nautical twilight",     color: "color-mix(in srgb, var(--ink) 70%, transparent)" },
-  astro:    { name: "Astronomical twilight", color: "color-mix(in srgb, var(--ink) 86%, transparent)" },
+  day:      { name: "Day",                   color: "color-mix(in srgb, var(--ink) 11%, transparent)" },
+  golden:   { name: "Golden hour",           color: "color-mix(in srgb, var(--ink) 34%, transparent)" },
+  civil:    { name: "Civil twilight",        color: "color-mix(in srgb, var(--ink) 56%, transparent)" },
+  nautical: { name: "Nautical twilight",     color: "color-mix(in srgb, var(--ink) 78%, transparent)" },
+  astro:    { name: "Astronomical twilight", color: "color-mix(in srgb, var(--ink) 92%, transparent)" },
   night:    { name: "Night",                 color: "color-mix(in srgb, var(--ink) 100%, transparent)" }
 };
 
@@ -2356,6 +2365,7 @@ function sunMapSVG(lat, lon) {
   return `<svg viewBox="0 0 ${W} ${H}" class="sunmap" role="img" aria-label="World map showing day and night right now">
     <clipPath id="smclip"><rect x="0" y="0" width="${W}" height="${H}" rx="18"/></clipPath>
     <g clip-path="url(#smclip)">
+      <rect x="0" y="0" width="${W}" height="${H}" class="sm-sea"/>
       <path d="${WORLD_MAP.land}" class="sm-land"/>
       <path d="${nightPath}" class="sm-night"/>
       <path d="${term}" class="sm-term"/>
@@ -2466,7 +2476,8 @@ function renderSunSheet(keepHead) {
   el.sheetNote.textContent = sunUp
     ? `Daylight now. Sunset at ${fmtOrDash(t.sunrise.down)}.`
     : `Nighttime now. Sunrise at ${fmtOrDash(t.sunrise.up)}.`;
-  const curBand = bands.find((b) => nowH >= b[0] && nowH < b[1]) || bands[bands.length - 1];
+  const inBand = (b, h) => b[1] > 24 ? (h >= b[0] || h < b[1] - 24) : (h >= b[0] && h < b[1]);
+  const curBand = bands.find((b) => inBand(b, nowH)) || bands[bands.length - 1];
   const curName = curBand ? SUN_BANDS[curBand[2]].name : "";
   const defaultCap = curName ? `Right now: ${curName}` : "";
   const toggle = `<div class="segmented small seg-slide sun-fmt" role="group" aria-label="Clock format" data-pos="${state.clock24 ? 1 : 0}">

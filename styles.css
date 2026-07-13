@@ -1887,14 +1887,20 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .sun-link i { font-size: 1.2rem; color: var(--ink-faint); }
 .sun-link:active { opacity: 0.6; }
 .sunmap { width: 100%; height: auto; display: block; border-radius: var(--r-md); }
-.sm-land { fill: var(--ink); }
-.sm-night { fill: var(--ink); opacity: 0.24; }
-.sm-term { fill: none; stroke: var(--ink); opacity: 0.4; stroke-width: 1.5; stroke-dasharray: 5 5; }
-.sm-frame { fill: none; stroke: var(--ink); opacity: 0.18; stroke-width: 2; }
-.sm-pin path { fill: var(--ink); stroke: var(--bg); stroke-width: 2.4; stroke-linejoin: round; }
-.sm-pinhole { fill: var(--bg); }
+/* Fixed colours (not theme ink/bg) so the map always reads the same way in
+   both themes: lit ocean for day, dark land, and a deep-blue wash that
+   *darkens* the night side. In dark mode this "flips" the old look where the
+   night side was wrongly lightened. */
+.sm-sea { fill: #ece8e0; }
+.sm-land { fill: #17181c; }
+.sm-night { fill: #0b1730; opacity: 0.4; }
+.sm-term { fill: none; stroke: #0b1730; opacity: 0.35; stroke-width: 1.5; stroke-dasharray: 5 5; }
+.sm-frame { fill: none; stroke: #17181c; opacity: 0.16; stroke-width: 2; }
+.sm-pin path { fill: #17181c; stroke: #ece8e0; stroke-width: 2.4; stroke-linejoin: round; }
+.sm-pinhole { fill: #ece8e0; }
 .sunclock-wrap { display: flex; justify-content: center; padding: var(--s-2) 0; }
-.sunclock { width: min(480px, 100%); height: auto; display: block; }
+/* Soft shadow lifts the dial off the page for a bit of depth. */
+.sunclock { width: min(480px, 100%); height: auto; display: block; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.12)); }
 /* Thin bg-coloured gaps between bands so the stages read apart without a busy
    "barcode" of thick separators. */
 .sc-band { cursor: pointer; stroke: var(--bg); stroke-width: 1; stroke-linejoin: round; transition: opacity var(--dur-fast); }
@@ -1903,7 +1909,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
    Always drawn; hidden by .sc-nopat so the toggle can animate without a redraw. */
 .sc-band-pat { pointer-events: none; mix-blend-mode: difference; opacity: 0.24; }
 .sc-nopat .sc-band-pat { display: none; }
-.sc-ring { stroke: var(--ink); opacity: 0.3; stroke-width: 2; }
+.sc-ring { stroke: var(--ink); opacity: 0.4; stroke-width: 2; }
 .sc-hour { fill: var(--ink); font-size: 13px; font-weight: 800; text-anchor: middle; dominant-baseline: middle; font-family: Inter, sans-serif; }
 /* Indicator marks are drawn white and difference-blended, so they always
    invert against whatever band shade sits behind them and stay visible. */
