@@ -2217,10 +2217,12 @@ function bloomGradient(sky, dark) {
   const c1 = hexToRgb(legible(vivid(sky.top, dark))), c2 = hexToRgb(legible(vivid(sky.bottom, dark)));
   const mid = [(c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2, (c1[2] + c2[2]) / 2];
   // Two plumes: c2 pools on the left, c1 upper-right, blends where they meet.
+  // Lower plumes carry colour down so the glow keeps its hue as it descends.
   const grid = [
     { x: 0.16, y: 0.06, c: c2 }, { x: 0.72, y: 0.05, c: c1 }, { x: 0.98, y: 0.17, c: c1 },
     { x: 0.05, y: 0.30, c: c2 }, { x: 0.50, y: 0.27, c: mid }, { x: 1.02, y: 0.42, c: c1 },
-    { x: 0.30, y: 0.55, c: mid }, { x: 0.82, y: 0.58, c: mid }
+    { x: 0.28, y: 0.58, c: mid }, { x: 0.82, y: 0.60, c: mid },
+    { x: 0.12, y: 0.82, c: c2 }, { x: 0.72, y: 0.86, c: c1 }
   ];
   const W = 150, H = 320, power = 2.4, peak = dark ? 0.62 : 0.88;
   const cv = bloomCanvas || (bloomCanvas = document.createElement("canvas"));
@@ -2229,8 +2231,9 @@ function bloomGradient(sky, dark) {
   const img = ctx.createImageData(W, H), d = img.data;
   for (let y = 0; y < H; y++) {
     const ny = y / H;
-    // Vertical dissolve: opaque up top, gone by ~62% so the page takes over.
-    const t = Math.max(0, Math.min(1, (ny - 0.1) / 0.52));
+    // Vertical dissolve: full up top, holding strong through the mid-page, gone
+    // by ~92% so the glow reaches down to about the daily summary.
+    const t = Math.max(0, Math.min(1, (ny - 0.24) / 0.66));
     const alpha = Math.round(255 * peak * (1 - t * t * (3 - 2 * t)));
     for (let x = 0; x < W; x++) {
       const nx = x / W;

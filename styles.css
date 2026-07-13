@@ -295,7 +295,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   .b-today { grid-area: today; align-self: start; }
 
   .col-now .hero { padding-top: var(--s-2); }
-  .col-now .hero-readout .display { font-size: 5rem; }
+  .col-now .hero-readout .display { font-size: 6.5rem; }
   .col-now .hero-icon { font-size: 7.25rem; }
 
   .app-cols .rail {
@@ -401,7 +401,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.hero-readout .display { font-size: clamp(4.4rem, 21.5vw, 6.75rem); line-height: 0.9; white-space: nowrap; }
+.hero-readout .display { font-size: clamp(5.6rem, 29vw, 9rem); line-height: 0.86; white-space: nowrap; }
 .hero-hilo { display: flex; gap: var(--s-4); font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .hilo-item { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 .hilo-item i { font-size: 0.95em; color: var(--ink-soft); }
