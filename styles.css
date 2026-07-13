@@ -1373,23 +1373,22 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   background: rgba(0, 0, 0, 0.42);
   opacity: 0;
   pointer-events: none;
+  touch-action: none;          /* dragging the backdrop must not scroll behind */
+  overscroll-behavior: none;
   transition: opacity var(--dur) var(--ease-out);
 }
 .scrim.is-open { opacity: 1; pointer-events: auto; }
 
-/* Pin the page while the drawer is open so the screen behind can't scroll
-   (top is set inline to the frozen scroll offset). */
-body.scroll-locked {
-  position: fixed;
-  left: 0;
-  right: 0;
-  width: 100%;
-  overflow: hidden;
-}
+/* Lock the page behind the drawer without repositioning the body (which
+   breaks the mobile viewport and leaves a gap). overflow:hidden covers
+   pointer/wheel; the scrim's touch-action:none is what actually stops touch
+   scrolling the background on iOS. */
+body.scroll-locked { overflow: hidden; }
 
 .drawer {
   position: fixed;
   z-index: 56;
+  overscroll-behavior: contain;
   top: 0;
   bottom: 0;
   left: 0;

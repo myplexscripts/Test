@@ -3212,26 +3212,10 @@ function greetingForHour(h) {
   if (h >= 17 && h < 22) return "Good evening";
   return "Good night";
 }
-// Lock the page behind the drawer. `overflow:hidden` alone doesn't hold on
-// iOS, so pin the body with position:fixed at the current scroll offset and
-// restore it on unlock.
-let lockedScrollY = 0;
-function lockBodyScroll() {
-  if (document.body.classList.contains("scroll-locked")) return;
-  lockedScrollY = window.scrollY || document.documentElement.scrollTop || 0;
-  document.body.style.top = `-${lockedScrollY}px`;
-  document.body.classList.add("scroll-locked");
-}
-function unlockBodyScroll() {
-  if (!document.body.classList.contains("scroll-locked")) return;
-  document.body.classList.remove("scroll-locked");
-  document.body.style.top = "";
-  window.scrollTo(0, lockedScrollY);
-}
 function openDrawer() {
   if (el.drawerGreeting) el.drawerGreeting.textContent = greetingForHour(new Date().getHours());
   state.drawerOpen = true;
-  lockBodyScroll();
+  document.body.classList.add("scroll-locked");   // lock the screen behind
   el.drawer.classList.add("is-open");
   el.scrim.classList.add("is-open");
   el.drawer.setAttribute("aria-hidden", "false");
@@ -3243,7 +3227,7 @@ function closeDrawer() {
   el.scrim.classList.remove("is-open");
   el.drawer.setAttribute("aria-hidden", "true");
   el.drawer.style.transform = "";
-  unlockBodyScroll();
+  document.body.classList.remove("scroll-locked");
 }
 
 function haveLeaflet() { return typeof window.L !== "undefined"; }
