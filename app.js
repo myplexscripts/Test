@@ -3293,8 +3293,13 @@ function syncNav() {
 }
 
 function haveLeaflet() { return typeof window.L !== "undefined"; }
+// Apple-Weather-style basemap: a clean, low-chroma CARTO map that flips with
+// the app theme (Positron in light, Dark Matter in dark) so the coloured
+// precipitation overlay always sits on high-contrast, muted terrain.
 function radarTileUrl() {
-  return "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png";
+  return state.dark
+    ? "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png"
+    : "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}.png";
 }
 function owmTileUrl(layer) {
   return `https://tile.openweathermap.org/map/${layer}/{z}/{x}/{y}.png?appid=${API_KEY}`;
@@ -3850,6 +3855,10 @@ function syncMaps() {
 
 function updateMapTheme() {
   if (!haveLeaflet()) return;
+  const url = radarTileUrl();
+  if (radar.base) radar.base.setUrl(url);
+  if (radar.previewBase) radar.previewBase.setUrl(url);
+  if (mapPickBase) mapPickBase.setUrl(url);
   if (radar.marker) radar.marker.setIcon(locationPinIcon());
   if (radar.previewMarker) radar.previewMarker.setIcon(locationPinIcon());
 }
@@ -3870,7 +3879,7 @@ function useMyLocation() {
 }
 
 // ---- Search screen: type-ahead search over the pick-a-spot map --------------
-let mapPick = null;
+let mapPick = null, mapPickBase = null;
 function openSearch() {
   if (!el.searchSheet || state.searchOpen) return;
   state.searchOpen = true;
@@ -3888,9 +3897,9 @@ function openSearch() {
   } else {
     mapPick = L.map(el.mapPickMap, { zoomControl: true, attributionControl: false, minZoom: 3, maxZoom: 14 })
       .setView([c.lat, c.lon], 9);
-    const base = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; OpenStreetMap &copy; CARTO" }).addTo(mapPick);
+    mapPickBase = L.tileLayer(radarTileUrl(), { subdomains: "abcd", updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; OpenStreetMap &copy; CARTO" }).addTo(mapPick);
     let errs = 0;
-    base.on("tileerror", () => { if (++errs === 8) base.setUrl("https://tile.openstreetmap.org/{z}/{x}/{y}.png"); });
+    mapPickBase.on("tileerror", () => { if (++errs === 8) mapPickBase.setUrl("https://tile.openstreetmap.org/{z}/{x}/{y}.png"); });
   }
   // The pin is a fixed centre overlay; moving the map moves the world under it.
   setTimeout(() => mapPick && mapPick.invalidateSize(), 320);
