@@ -170,7 +170,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   left: 0;
   right: 0;
   height: var(--safe-t);
-  z-index: 50;
+  z-index: 58;   /* above the drawer (56) so the status-bar scrim overlaps it */
   pointer-events: none;
   background-color: var(--statusbar, var(--surface));
   background-image: none;
@@ -1461,17 +1461,20 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 
 /* Location search: type-ahead field + suggestion list in the drawer. */
 .drawer-search { display: flex; flex-direction: column; gap: var(--s-2); }
+/* Inset, outlined field so the search reads as an input, distinct from the
+   raised link buttons below it. */
 .search-field {
   display: flex;
   align-items: center;
   gap: var(--s-2);
   min-height: 52px;
   padding: 0 var(--s-3);
-  border-radius: var(--r-sm);
-  background: rgba(255, 255, 255, 0.08);
-  transition: background var(--dur-fast);
+  border-radius: var(--r-pill);
+  background: rgba(0, 0, 0, 0.28);
+  border: 1.5px solid rgba(255, 255, 255, 0.12);
+  transition: background var(--dur-fast), border-color var(--dur-fast);
 }
-.search-field:focus-within { background: rgba(255, 255, 255, 0.14); }
+.search-field:focus-within { background: rgba(0, 0, 0, 0.34); border-color: rgba(255, 255, 255, 0.28); }
 .search-lead { font-size: 1.4rem; color: var(--surface-accent); flex: 0 0 auto; }
 .search-input {
   flex: 1;
@@ -1501,6 +1504,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   transition: background var(--dur-fast), transform var(--dur-fast) var(--ease-spring);
 }
 .search-clear:active { transform: scale(0.9); background: rgba(255, 255, 255, 0.12); }
+.search-clear[hidden] { display: none; }   /* only show once there's input */
 .search-results {
   display: flex;
   flex-direction: column;
@@ -1582,7 +1586,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   display: flex;
   align-items: center;
   gap: var(--s-3);
-  min-height: 48px;
+  min-height: 56px;
   padding: 0 var(--s-4);
   border-radius: var(--r-sm);
   background: rgba(255, 255, 255, 0.05);

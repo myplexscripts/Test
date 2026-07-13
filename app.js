@@ -3219,6 +3219,7 @@ function openDrawer() {
   el.scrim.classList.add("is-open");
   el.drawer.setAttribute("aria-hidden", "false");
   el.drawer.style.transform = "";
+  document.body.style.overflow = "hidden";   // don't scroll the screen behind
 }
 function closeDrawer() {
   state.drawerOpen = false;
@@ -3226,6 +3227,7 @@ function closeDrawer() {
   el.scrim.classList.remove("is-open");
   el.drawer.setAttribute("aria-hidden", "true");
   el.drawer.style.transform = "";
+  document.body.style.overflow = "";
 }
 
 function haveLeaflet() { return typeof window.L !== "undefined"; }
@@ -4059,7 +4061,7 @@ function hidePTR() {
 
 function initGestures() {
   const EDGE = 26, OPEN = 55, DISMISS = 95, PTR_TRIGGER = 72;
-  let mode = null;
+  let mode = null, drawerAxis = null;
   let sx = 0, sy = 0, dist = 0;
   let dx = 0, dy = 0, rafId = null;
 
@@ -4073,7 +4075,9 @@ function initGestures() {
     } else if (mode === "edge") {
       if (dx > OPEN) openDrawerDrag(dx);
     } else if (mode === "drawer") {
-      if (dx < 0) el.drawer.style.transform = `translateX(${Math.max(dx, -360)}px)`;
+      // Only slide the drawer for a horizontal (close) drag; vertical drags
+      // scroll its contents instead of dragging the panel around.
+      if (drawerAxis === "x" && dx < 0) el.drawer.style.transform = `translateX(${Math.max(dx, -360)}px)`;
     } else if (mode === "sheet") {
       if (dx > 0 && Math.abs(dx) > Math.abs(dy)) el.sheet.style.transform = `translateX(${dx}px)`;
     }
@@ -4089,7 +4093,7 @@ function initGestures() {
     sx = t.clientX; sy = t.clientY; dist = 0; dx = 0; dy = 0;
 
     if (state.radarOpen) { mode = null; return; }
-    if (state.drawerOpen) { mode = "drawer"; el.drawer.style.transition = "none"; return; }
+    if (state.drawerOpen) { mode = "drawer"; drawerAxis = null; el.drawer.style.transition = "none"; return; }
     if (state.sheetOpen) {
       mode = sx < EDGE ? "sheet" : null;
       if (mode === "sheet") el.sheet.style.transition = "none";
@@ -4110,6 +4114,9 @@ function initGestures() {
       if (dy > 6 && Math.abs(dy) > Math.abs(dx) && (window.scrollY || 0) <= 0) e.preventDefault();
     } else if (mode === "sheet") {
       if (dx > 0 && Math.abs(dx) > Math.abs(dy)) e.preventDefault();
+    } else if (mode === "drawer") {
+      if (drawerAxis === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) drawerAxis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
+      if (drawerAxis === "x") e.preventDefault();   // horizontal close drag — don't also scroll
     }
     scheduleFrame();
   }, { passive: false });
