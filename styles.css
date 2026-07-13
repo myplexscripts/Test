@@ -171,7 +171,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   left: 0;
   right: 0;
   height: var(--safe-t);
-  z-index: 58;   /* above the drawer (56) so the status-bar scrim overlaps it */
+  z-index: 59;   /* above the bottom nav and drop-up so the status-bar fade overlaps them */
   pointer-events: none;
   background-color: var(--statusbar, var(--surface));
   background-image: none;
@@ -207,11 +207,14 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 @media (min-width: 821px) { .mini-header { display: none; } }
 
 [data-theme="night"] .mini-header,
-[data-theme="night"] .drawer,
+[data-theme="night"] .bottomnav,
+[data-theme="night"] .nav-pop,
 [data-theme="bloomdark"] .mini-header,
-[data-theme="bloomdark"] .drawer,
+[data-theme="bloomdark"] .bottomnav,
+[data-theme="bloomdark"] .nav-pop,
 [data-dyn="dark"] .mini-header,
-[data-dyn="dark"] .drawer {
+[data-dyn="dark"] .bottomnav,
+[data-dyn="dark"] .nav-pop {
   --surface: #1c1c1e;
   --on-surface: #fafafa;
   --on-surface-soft: color-mix(in srgb, #fafafa 64%, transparent);
@@ -1147,9 +1150,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .radar-note { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 
-/* Search by map: full map with a fixed centre pin; the map moves under it.
-   Padding needs .sheet.mappick-sheet specificity to beat `.sheet { padding: 0 }`. */
-.sheet.mappick-sheet {
+/* Search screen: live type-ahead search over the pick-a-spot map, all on one
+   sheet. Padding needs .sheet.search-sheet specificity to beat `.sheet { padding: 0 }`. */
+.sheet.search-sheet {
   gap: var(--s-4);
   padding:
     calc(var(--safe-t) + var(--s-4))
@@ -1157,6 +1160,32 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
     calc(var(--safe-b) + var(--nav-clear))
     calc(var(--gutter) + var(--safe-l));
 }
+/* The search field and rows were born on the dark drawer surface; on the
+   sheet they sit on the page background, so remap them to ink tokens. */
+.search-sheet .search-field {
+  background: var(--card-bg);
+  border-color: color-mix(in srgb, var(--ink) 22%, transparent);
+}
+.search-sheet .search-field:focus-within {
+  background: var(--card-bg-hi);
+  border-color: color-mix(in srgb, var(--ink) 45%, transparent);
+}
+.search-sheet .search-lead { color: var(--ink); }
+.search-sheet .search-input { color: var(--ink); }
+.search-sheet .search-input::placeholder { color: var(--ink-soft); }
+.search-sheet .search-clear { color: var(--ink-soft); }
+.search-sheet .search-clear:active { background: var(--card-bg-hi); }
+.search-sheet .search-item.is-active, .search-sheet .search-item:active { background: var(--card-bg-hi); }
+.search-sheet .search-name { color: var(--ink); }
+.search-sheet .search-sub, .search-sheet .search-empty { color: var(--ink-soft); }
+.search-sheet .drawer-action {
+  background: var(--card-bg);
+  color: var(--ink);
+}
+.search-sheet .drawer-action:active { background: var(--card-bg-hi); }
+.search-sheet .drawer-action i { color: var(--ink); }
+.search-sheet .drawer-action.is-active { background: var(--card-bg-hi); }
+.search-map-note { margin-top: var(--s-2); }
 .mappick-wrap { position: relative; }   /* map treatment inherited from .radar-map-full */
 .mappick-map { position: absolute; inset: 0; }
 /* Pin matches the sun-map marker (.sm-pin): ink teardrop with a bg outline so
@@ -1364,25 +1393,25 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .foot-link:active { color: var(--ink-soft); }
 
-/* Bottom navigation: a floating pill styled like the radar layer picker —
-   equal icon tabs over a single ink thumb that slides to the active tab
-   (same motion as the appearance/segmented toggles). Radii are concentric:
-   pill container, pill thumb. The translucent card tint is layered over the
-   page background so content scrolling underneath never shows through. */
+/* Bottom navigation: a floating pill of icon tabs over a single thumb that
+   slides to the active tab (same motion as the appearance/segmented toggles).
+   Radii are concentric: pill container, pill thumb. It wears the inverted
+   surface (like the drawer and mini-header did) so it always reads clearly
+   against the page content behind it, in both themes. */
 .bottomnav {
   position: fixed;
   left: 50%;
-  bottom: calc(var(--safe-b) + 12px);
+  bottom: calc(var(--safe-b) + 6px);
   transform: translateX(-50%);
-  z-index: 57;   /* above the drawers (56) so tabs stay reachable */
+  z-index: 57;
   display: flex;
   gap: 2px;
   padding: 4px;
   border-radius: var(--r-pill);
-  border: 2px solid var(--card-border);
-  background-color: var(--bg);
-  background-image: linear-gradient(var(--card-bg-hi), var(--card-bg-hi));
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  border: 2px solid color-mix(in srgb, var(--on-surface) 14%, transparent);
+  background: var(--surface);
+  color: var(--on-surface);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
 }
 .bn-item {
   position: relative;
@@ -1393,13 +1422,13 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   display: grid;
   place-items: center;
   border-radius: var(--r-pill);
-  color: var(--ink);
+  color: var(--on-surface);
   opacity: 0.55;
   cursor: pointer;
   transition: opacity var(--dur-toggle) var(--ease-out), color var(--dur-toggle) var(--ease-out), transform var(--dur-fast) var(--ease-spring);
 }
 .bn-item i { font-size: 1.75rem; line-height: 1; }
-.bn-item.is-active { opacity: 1; color: var(--bg); }
+.bn-item.is-active { opacity: 1; color: var(--surface); }
 .bn-item:active { transform: scale(0.9); }
 .bottomnav::after {
   content: "";
@@ -1410,66 +1439,54 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   left: 4px;
   width: calc((100% - 14px) / 4);   /* container padding 8 + 3 gaps of 2 */
   border-radius: var(--r-pill);
-  background: var(--ink);
+  background: var(--on-surface);
   transition: transform var(--dur-toggle) var(--ease-toggle);
 }
 .bottomnav[data-pos="1"]::after { transform: translateX(calc(100% + 2px)); }
 .bottomnav[data-pos="2"]::after { transform: translateX(calc(200% + 4px)); }
 .bottomnav[data-pos="3"]::after { transform: translateX(calc(300% + 6px)); }
 
-.scrim {
+/* Settings drop-up: a small dark menu that springs out of the nav bar from
+   the gear's corner. transform-origin sits over the gear so the scale reads
+   as the menu growing out of the button; the same toggle curve as the nav
+   thumb keeps the motion in one family. */
+.nav-pop {
   position: fixed;
-  inset: 0;
-  z-index: 55;
-  background: rgba(0, 0, 0, 0.42);
-  opacity: 0;
-  pointer-events: none;
-  touch-action: none;          /* dragging the backdrop must not scroll behind */
-  overscroll-behavior: none;
-  transition: opacity var(--dur) var(--ease-out);
-}
-.scrim.is-open { opacity: 1; pointer-events: auto; }
-
-/* Lock the page behind the drawer without repositioning the body (which
-   breaks the mobile viewport and leaves a gap). overflow:hidden covers
-   pointer/wheel; the scrim's touch-action:none is what actually stops touch
-   scrolling the background on iOS. */
-body.scroll-locked { overflow: hidden; }
-
-.drawer {
-  position: fixed;
-  z-index: 56;
-  overscroll-behavior: contain;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  width: min(360px, 86vw);
-  padding:
-    calc(var(--safe-t) + var(--s-6))
-    var(--s-6)
-    calc(var(--safe-b) + var(--nav-clear))
-    calc(var(--safe-l) + var(--s-6));
-  background: var(--surface);
-  color: var(--on-surface);
-  transform: translateX(-102%);
-  transition: transform var(--dur) var(--ease-spring);
+  z-index: 58;
+  bottom: calc(var(--safe-b) + 74px);
+  left: 50%;
+  width: min(330px, calc(100vw - 24px));
+  padding: var(--s-5);
   display: flex;
   flex-direction: column;
-  gap: var(--s-6);
-  overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-  will-change: transform;
+  gap: var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--surface);
+  color: var(--on-surface);
+  border: 2px solid color-mix(in srgb, var(--on-surface) 14%, transparent);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
+  transform: translateX(calc(135px - 100%)) translateY(8px) scale(0.5);
+  transform-origin: calc(100% - 35px) calc(100% + 24px);
+  opacity: 0;
+  pointer-events: none;
+  transition: transform var(--dur-toggle) var(--ease-toggle), opacity var(--dur-fast) var(--ease-out);
 }
-.drawer::-webkit-scrollbar { display: none; }
-.drawer.is-open { transform: translateX(0); }
-.drawer-head { display: flex; align-items: center; justify-content: space-between; }
-.drawer-head h2 { font-family: Rubik, Inter, sans-serif; font-size: 1.5rem; font-weight: 700; }
-.drawer .icon-btn { color: var(--on-surface); }
-.drawer .icon-btn:active { background: rgba(255, 255, 255, 0.12); }
-
-.drawer-group { display: flex; flex-direction: column; gap: var(--s-3); }
-.drawer-label { font-weight: 700; font-size: var(--t-sm); }
+.nav-pop.is-open {
+  transform: translateX(calc(135px - 100%)) translateY(0) scale(1);
+  opacity: 1;
+  pointer-events: auto;
+}
+.nav-pop-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--s-2);
+  padding-top: var(--s-4);
+  border-top: 1.5px solid color-mix(in srgb, var(--on-surface) 12%, transparent);
+}
+.nav-pop .segmented { background: rgba(255, 255, 255, 0.1); }
+.nav-pop .seg-item.is-active { background: var(--on-surface); color: var(--surface); }
+.nav-pop .seg-slide .seg-item.is-active { background: transparent; }
+.nav-pop .seg-slide::after { background: var(--on-surface); }
 
 /* Light/Dark appearance switch. aria-checked=true means dark. The thumb and
    the sun/moon icons cross-fade and slide as the state flips. */
@@ -1569,10 +1586,14 @@ body.scroll-locked { overflow: hidden; }
   display: flex;
   flex-direction: column;
   gap: 2px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
   max-height: 264px;
   overflow-y: auto;
   scrollbar-width: none;
 }
+.search-results[hidden] { display: none; }   /* the flex display must not defeat `hidden` */
 .search-results::-webkit-scrollbar { display: none; }
 .search-item {
   display: flex;
@@ -1591,9 +1612,6 @@ body.scroll-locked { overflow: hidden; }
 .search-sub { font-size: var(--t-sm); font-weight: 600; color: var(--on-surface-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .search-empty { padding: var(--s-3); color: var(--on-surface-soft); font-weight: 600; }
 
-/* Settings panel body: the seg-rows stack directly in their own drawer. */
-.settings-body { display: flex; flex-direction: column; gap: var(--s-4); }
-
 .drawer-actions { display: flex; flex-direction: column; gap: var(--s-2); }
 .drawer-action {
   display: flex;
@@ -1611,12 +1629,6 @@ body.scroll-locked { overflow: hidden; }
 .drawer-action:active { transform: scale(0.97); background: rgba(255, 255, 255, 0.16); }
 .drawer-action i { font-size: 1.6rem; color: var(--surface-accent); }
 .drawer-action.is-active { background: rgba(255, 255, 255, 0.18); }
-.drawer-note {
-  margin-top: auto;
-  font-size: var(--t-sm);
-  line-height: 1.5;
-  color: var(--on-surface-soft);
-}
 
 .segmented {
   display: inline-flex;
@@ -1625,7 +1637,6 @@ body.scroll-locked { overflow: hidden; }
   border-radius: var(--r-pill);
   background: var(--card-bg-hi);
 }
-.drawer .segmented { background: rgba(255, 255, 255, 0.1); }
 .seg-item {
   border-radius: var(--r-pill);
   padding: 0.5rem 1.1rem;
@@ -1640,7 +1651,6 @@ body.scroll-locked { overflow: hidden; }
   background: var(--ink);
   color: var(--bg);
 }
-.drawer .seg-item.is-active { background: var(--on-surface); color: var(--surface); }
 .segmented.small .seg-item { padding: 0.4rem 0.85rem; }
 
 /* Two-option toggles: a single thumb slides between the options instead of the
@@ -1653,8 +1663,7 @@ body.scroll-locked { overflow: hidden; }
   position: relative;
   z-index: 1;
 }
-.seg-slide .seg-item.is-active,
-.drawer .seg-slide .seg-item.is-active { background: transparent; }
+.seg-slide .seg-item.is-active { background: transparent; }
 .seg-slide::after {
   content: "";
   position: absolute;
@@ -1667,7 +1676,6 @@ body.scroll-locked { overflow: hidden; }
   background: var(--ink);
   transition: transform var(--dur-toggle) var(--ease-toggle);
 }
-.drawer .seg-slide::after { background: var(--on-surface); }
 .seg-slide[data-pos="1"]::after { transform: translateX(calc(100% + 2px)); }
 
 /* Radar layer switcher: a collapsible icon control. Collapsed, it shows only

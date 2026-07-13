@@ -27,14 +27,13 @@ const THEME_REMAP = {
 
 const $ = (id) => document.getElementById(id);
 const el = {
-  ptr: $("ptr"), scrim: $("scrim"),
-  drawer: $("drawer"), drawerClose: $("drawerClose"),
+  ptr: $("ptr"),
   locBtn: $("locBtn"),
-  unitSeg: $("unitSeg"), animToggle: $("animToggle"), themeToggle: $("themeToggle"), useHome: $("useHome"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), alertsInfoBtn: $("alertsInfoBtn"),
+  unitSeg: $("unitSeg"), animToggle: $("animToggle"), themeToggle: $("themeToggle"), useHome: $("useHome"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
   locSearch: $("locSearch"), searchResults: $("searchResults"), searchClear: $("searchClear"),
-  drawerGreeting: $("drawerGreeting"), searchMap: $("searchMap"),
-  settingsDrawer: $("settingsDrawer"), settingsClose: $("settingsClose"), bottomNav: $("bottomNav"),
-  mapPickSheet: $("mapPickSheet"), mapPickMap: $("mapPickMap"), mapPickBack: $("mapPickBack"), mapPickConfirm: $("mapPickConfirm"),
+  settingsPop: $("settingsPop"), bottomNav: $("bottomNav"),
+  searchSheet: $("searchSheet"), searchBack: $("searchBack"),
+  mapPickMap: $("mapPickMap"), mapPickConfirm: $("mapPickConfirm"),
   placeName: $("placeName"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), quickHits: $("quickHits"), alerts: $("alerts"),
   heroLo: $("heroLo"), heroHi: $("heroHi"), heroWhen: $("heroWhen"),
@@ -145,19 +144,21 @@ function initialLocate() {
 }
 
 function wireEvents() {
-  el.drawerClose.onclick = closeDrawer;
-  el.scrim.onclick = () => { closeDrawer(); closeSettings(); };
-  el.refreshBtn.onclick = () => { closeDrawer(); refresh(true); };
+  el.refreshBtn.onclick = () => { closeSettingsPop(); refresh(true); };
   el.locBtn.onclick = useMyLocation;
-  if (el.searchMap) el.searchMap.onclick = openMapPick;
-  if (el.mapPickBack) el.mapPickBack.onclick = closeMapPick;
+  if (el.searchBack) el.searchBack.onclick = closeSearch;
   if (el.mapPickConfirm) el.mapPickConfirm.onclick = confirmMapPick;
-  if (el.settingsClose) el.settingsClose.onclick = closeSettings;
   if (el.bottomNav) el.bottomNav.querySelectorAll("[data-nav]").forEach((b) => b.onclick = () => navTo(b.dataset.nav));
-  el.useHome.onclick = () => { state.loc = { ...HOME }; markLoc("home"); saveState(); closeDrawer(); refresh(true); };
+  // Light-dismiss for the settings drop-up: any tap outside it (and outside
+  // the nav, whose own buttons manage it) folds it back into the bar.
+  document.addEventListener("pointerdown", (e) => {
+    if (!state.popOpen) return;
+    if (el.settingsPop.contains(e.target) || el.bottomNav.contains(e.target)) return;
+    closeSettingsPop();
+  });
+  el.useHome.onclick = () => { state.loc = { ...HOME }; markLoc("home"); saveState(); closeSearch(); refresh(true); };
   wireLocationSearch();
-  if (el.creditsBtn) el.creditsBtn.onclick = () => { closeDrawer(); openDetail("credits"); };
-  if (el.alertsInfoBtn) el.alertsInfoBtn.onclick = () => { closeDrawer(); openDetail("alerts"); };
+  if (el.creditsBtn) el.creditsBtn.onclick = () => openDetail("credits");
 
   el.unitSeg.querySelectorAll("[data-units]").forEach((b) => {
     b.onclick = () => {
@@ -224,7 +225,7 @@ function wireEvents() {
   el.graph.addEventListener("pointerleave", endScrub);
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { closeAlertModal(); closeSheet(); closeDrawer(); closeSettings(); closeRadar(); closeMapPick(); }
+    if (e.key === "Escape") { closeAlertModal(); closeSheet(); closeSettingsPop(); closeRadar(); closeSearch(); }
   });
 
   if (el.alertModalClose) el.alertModalClose.onclick = closeAlertModal;
@@ -590,7 +591,6 @@ function render(data) {
   el.summary.textContent = buildSummary(current, state.daily, state.yesterday);
   renderQuickHits();
   renderAlerts(data.alerts, tz);
-  if (el.alertsInfoBtn) el.alertsInfoBtn.hidden = !inCanada(state.loc?.lat, state.loc?.lon);
 
   if (el.miniIcon) { el.miniIcon.className = `mini-ic wx-icon ${wxCategory(heroCode)}`; el.miniIcon.innerHTML = wxSVG(heroCode, true); }
   if (el.miniPlace) el.miniPlace.textContent = el.placeName.textContent;
@@ -3232,49 +3232,23 @@ function showChartPoint(clientX) {
   ctx.restore();
 }
 
-function greetingForHour(h) {
-  if (h >= 5 && h < 12) return "Good morning";
-  if (h >= 12 && h < 17) return "Good afternoon";
-  if (h >= 17 && h < 22) return "Good evening";
-  return "Good night";
-}
-function openDrawer() {
-  if (el.drawerGreeting) el.drawerGreeting.textContent = greetingForHour(new Date().getHours());
-  state.drawerOpen = true;
-  document.body.classList.add("scroll-locked");   // lock the screen behind
-  el.drawer.classList.add("is-open");
-  el.scrim.classList.add("is-open");
-  el.drawer.setAttribute("aria-hidden", "false");
-  el.drawer.style.transform = "";
+// ---- Settings drop-up: a small menu that springs out of the nav bar ---------
+function openSettingsPop() {
+  if (state.popOpen) return;
+  state.popOpen = true;
+  el.settingsPop.classList.add("is-open");
+  el.settingsPop.setAttribute("aria-hidden", "false");
+  const gear = el.bottomNav.querySelector('[data-nav="settings"]');
+  if (gear) gear.setAttribute("aria-expanded", "true");
   syncNav();
 }
-function closeDrawer() {
-  state.drawerOpen = false;
-  el.drawer.classList.remove("is-open");
-  el.drawer.setAttribute("aria-hidden", "true");
-  el.drawer.style.transform = "";
-  if (!state.settingsOpen) {
-    el.scrim.classList.remove("is-open");
-    document.body.classList.remove("scroll-locked");
-  }
-  syncNav();
-}
-function openSettings() {
-  state.settingsOpen = true;
-  document.body.classList.add("scroll-locked");
-  el.settingsDrawer.classList.add("is-open");
-  el.scrim.classList.add("is-open");
-  el.settingsDrawer.setAttribute("aria-hidden", "false");
-  syncNav();
-}
-function closeSettings() {
-  state.settingsOpen = false;
-  el.settingsDrawer.classList.remove("is-open");
-  el.settingsDrawer.setAttribute("aria-hidden", "true");
-  if (!state.drawerOpen) {
-    el.scrim.classList.remove("is-open");
-    document.body.classList.remove("scroll-locked");
-  }
+function closeSettingsPop() {
+  if (!state.popOpen) return;
+  state.popOpen = false;
+  el.settingsPop.classList.remove("is-open");
+  el.settingsPop.setAttribute("aria-hidden", "true");
+  const gear = el.bottomNav.querySelector('[data-nav="settings"]');
+  if (gear) gear.setAttribute("aria-expanded", "false");
   syncNav();
 }
 
@@ -3283,23 +3257,24 @@ const NAV_TABS = ["home", "radar", "search", "settings"];
 
 function navTo(tab) {
   if (tab === "home") {
-    closeSheet(); closeRadar(); closeMapPick(); closeDrawer(); closeSettings();
+    closeSettingsPop(); closeSheet(); closeRadar(); closeSearch();
     window.scrollTo({ top: 0, behavior: "smooth" });
     return;
   }
   if (tab === "radar") {
-    closeSheet(); closeMapPick(); closeDrawer(); closeSettings();
+    closeSettingsPop(); closeSheet(); closeSearch();
     if (!state.radarOpen) openRadar();
     return;
   }
   if (tab === "search") {
-    closeRadar(); closeMapPick(); closeSettings();
-    if (!state.drawerOpen) openDrawer();
+    closeSettingsPop(); closeSheet(); closeRadar();
+    if (!state.searchOpen) openSearch();
     return;
   }
   if (tab === "settings") {
-    closeRadar(); closeMapPick(); closeDrawer();
-    if (!state.settingsOpen) openSettings();
+    // The drop-up floats over whatever screen is showing — no screen change,
+    // and tapping the gear again folds it away.
+    if (state.popOpen) closeSettingsPop(); else openSettingsPop();
   }
 }
 
@@ -3307,7 +3282,7 @@ function navTo(tab) {
 // sub-screens of Home, so Home stays lit while they're up.
 function syncNav() {
   if (!el.bottomNav) return;
-  const tab = state.radarOpen ? "radar" : state.drawerOpen ? "search" : state.settingsOpen ? "settings" : "home";
+  const tab = state.popOpen ? "settings" : state.radarOpen ? "radar" : state.searchOpen ? "search" : "home";
   el.bottomNav.dataset.pos = String(NAV_TABS.indexOf(tab));
   el.bottomNav.querySelectorAll("[data-nav]").forEach((b) => {
     const on = b.dataset.nav === tab;
@@ -3879,7 +3854,7 @@ function updateMapTheme() {
 
 function useMyLocation() {
   if (!navigator.geolocation) { setStatus("Geolocation isn't available."); return; }
-  closeDrawer();
+  closeSettingsPop();
   setStatus("Finding your location…");
   navigator.geolocation.getCurrentPosition(
     (pos) => {
@@ -3893,14 +3868,15 @@ function useMyLocation() {
   );
 }
 
-// ---- Search by map: drop a pin to pick any spot -----------------------------
+// ---- Search screen: type-ahead search over the pick-a-spot map --------------
 let mapPick = null;
-function openMapPick() {
-  closeDrawer();
-  if (!el.mapPickSheet) return;
-  el.mapPickSheet.classList.add("is-open");
-  el.mapPickSheet.setAttribute("aria-hidden", "false");
+function openSearch() {
+  if (!el.searchSheet || state.searchOpen) return;
+  state.searchOpen = true;
+  el.searchSheet.classList.add("is-open");
+  el.searchSheet.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
+  syncNav();
   if (!haveLeaflet()) {
     el.mapPickMap.innerHTML = '<div class="map-fallback">The map needs an internet connection.</div>';
     return;
@@ -3919,19 +3895,22 @@ function openMapPick() {
   setTimeout(() => mapPick && mapPick.invalidateSize(), 320);
   [120, 500, 1000].forEach((d) => setTimeout(() => mapPick && mapPick.invalidateSize(), d));
 }
-function closeMapPick() {
-  if (!el.mapPickSheet || !el.mapPickSheet.classList.contains("is-open")) return;
-  el.mapPickSheet.classList.remove("is-open");
-  el.mapPickSheet.setAttribute("aria-hidden", "true");
+function closeSearch() {
+  if (!el.searchSheet || !state.searchOpen) return;
+  state.searchOpen = false;
+  clearSearch();
+  el.searchSheet.classList.remove("is-open");
+  el.searchSheet.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
+  syncNav();
 }
 function confirmMapPick() {
-  if (!mapPick) { closeMapPick(); return; }
+  if (!mapPick) { closeSearch(); return; }
   const c = mapPick.getCenter();
   state.loc = { lat: c.lat, lon: c.lng, label: "Dropped pin" };
   markLoc("loc");
   saveState();
-  closeMapPick();
+  closeSearch();
   refresh(true);
 }
 
@@ -4036,8 +4015,7 @@ function pickSearchResult(r) {
   state.loc = { lat: r.latitude, lon: r.longitude, label: geoLabel(r) };
   markLoc("loc");
   saveState();
-  clearSearch();
-  closeDrawer();
+  closeSearch();
   refresh(true);
 }
 
@@ -4148,8 +4126,8 @@ function hidePTR() {
 }
 
 function initGestures() {
-  const EDGE = 26, OPEN = 55, DISMISS = 95, PTR_TRIGGER = 72;
-  let mode = null, drawerAxis = null;
+  const EDGE = 26, DISMISS = 95, PTR_TRIGGER = 72;
+  let mode = null;
   let sx = 0, sy = 0, dist = 0;
   let dx = 0, dy = 0, rafId = null;
 
@@ -4160,12 +4138,6 @@ function initGestures() {
         dist = dy * 0.5;
         showPTR(dist);
       } else { mode = null; hidePTR(); }
-    } else if (mode === "edge") {
-      if (dx > OPEN) openDrawerDrag(dx);
-    } else if (mode === "drawer") {
-      // Only slide the drawer for a horizontal (close) drag; vertical drags
-      // scroll its contents instead of dragging the panel around.
-      if (drawerAxis === "x" && dx < 0) el.drawer.style.transform = `translateX(${Math.max(dx, -360)}px)`;
     } else if (mode === "sheet") {
       if (dx > 0 && Math.abs(dx) > Math.abs(dy)) el.sheet.style.transform = `translateX(${dx}px)`;
     }
@@ -4180,14 +4152,12 @@ function initGestures() {
     const t = e.touches[0];
     sx = t.clientX; sy = t.clientY; dist = 0; dx = 0; dy = 0;
 
-    if (state.radarOpen || state.settingsOpen) { mode = null; return; }
-    if (state.drawerOpen) { mode = "drawer"; drawerAxis = null; el.drawer.style.transition = "none"; return; }
+    if (state.radarOpen || state.searchOpen || state.popOpen) { mode = null; return; }
     if (state.sheetOpen) {
       mode = sx < EDGE ? "sheet" : null;
       if (mode === "sheet") el.sheet.style.transition = "none";
       return;
     }
-    if (sx < EDGE) { mode = "edge"; el.drawer.style.transition = "none"; return; }
     if ((window.scrollY || 0) <= 0) { mode = "ptr"; el.ptr.style.transition = "none"; return; }
     mode = null;
   }, { passive: true });
@@ -4202,9 +4172,6 @@ function initGestures() {
       if (dy > 6 && Math.abs(dy) > Math.abs(dx) && (window.scrollY || 0) <= 0) e.preventDefault();
     } else if (mode === "sheet") {
       if (dx > 0 && Math.abs(dx) > Math.abs(dy)) e.preventDefault();
-    } else if (mode === "drawer") {
-      if (drawerAxis === null && (Math.abs(dx) > 8 || Math.abs(dy) > 8)) drawerAxis = Math.abs(dx) > Math.abs(dy) ? "x" : "y";
-      if (drawerAxis === "x") e.preventDefault();   // horizontal close drag — don't also scroll
     }
     scheduleFrame();
   }, { passive: false });
@@ -4214,13 +4181,6 @@ function initGestures() {
     el.ptr.style.transition = "";
     if (mode === "ptr") {
       if (dist >= PTR_TRIGGER) refresh(true); else hidePTR();
-    } else if (mode === "edge") {
-      el.drawer.style.transition = "";
-      if (dist > 90) openDrawer(); else closeDrawer();
-    } else if (mode === "drawer") {
-      el.drawer.style.transition = "";
-      const x = currentX(el.drawer);
-      if (x < -70) closeDrawer(); else openDrawer();
     } else if (mode === "sheet") {
       el.sheet.style.transition = "";
       const x = currentX(el.sheet);
@@ -4229,13 +4189,6 @@ function initGestures() {
     mode = null;
   });
 
-  function openDrawerDrag(dx) {
-    dist = dx;
-    el.drawer.classList.add("is-open");
-    el.scrim.classList.add("is-open");
-    el.drawer.style.transition = "none";
-    el.drawer.style.transform = `translateX(${Math.min(0, dx - 360)}px)`;
-  }
   function currentX(node) {
     const tr = getComputedStyle(node).transform;
     if (!tr || tr === "none") return 0;
