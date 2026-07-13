@@ -3050,7 +3050,7 @@ function drawChart(rows, m, dual, showNow) {
   let min = Math.min(...vals), max = Math.max(...vals);
   if (min === max) { min -= 1; max += 1; } else { const pad = (max - min) * 0.18; min -= pad; max += pad; }
   const anyPrecip = rows.some((r) => (r.precip || 0) > 0);
-  const padL = 28, padR = anyPrecip ? 56 : 28, padTop = 34, padB = 30;
+  const padL = 16, padR = 16, padTop = 34, padB = 30;
   const w = rect.width - padL - padR, h = rect.height - padTop - padB;
   const X = (i) => padL + (w / Math.max(1, rows.length - 1)) * i;
   const Y = (v) => padTop + h - ((v - min) / Math.max(1e-6, max - min)) * h;
@@ -3074,13 +3074,6 @@ function drawChart(rows, m, dual, showNow) {
       ctx.fillStyle = hexA(ink, 0.2);
       ctx.fillRect(X(i) - barW / 2, padTop + h - bh, barW, bh);
     });
-    const mmMax = maxP >= 10 ? Math.round(maxP) : Math.round(maxP * 10) / 10;
-    ctx.save();
-    ctx.textAlign = "right"; ctx.textBaseline = "middle"; ctx.font = "600 11px Inter, system-ui";
-    ctx.fillStyle = hexA(ink, 0.5);
-    ctx.fillText(`${mmMax} mm`, rect.width - 4, padTop + h - barMaxH);
-    ctx.fillText("0", rect.width - 4, padTop + h);
-    ctx.restore();
   }
 
   const curve = (key) => {
@@ -3144,9 +3137,10 @@ function drawChart(rows, m, dual, showNow) {
   }
 
   ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center"; ctx.fillStyle = ink;
-  // Keep the last point's value label clear of the right-hand mm axis.
-  const labelX = (i) => (anyPrecip && i === end) ? rect.width - padR - 4 : X(i);
-  const labelAlign = (i) => (anyPrecip && i === end) ? "right" : "center";
+  // Anchor the endpoint labels to the plot edges so they don't clip now that
+  // the plot runs edge-to-edge to line up with the rows below.
+  const labelX = (i) => i === 0 ? X(0) : i === end ? X(end) : X(i);
+  const labelAlign = (i) => i === 0 ? "left" : i === end ? "right" : "center";
   hiMap.forEach((dy, i) => {
     ctx.beginPath(); ctx.arc(X(i), Y(rows[i].hi), 3.5, 0, Math.PI * 2); ctx.fill();
     ctx.textAlign = labelAlign(i);
@@ -3166,7 +3160,15 @@ function drawChart(rows, m, dual, showNow) {
 
   ctx.globalAlpha = 0.55; ctx.fillStyle = ink;
   const step = Math.max(1, Math.ceil(rows.length / 8));
-  rows.forEach((r, i) => { if (i % step === 0) ctx.fillText(r.label, X(i), rect.height - 10); });
+  ctx.textAlign = "center";
+  rows.forEach((r, i) => {
+    if (i % step !== 0) return;
+    // Keep each label centred on its tick, but nudge the first/last inward
+    // just enough that they never clip the plot edge.
+    const hw = ctx.measureText(r.label).width / 2;
+    const x = Math.max(hw + 1, Math.min(rect.width - hw - 1, X(i)));
+    ctx.fillText(r.label, x, rect.height - 10);
+  });
   ctx.globalAlpha = 1;
 
   chartGeom = {

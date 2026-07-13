@@ -1110,7 +1110,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .trend-card {
   display: block;
   width: 100%;
-  padding: var(--s-4) var(--s-3) var(--s-3);
+  padding: var(--s-4) 0 var(--s-3);
   border: 2px solid var(--card-border);
   border-radius: var(--r-lg);
   background: var(--card-bg);
@@ -1771,7 +1771,7 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
   border: 2.5px solid var(--card-border);
   background: var(--card-bg);
   border-radius: var(--r-xl);
-  padding: var(--s-4);
+  padding: var(--s-4) 0;
 }
 #graph {
   display: block;
@@ -1784,9 +1784,11 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
 }
 
 .sheet-list { display: flex; flex-direction: column; gap: var(--s-2); }
+/* Rows build from the right: the label is pinned left, and every data
+   element (icon, precip, value, caret) clusters against the right edge
+   with one uniform gap between them, on every tap-through screen. */
 .row {
-  display: grid;
-  grid-template-columns: 3.5rem 2.4rem 1fr;
+  display: flex;
   align-items: center;
   gap: var(--s-4);
   padding: var(--s-3) var(--s-4);
@@ -1794,14 +1796,13 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
   background: var(--card-bg);
   border: 2px solid var(--card-border);
 }
-.row .row-label { font-weight: 700; }
-.row .row-icon { font-size: 2.4rem; color: var(--ink); justify-self: center; }
+.row .row-label { font-weight: 700; margin-right: auto; }
+.row .row-icon { font-size: 2.4rem; color: var(--ink); flex: 0 0 auto; }
 .row .row-temp {
   font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem;
-  justify-self: end; text-align: right; font-variant-numeric: tabular-nums;
+  text-align: right; font-variant-numeric: tabular-nums;
 }
 .row .row-sub { font-size: var(--t-cap); color: var(--ink-soft); font-weight: 600; margin-left: 0.4em; }
-.row-wx { grid-template-columns: 3.5rem 2.4rem auto 1fr; gap: var(--s-4); }
 /* Fixed sub-columns keep the drop, chance and mm aligned across every row,
    whether or not that hour has an mm amount. */
 .row-precip {
@@ -1819,9 +1820,8 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
 .rp-amt { text-align: left; font-variant-numeric: tabular-nums; color: var(--ink); }
 
 button.row { width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; }
-.row-tap { grid-template-columns: 3.5rem 2.4rem 1fr 1.5rem; transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast); }
+.row-tap { transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast); }
 .row .row-hilo {
-  justify-self: end;
   display: flex; align-items: center; gap: var(--s-4);
   font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem;
   font-variant-numeric: tabular-nums;
@@ -1829,7 +1829,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .row .row-hilo .hilo-item { gap: 4px; }
 .row .row-hilo .hilo-item i { font-size: 0.9em; color: var(--ink-soft); }
 .row-tap:active { transform: scale(0.99); background: var(--card-bg-hi); }
-.row-go { font-size: 1rem; color: var(--ink-faint); justify-self: end; }
+.row-go { font-size: 1rem; color: var(--ink-faint); flex: 0 0 auto; }
 
 .detail.static:active { transform: none; background: var(--card-bg); }
 
