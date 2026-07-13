@@ -1216,6 +1216,96 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .mappick-confirm:active { transform: scale(0.97); }
 .mappick-confirm i { font-size: 1.35rem; }
+.mappick-confirm.secondary { background: var(--card-bg-hi); color: var(--ink); }
+.search-actions { display: flex; flex-direction: column; gap: var(--s-2); }
+
+/* Full-screen maps. The wrapper hosts the leaflet div plus floating controls;
+   toggling .is-full on the sheet pins the wrapper to the viewport while the
+   sheet's other children float over it (they already carry z-index 1). */
+.map-host { position: relative; }
+.map-fill { position: absolute; inset: 0; }
+.map-full-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1001;   /* above the leaflet panes */
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  border-radius: var(--r-pill);
+  background: rgba(20, 20, 20, 0.78);
+  color: #fafafa;
+  font-size: 1.3rem;
+  transition: transform var(--dur-fast) var(--ease-spring);
+}
+.map-full-btn:active { transform: scale(0.9); }
+/* Full screen: keep the floating map controls clear of the chrome — zoom
+   drops below the back button, and the toggle clears the status bar (and,
+   on radar, the layer picker in the head row). */
+.sheet.is-full .leaflet-top.leaflet-left { top: calc(var(--safe-t) + 72px); }
+.sheet.is-full .map-full-btn { top: calc(var(--safe-t) + 10px); }
+.radar-sheet.is-full .map-full-btn { top: calc(var(--safe-t) + 76px); }
+
+/* With the nav bar hidden there is no reason to hold its clearance. */
+.sheet.is-full { padding-bottom: calc(var(--safe-b) + var(--s-4)); }
+.sheet.is-full .map-host,
+.sheet.is-full .mappick-wrap {
+  position: fixed;
+  inset: 0;
+  z-index: 0;      /* under the floating chrome */
+  max-width: none;
+  border: 0;
+  border-radius: 0;
+}
+/* Floating chrome gets page-coloured panels so the existing ink styling
+   stays readable over the dark tiles, in both themes. */
+.sheet.is-full .back-btn {
+  place-items: center;
+  margin-left: 0;
+  background: var(--bg);
+  border-radius: var(--r-pill);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+.radar-sheet.is-full #layerSeg {
+  background-color: var(--bg);
+  background-image: linear-gradient(var(--card-bg-hi), var(--card-bg-hi));
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+}
+.radar-foot { display: flex; flex-direction: column; gap: var(--s-3); }
+/* Pin the whole bottom chrome stack to the bottom of the screen; the wrapper
+   is always in the flow, so the anchor holds no matter which rows (timeline,
+   legend) the current layer shows. */
+.radar-sheet.is-full .radar-foot { margin-top: auto; }
+.radar-sheet.is-full .radar-timeline {
+  background: var(--bg);
+  border-radius: var(--r-lg);
+  padding: var(--s-2) var(--s-3);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+.radar-sheet.is-full .radar-legend {
+  background: var(--bg);
+  border-radius: var(--r-pill);
+  padding: var(--s-1) var(--s-3);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+}
+.radar-sheet.is-full .radar-note { display: none; }
+.search-sheet.is-full .drawer-search,
+.search-sheet.is-full .search-map-note,
+.search-sheet.is-full #locBtn { display: none; }
+.search-sheet.is-full .search-actions {
+  margin-top: auto;   /* the confirm button floats at the bottom of the map */
+}
+/* Same trick as the map pin: a bg-coloured outline keeps the ink pill
+   legible over the dark tiles in either theme. */
+.search-sheet.is-full .mappick-confirm { border: 2.5px solid var(--bg); box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35); }
+/* The nav bar bows out while a map is full screen. */
+body:has(.sheet.is-full) .bottomnav {
+  transform: translateX(-50%) translateY(calc(100% + var(--safe-b) + 12px));
+  opacity: 0;
+  pointer-events: none;
+}
+.bottomnav { transition: transform var(--dur) var(--ease-spring), opacity var(--dur-fast) var(--ease-out); }
 
 .radar-timeline { display: flex; align-items: center; gap: var(--s-3); }
 .radar-play {
@@ -1465,16 +1555,21 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   color: var(--on-surface);
   border: 2px solid color-mix(in srgb, var(--on-surface) 14%, transparent);
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
-  transform: translateX(calc(135px - 100%)) translateY(8px) scale(0.5);
-  transform-origin: calc(100% - 35px) calc(100% + 24px);
+  /* Closed state doubles as the closing animation: the menu shrinks and
+     sinks back toward the gear with a quick ease-in, while opening gets the
+     springy toggle curve. Centred over the nav; origin stays down by the bar
+     so both directions read as growing out of / folding into it. */
+  transform: translateX(-50%) translateY(10px) scale(0.55);
+  transform-origin: 50% calc(100% + 24px);
   opacity: 0;
   pointer-events: none;
-  transition: transform var(--dur-toggle) var(--ease-toggle), opacity var(--dur-fast) var(--ease-out);
+  transition: transform var(--dur-fast) var(--ease-in), opacity var(--dur-fast) var(--ease-in);
 }
 .nav-pop.is-open {
-  transform: translateX(calc(135px - 100%)) translateY(0) scale(1);
+  transform: translateX(-50%) translateY(0) scale(1);
   opacity: 1;
   pointer-events: auto;
+  transition: transform var(--dur-toggle) var(--ease-toggle), opacity var(--dur-fast) var(--ease-out);
 }
 .nav-pop-actions {
   display: flex;

@@ -29,7 +29,8 @@ const $ = (id) => document.getElementById(id);
 const el = {
   ptr: $("ptr"),
   locBtn: $("locBtn"),
-  unitSeg: $("unitSeg"), animToggle: $("animToggle"), themeToggle: $("themeToggle"), useHome: $("useHome"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
+  unitSeg: $("unitSeg"), animToggle: $("animToggle"), themeToggle: $("themeToggle"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
+  radarFull: $("radarFull"), searchFull: $("searchFull"),
   locSearch: $("locSearch"), searchResults: $("searchResults"), searchClear: $("searchClear"),
   settingsPop: $("settingsPop"), bottomNav: $("bottomNav"),
   searchSheet: $("searchSheet"), searchBack: $("searchBack"),
@@ -134,7 +135,6 @@ function initialLocate() {
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       state.loc = { lat: pos.coords.latitude, lon: pos.coords.longitude, label: "My location" };
-      markLoc("loc");
       saveState();
       refresh(true);
     },
@@ -156,7 +156,8 @@ function wireEvents() {
     if (el.settingsPop.contains(e.target) || el.bottomNav.contains(e.target)) return;
     closeSettingsPop();
   });
-  el.useHome.onclick = () => { state.loc = { ...HOME }; markLoc("home"); saveState(); closeSearch(); refresh(true); };
+  if (el.radarFull) el.radarFull.onclick = () => setMapFull(el.radarSheet, el.radarFull, () => radar.map);
+  if (el.searchFull) el.searchFull.onclick = () => setMapFull(el.searchSheet, el.searchFull, () => mapPick);
   wireLocationSearch();
   if (el.creditsBtn) el.creditsBtn.onclick = () => openDetail("credits");
 
@@ -3484,6 +3485,7 @@ function closeRadar() {
   if (radarHintTimer) { clearTimeout(radarHintTimer); radarHintTimer = null; }
   stopRadarPlay();
   disableWindArrows();
+  setMapFull(el.radarSheet, el.radarFull, () => radar.map, false);
   el.radarSheet.classList.remove("is-open");
   el.radarSheet.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
@@ -3854,12 +3856,11 @@ function updateMapTheme() {
 
 function useMyLocation() {
   if (!navigator.geolocation) { setStatus("Geolocation isn't available."); return; }
-  closeSettingsPop();
+  closeSearch();
   setStatus("Finding your location…");
   navigator.geolocation.getCurrentPosition(
     (pos) => {
       state.loc = { lat: pos.coords.latitude, lon: pos.coords.longitude, label: "My location" };
-      markLoc("loc");
       saveState();
       refresh(true);
     },
@@ -3899,23 +3900,35 @@ function closeSearch() {
   if (!el.searchSheet || !state.searchOpen) return;
   state.searchOpen = false;
   clearSearch();
+  setMapFull(el.searchSheet, el.searchFull, () => mapPick, false);
   el.searchSheet.classList.remove("is-open");
   el.searchSheet.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
   syncNav();
 }
+
+// Toggle a map sheet between its framed layout and absolute full screen.
+// `force` pins the state (used on close so sheets never re-open expanded).
+function setMapFull(sheet, btn, getMap, force) {
+  if (!sheet) return;
+  const on = typeof force === "boolean" ? force : !sheet.classList.contains("is-full");
+  if (sheet.classList.contains("is-full") === on) return;
+  sheet.classList.toggle("is-full", on);
+  if (btn) {
+    const ic = btn.querySelector("i");
+    if (ic) ic.className = on ? "ph ph-corners-in" : "ph ph-corners-out";
+    btn.setAttribute("aria-label", on ? "Exit full screen map" : "Toggle full screen map");
+  }
+  const map = getMap && getMap();
+  if (map) [60, 340].forEach((d) => setTimeout(() => map.invalidateSize(), d));
+}
 function confirmMapPick() {
   if (!mapPick) { closeSearch(); return; }
   const c = mapPick.getCenter();
   state.loc = { lat: c.lat, lon: c.lng, label: "Dropped pin" };
-  markLoc("loc");
   saveState();
   closeSearch();
   refresh(true);
-}
-
-function markLoc(which) {
-  el.useHome.classList.toggle("is-active", which === "home");
 }
 
 // ---- Location search (Open-Meteo geocoding, no API key) --------------------
@@ -4013,7 +4026,6 @@ function highlightSearch() {
 function pickSearchResult(r) {
   if (!r || !Number.isFinite(r.latitude) || !Number.isFinite(r.longitude)) return;
   state.loc = { lat: r.latitude, lon: r.longitude, label: geoLabel(r) };
-  markLoc("loc");
   saveState();
   closeSearch();
   refresh(true);
@@ -4112,7 +4124,6 @@ function syncControls() {
   if (el.animToggle) el.animToggle.setAttribute("aria-checked", state.animate !== false ? "true" : "false");
   document.documentElement.setAttribute("data-anim", state.animate === false ? "off" : "on");
   syncSlide(el.unitSeg);
-  markLoc(state.loc.label === HOME.label ? "home" : "loc");
 }
 
 function showPTR(d) {

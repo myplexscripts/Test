@@ -210,7 +210,6 @@
       </button>
     </div>
     <div class="nav-pop-actions">
-      <button class="drawer-action" id="locBtn"><i class="ph-duotone ph-navigation-arrow"></i><span>Use my location</span></button>
       <button class="drawer-action" id="refreshBtn"><i class="ph-duotone ph-arrows-clockwise"></i><span>Refresh now</span></button>
     </div>
   </div>
@@ -244,7 +243,11 @@
         <button class="seg-item" data-layer="lightning" aria-label="Lightning" title="Lightning"><i class="ph ph-lightning" aria-hidden="true"></i></button>
       </div>
     </div>
-    <div class="radar-map-full" id="radarMap"></div>
+    <div class="radar-map-full map-host">
+      <div class="map-fill" id="radarMap"></div>
+      <button class="map-full-btn" id="radarFull" aria-label="Toggle full screen map"><i class="ph ph-corners-out" aria-hidden="true"></i></button>
+    </div>
+    <div class="radar-foot">
     <div class="radar-timeline" id="radarTimeline">
       <button class="radar-play" id="radarPlay" aria-label="Play or pause radar"><i class="ph ph-pause"></i></button>
       <input class="radar-scrub" id="radarScrub" type="range" min="0" max="0" value="0" step="1" aria-label="Radar time">
@@ -253,13 +256,13 @@
     <div class="radar-legend" id="radarLegend"><span>Light</span><div class="legend-bar"></div><span>Heavy</span></div>
     <div class="radar-legend wind-legend" id="windLegend" style="display:none"><span>Calm</span><div class="legend-bar wind-bar"></div><span>Strong</span></div>
     <p class="radar-note" id="radarNote">Live precipitation radar.</p>
+    </div>
   </section>
 
   <section class="sheet search-sheet" id="searchSheet" aria-label="Search for a location" aria-hidden="true">
     <div class="sheet-head">
       <button class="back-btn" id="searchBack" aria-label="Back"><i class="ph ph-arrow-left"></i></button>
     </div>
-    <h1 class="sheet-title">Search</h1>
     <div class="drawer-search">
       <div class="search-field">
         <i class="ph-duotone ph-magnifying-glass search-lead" aria-hidden="true"></i>
@@ -270,13 +273,16 @@
       </div>
       <ul class="search-results" id="searchResults" role="listbox" aria-label="Search results" hidden></ul>
     </div>
-    <button class="drawer-action is-active" id="useHome"><i class="ph-duotone ph-house"></i><span>Home · London, ON</span></button>
     <p class="sheet-note search-map-note">Or move the map to place the pin on a spot.</p>
     <div class="mappick-wrap radar-map-full">
       <div class="mappick-map" id="mapPickMap"></div>
       <svg class="mappick-pin sm-pin" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/><circle cx="12" cy="9" r="2.6" class="sm-pinhole"/></svg>
+      <button class="map-full-btn" id="searchFull" aria-label="Toggle full screen map"><i class="ph ph-corners-out" aria-hidden="true"></i></button>
     </div>
-    <button class="mappick-confirm" id="mapPickConfirm"><i class="ph ph-check" aria-hidden="true"></i><span>Use this location</span></button>
+    <div class="search-actions">
+      <button class="mappick-confirm" id="mapPickConfirm"><i class="ph ph-check" aria-hidden="true"></i><span>Use this location</span></button>
+      <button class="mappick-confirm secondary" id="locBtn"><i class="ph ph-navigation-arrow" aria-hidden="true"></i><span>Use my location</span></button>
+    </div>
   </section>
 
   <div class="alert-overlay" id="alertOverlay" aria-hidden="true">
