@@ -371,7 +371,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   grid-template-columns: minmax(0, 1fr) auto;
   grid-template-areas:
     "readout icon"
-    "cond when";
+    "readout when";
   column-gap: var(--s-4);
   row-gap: var(--s-5);
   align-items: start;
@@ -401,21 +401,23 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.hero-readout .display { font-size: clamp(5.6rem, 29vw, 9rem); line-height: 0.86; white-space: nowrap; }
+/* Weight pulled back from 800 so the huge number reads lighter next to the
+   line-drawn condition icon; the small negative margin nudges the numerals'
+   left side bearing back so "31°" lines up with the place and condition. */
+.hero-readout .display { font-size: clamp(5.6rem, 29vw, 9rem); font-weight: 700; line-height: 0.86; white-space: nowrap; margin-left: -0.045em; }
 .hero-hilo { display: flex; gap: var(--s-4); font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.05rem; font-variant-numeric: tabular-nums; }
 .hilo-item { display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; }
 .hilo-item i { font-size: 0.95em; color: var(--ink-soft); }
 .hero .condition {
-  grid-area: cond;
-  align-self: center;
   text-align: left;
-  font-size: clamp(1.6rem, 5.2vw, 2.1rem);
+  font-size: clamp(1.5rem, 4.8vw, 1.95rem);
+  margin-top: calc(-1 * var(--s-2));   /* tuck under the place line */
 }
 .hero-when {
   grid-area: when;
   justify-self: end;
   text-align: right;
-  align-self: center;
+  align-self: end;
   font-size: var(--t-sm);
   font-weight: 600;
   color: var(--ink-soft);
@@ -530,23 +532,23 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   width: 100%;
   text-align: left;
   cursor: pointer;
-  border: 2px solid var(--card-border);
+  border: 0;
   background: var(--card-bg);
   border-radius: var(--r-md);
   padding: var(--s-4);
   transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
 }
 .alert:active { transform: scale(0.98); background: var(--card-bg-hi); }
-.alert-ic { font-size: 2.2rem; color: var(--ink); flex: 0 0 auto; line-height: 1; }
-.alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s-1); }
+/* The tier colour drives the duotone icon and the "colour warning" label. */
+.alert-ic { font-size: 2.2rem; color: var(--alert-c, var(--ink)); flex: 0 0 auto; line-height: 1; }
+.alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.alert-tier { font-size: var(--t-cap); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--alert-c, var(--ink-soft)); }
 .alert-title { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.05rem; line-height: 1.2; }
 .alert-meta { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 .alert-go { font-size: 1.8rem; color: var(--ink); flex: 0 0 auto; }
-/* No fill tint — just a thin border in the alert colour. The icon stays
-   --ink (black on the light page, white on the dark page) for clean contrast. */
-.alert--yellow { border-color: #d9a400; }
-.alert--orange { border-color: #e0701a; }
-.alert--red    { border-color: #d63a2f; }
+.alert--yellow { --alert-c: #cf9a00; }
+.alert--orange { --alert-c: #e0701a; }
+.alert--red    { --alert-c: #d63a2f; }
 .alert-help {
   display: inline-flex;
   align-items: center;

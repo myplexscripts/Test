@@ -1621,12 +1621,15 @@ function renderAlerts(alerts, tz) {
   const list = (alerts || []).filter((a) => a && a.event);
   if (!list.length) { host.hidden = true; host.innerHTML = ""; return; }
   host.hidden = false;
-  const tierClass = (c) => (c === "yellow" || c === "orange" || c === "red") ? ` alert--${c}` : "";
+  const isTier = (c) => c === "yellow" || c === "orange" || c === "red";
+  const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
   host.innerHTML = list.map((a) => {
     const meta = escapeHTML(alertMeta(a, tz));
-    return `<button class="alert${tierClass(a.colour)}" type="button">
-      <i class="ph-fill ph-warning-octagon alert-ic" aria-hidden="true"></i>
+    const tier = isTier(a.colour) ? a.colour : "";
+    return `<button class="alert${tier ? ` alert--${tier}` : ""}" type="button">
+      <i class="ph-duotone ph-warning-octagon alert-ic" aria-hidden="true"></i>
       <span class="alert-body">
+        ${tier ? `<span class="alert-tier">${cap(tier)} warning</span>` : ""}
         <span class="alert-title">${escapeHTML(a.event)}</span>
         ${meta ? `<span class="alert-meta">${meta}</span>` : ""}
       </span>
@@ -2215,14 +2218,15 @@ function bloomGradient(sky, dark) {
     return c;
   };
   const c1 = hexToRgb(legible(vivid(sky.top, dark))), c2 = hexToRgb(legible(vivid(sky.bottom, dark)));
-  const mid = [(c1[0] + c2[0]) / 2, (c1[1] + c2[1]) / 2, (c1[2] + c2[2]) / 2];
-  // Two plumes: c2 pools on the left, c1 upper-right, blends where they meet.
-  // Lower plumes carry colour down so the glow keeps its hue as it descends.
+  // c2 pools down the left, c1 down the right. Averaging two near-complementary
+  // hues makes grey mud, so there are no blended "mid" plumes — the pixel loop
+  // instead fades low-chroma (muddy) pixels toward the page so the transition
+  // reads as a clean, luminous seam rather than flat grey.
   const grid = [
-    { x: 0.16, y: 0.06, c: c2 }, { x: 0.72, y: 0.05, c: c1 }, { x: 0.98, y: 0.17, c: c1 },
-    { x: 0.05, y: 0.30, c: c2 }, { x: 0.50, y: 0.27, c: mid }, { x: 1.02, y: 0.42, c: c1 },
-    { x: 0.28, y: 0.58, c: mid }, { x: 0.82, y: 0.60, c: mid },
-    { x: 0.12, y: 0.82, c: c2 }, { x: 0.72, y: 0.86, c: c1 }
+    { x: 0.12, y: 0.05, c: c2 }, { x: 0.60, y: 0.04, c: c1 }, { x: 0.98, y: 0.14, c: c1 },
+    { x: 0.05, y: 0.26, c: c2 }, { x: 0.95, y: 0.36, c: c1 },
+    { x: 0.10, y: 0.54, c: c2 }, { x: 0.82, y: 0.58, c: c1 },
+    { x: 0.08, y: 0.82, c: c2 }, { x: 0.66, y: 0.88, c: c1 }
   ];
   const W = 150, H = 320, power = 2.4, peak = dark ? 0.62 : 0.88;
   const cv = bloomCanvas || (bloomCanvas = document.createElement("canvas"));
@@ -2243,8 +2247,25 @@ function bloomGradient(sky, dark) {
         const w = 1 / Math.pow(dx * dx + dy * dy + 1e-4, power / 2);
         r += p.c[0] * w; g += p.c[1] * w; b += p.c[2] * w; wsum += w;
       }
+      r /= wsum; g /= wsum; b /= wsum;
+      // Lift the mud: where the two complementary hues cancel, chroma drops, so
+      // pull those pixels toward a light tint — the transition reads as a
+      // luminous seam rather than flat grey (light mode goes near-white, dark
+      // stays a soft glow).
+      const chroma = Math.max(r, g, b) - Math.min(r, g, b);
+      if (chroma < 85) {
+        const grey = 1 - chroma / 85;
+        const tgt = dark ? 165 : 250, lift = grey * grey * (dark ? 0.35 : 0.62);
+        r += (tgt - r) * lift; g += (tgt - g) * lift; b += (tgt - b) * lift;
+      }
+      // Saturation boost keeps the pure regions vivid.
+      const lt = (Math.max(r, g, b) + Math.min(r, g, b)) / 2, sat = 1.2;
+      r = lt + (r - lt) * sat; g = lt + (g - lt) * sat; b = lt + (b - lt) * sat;
+      r = r < 0 ? 0 : r > 255 ? 255 : r;
+      g = g < 0 ? 0 : g > 255 ? 255 : g;
+      b = b < 0 ? 0 : b > 255 ? 255 : b;
       const i = (y * W + x) * 4;
-      d[i] = r / wsum; d[i + 1] = g / wsum; d[i + 2] = b / wsum; d[i + 3] = alpha;
+      d[i] = r; d[i + 1] = g; d[i + 2] = b; d[i + 3] = alpha;
     }
   }
   ctx.putImageData(img, 0, 0);
