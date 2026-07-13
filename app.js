@@ -2756,7 +2756,7 @@ function renderDaySheet() {
     <div class="row">
       <span class="row-label">${fmtHour(it.dt, tz)}</span>
       ${wxIcon(it.weather?.[0], h < 6 || h >= 20, "row-icon")}
-      <span class="row-temp">${Math.round(it.main.temp)}°<span class="row-sub">feels ${Math.round(it.main.feels_like)}°</span></span>
+      <span class="row-temp">${Math.round(it.main.temp)}°<span class="row-sub">${Math.round(it.main.feels_like)}°</span></span>
     </div>`;
   }).join("");
 }
@@ -2851,7 +2851,10 @@ function renderDetailList() {
       <button class="row row-tap" data-day="${i}">
         <span class="row-label">${d.label}</span>
         ${wxIcon({ main: d.main, icon: d.icon }, false, "row-icon")}
-        <span class="row-temp">${Math.round(d.max)}°<span class="row-sub"> / ${Math.round(d.min)}°</span></span>
+        <span class="row-hilo">
+          <span class="hilo-item"><i class="ph ph-arrow-up" aria-hidden="true"></i>${Math.round(d.max)}°</span>
+          <span class="hilo-item"><i class="ph ph-arrow-down" aria-hidden="true"></i>${Math.round(d.min)}°</span>
+        </span>
         <i class="ph ph-caret-right row-go"></i>
       </button>`).join("") + aboutSection(state.detail.metric, m);
     el.sheetList.querySelectorAll("[data-day]").forEach((b) => b.onclick = () => openDay(Number(b.dataset.day)));

@@ -1121,7 +1121,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .trend-card #trendGraph {
   display: block;
   width: 100%;
-  height: clamp(190px, 30vh, 240px);
+  aspect-ratio: 16 / 9;
+  height: auto;
+  max-height: 300px;
   /* concentric: card radius --r-lg minus its --s-3 side padding */
   border-radius: calc(var(--r-lg) - var(--s-3));
 }
@@ -1774,7 +1776,9 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
 #graph {
   display: block;
   width: 100%;
-  height: clamp(190px, 27vh, 280px);
+  aspect-ratio: 16 / 9;
+  height: auto;
+  max-height: 320px;
   border-radius: calc(var(--r-xl) - var(--s-4));
   touch-action: pan-y;
 }
@@ -1797,7 +1801,7 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
   justify-self: end; text-align: right; font-variant-numeric: tabular-nums;
 }
 .row .row-sub { font-size: var(--t-cap); color: var(--ink-soft); font-weight: 600; margin-left: 0.4em; }
-.row-wx { grid-template-columns: 3.5rem 2.4rem auto 1fr; gap: var(--s-3); }
+.row-wx { grid-template-columns: 3.5rem 2.4rem auto 1fr; gap: var(--s-4); }
 /* Fixed sub-columns keep the drop, chance and mm aligned across every row,
    whether or not that hour has an mm amount. */
 .row-precip {
@@ -1815,7 +1819,15 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
 .rp-amt { text-align: left; font-variant-numeric: tabular-nums; color: var(--ink); }
 
 button.row { width: 100%; text-align: left; color: inherit; font: inherit; cursor: pointer; }
-.row-tap { grid-template-columns: 1fr 2.4rem minmax(3.75rem, auto) 1.5rem; transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast); }
+.row-tap { grid-template-columns: 3.5rem 2.4rem 1fr 1.5rem; transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast); }
+.row .row-hilo {
+  justify-self: end;
+  display: flex; align-items: center; gap: var(--s-4);
+  font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem;
+  font-variant-numeric: tabular-nums;
+}
+.row .row-hilo .hilo-item { gap: 4px; }
+.row .row-hilo .hilo-item i { font-size: 0.9em; color: var(--ink-soft); }
 .row-tap:active { transform: scale(0.99); background: var(--card-bg-hi); }
 .row-go { font-size: 1rem; color: var(--ink-faint); justify-self: end; }
 
