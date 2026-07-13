@@ -1791,7 +1791,7 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
   border: 2px solid var(--card-border);
 }
 .row .row-label { font-weight: 700; }
-.row .row-icon { font-size: 1.7rem; color: var(--ink); justify-self: center; }
+.row .row-icon { font-size: 2.4rem; color: var(--ink); justify-self: center; }
 .row .row-temp {
   font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem;
   justify-self: end; text-align: right; font-variant-numeric: tabular-nums;
