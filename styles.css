@@ -493,6 +493,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   justify-content: space-between;
   gap: var(--s-3);
   width: 100%;
+  min-height: 44px;   /* HIG tap target */
   text-align: left;
   cursor: pointer;
 }
@@ -572,6 +573,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   border: 0;
   cursor: pointer;
   padding: var(--s-1) 0;
+  min-height: 44px;   /* HIG tap target */
 }
 .alert-help i { font-size: 1.15rem; }
 .alert-help:active { color: var(--ink); }
@@ -652,8 +654,8 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .alert-modal-meta { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 .alert-modal-close {
   flex: 0 0 auto;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border-radius: var(--r-pill);
@@ -1348,7 +1350,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   background: rgba(255, 255, 255, 0.85);
 }
 .map-pin-temp { font-size: 15px; }
-.map-pin i { font-size: 15px; color: #fff; }
+.map-pin i { font-size: 18px; color: #fff; }
 
 .foot {
   display: flex;
@@ -1503,8 +1505,8 @@ body.scroll-locked { overflow: hidden; }
 .search-input::-webkit-search-decoration { -webkit-appearance: none; appearance: none; }
 .search-clear {
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
+  width: 44px;
+  height: 44px;
   display: grid;
   place-items: center;
   border-radius: 50%;
@@ -1896,7 +1898,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 
 .sheet-head-aux { display: flex; align-items: center; }
 .sc-caption { text-align: center; font-size: var(--t-body); font-weight: 800; letter-spacing: -0.01em; color: var(--ink); min-height: 1.4em; margin-top: var(--s-2); }
-.sun-link { display: flex; align-items: center; justify-content: space-between; width: 100%; margin-top: var(--s-3); padding-top: var(--s-3); border-top: 2px solid var(--hairline); color: var(--ink); font-weight: 700; cursor: pointer; }
+.sun-link { display: flex; align-items: center; justify-content: space-between; width: 100%; min-height: 44px; margin-top: var(--s-3); padding-top: var(--s-3); border-top: 2px solid var(--hairline); color: var(--ink); font-weight: 700; cursor: pointer; }
 .sun-link i { font-size: 1.2rem; color: var(--ink-faint); }
 .sun-link:active { opacity: 0.6; }
 .sunmap { width: 100%; height: auto; display: block; border-radius: var(--r-md); }
