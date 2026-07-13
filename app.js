@@ -29,10 +29,11 @@ const $ = (id) => document.getElementById(id);
 const el = {
   ptr: $("ptr"), scrim: $("scrim"),
   drawer: $("drawer"), drawerClose: $("drawerClose"),
-  menuBtn: $("menuBtn"), locBtn: $("locBtn"),
+  locBtn: $("locBtn"),
   unitSeg: $("unitSeg"), animToggle: $("animToggle"), themeToggle: $("themeToggle"), useHome: $("useHome"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"), alertsInfoBtn: $("alertsInfoBtn"),
   locSearch: $("locSearch"), searchResults: $("searchResults"), searchClear: $("searchClear"),
-  drawerGreeting: $("drawerGreeting"), searchMap: $("searchMap"), settingsAccordion: $("settingsAccordion"), settingsToggle: $("settingsToggle"),
+  drawerGreeting: $("drawerGreeting"), searchMap: $("searchMap"),
+  settingsDrawer: $("settingsDrawer"), settingsClose: $("settingsClose"), bottomNav: $("bottomNav"),
   mapPickSheet: $("mapPickSheet"), mapPickMap: $("mapPickMap"), mapPickBack: $("mapPickBack"), mapPickConfirm: $("mapPickConfirm"),
   placeName: $("placeName"), condition: $("condition"),
   heroIcon: $("heroIcon"), temp: $("temp"), tempNum: $("tempNum"), summary: $("summary"), quickHits: $("quickHits"), alerts: $("alerts"),
@@ -144,18 +145,15 @@ function initialLocate() {
 }
 
 function wireEvents() {
-  el.menuBtn.onclick = openDrawer;
   el.drawerClose.onclick = closeDrawer;
-  el.scrim.onclick = () => { closeDrawer(); };
+  el.scrim.onclick = () => { closeDrawer(); closeSettings(); };
   el.refreshBtn.onclick = () => { closeDrawer(); refresh(true); };
   el.locBtn.onclick = useMyLocation;
   if (el.searchMap) el.searchMap.onclick = openMapPick;
   if (el.mapPickBack) el.mapPickBack.onclick = closeMapPick;
   if (el.mapPickConfirm) el.mapPickConfirm.onclick = confirmMapPick;
-  if (el.settingsToggle) el.settingsToggle.onclick = () => {
-    const open = el.settingsAccordion.classList.toggle("is-open");
-    el.settingsToggle.setAttribute("aria-expanded", open ? "true" : "false");
-  };
+  if (el.settingsClose) el.settingsClose.onclick = closeSettings;
+  if (el.bottomNav) el.bottomNav.querySelectorAll("[data-nav]").forEach((b) => b.onclick = () => navTo(b.dataset.nav));
   el.useHome.onclick = () => { state.loc = { ...HOME }; markLoc("home"); saveState(); closeDrawer(); refresh(true); };
   wireLocationSearch();
   if (el.creditsBtn) el.creditsBtn.onclick = () => { closeDrawer(); openDetail("credits"); };
@@ -226,7 +224,7 @@ function wireEvents() {
   el.graph.addEventListener("pointerleave", endScrub);
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { closeAlertModal(); closeSheet(); closeDrawer(); closeRadar(); closeMapPick(); }
+    if (e.key === "Escape") { closeAlertModal(); closeSheet(); closeDrawer(); closeSettings(); closeRadar(); closeMapPick(); }
   });
 
   if (el.alertModalClose) el.alertModalClose.onclick = closeAlertModal;
@@ -3248,14 +3246,74 @@ function openDrawer() {
   el.scrim.classList.add("is-open");
   el.drawer.setAttribute("aria-hidden", "false");
   el.drawer.style.transform = "";
+  syncNav();
 }
 function closeDrawer() {
   state.drawerOpen = false;
   el.drawer.classList.remove("is-open");
-  el.scrim.classList.remove("is-open");
   el.drawer.setAttribute("aria-hidden", "true");
   el.drawer.style.transform = "";
-  document.body.classList.remove("scroll-locked");
+  if (!state.settingsOpen) {
+    el.scrim.classList.remove("is-open");
+    document.body.classList.remove("scroll-locked");
+  }
+  syncNav();
+}
+function openSettings() {
+  state.settingsOpen = true;
+  document.body.classList.add("scroll-locked");
+  el.settingsDrawer.classList.add("is-open");
+  el.scrim.classList.add("is-open");
+  el.settingsDrawer.setAttribute("aria-hidden", "false");
+  syncNav();
+}
+function closeSettings() {
+  state.settingsOpen = false;
+  el.settingsDrawer.classList.remove("is-open");
+  el.settingsDrawer.setAttribute("aria-hidden", "true");
+  if (!state.drawerOpen) {
+    el.scrim.classList.remove("is-open");
+    document.body.classList.remove("scroll-locked");
+  }
+  syncNav();
+}
+
+// ---- Bottom navigation ------------------------------------------------------
+const NAV_TABS = ["home", "radar", "search", "settings"];
+
+function navTo(tab) {
+  if (tab === "home") {
+    closeSheet(); closeRadar(); closeMapPick(); closeDrawer(); closeSettings();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    return;
+  }
+  if (tab === "radar") {
+    closeSheet(); closeMapPick(); closeDrawer(); closeSettings();
+    if (!state.radarOpen) openRadar();
+    return;
+  }
+  if (tab === "search") {
+    closeRadar(); closeMapPick(); closeSettings();
+    if (!state.drawerOpen) openDrawer();
+    return;
+  }
+  if (tab === "settings") {
+    closeRadar(); closeMapPick(); closeDrawer();
+    if (!state.settingsOpen) openSettings();
+  }
+}
+
+// The thumb tracks whichever top-level surface is open; detail sheets are
+// sub-screens of Home, so Home stays lit while they're up.
+function syncNav() {
+  if (!el.bottomNav) return;
+  const tab = state.radarOpen ? "radar" : state.drawerOpen ? "search" : state.settingsOpen ? "settings" : "home";
+  el.bottomNav.dataset.pos = String(NAV_TABS.indexOf(tab));
+  el.bottomNav.querySelectorAll("[data-nav]").forEach((b) => {
+    const on = b.dataset.nav === tab;
+    b.classList.toggle("is-active", on);
+    if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
+  });
 }
 
 function haveLeaflet() { return typeof window.L !== "undefined"; }
@@ -3405,6 +3463,7 @@ function openRadar(mode) {
   el.radarSheet.classList.add("is-open");
   el.radarSheet.setAttribute("aria-hidden", "false");
   document.body.style.overflow = "hidden";
+  syncNav();
   initRadarMap();
   setTimeout(() => radar.map && radar.map.invalidateSize(), 320);
   // First radar open of the session: reveal the picker expanded, then let it
@@ -3453,6 +3512,7 @@ function closeRadar() {
   el.radarSheet.classList.remove("is-open");
   el.radarSheet.setAttribute("aria-hidden", "true");
   document.body.style.overflow = "";
+  syncNav();
 }
 
 function applyMode(mode) {
@@ -4120,7 +4180,7 @@ function initGestures() {
     const t = e.touches[0];
     sx = t.clientX; sy = t.clientY; dist = 0; dx = 0; dy = 0;
 
-    if (state.radarOpen) { mode = null; return; }
+    if (state.radarOpen || state.settingsOpen) { mode = null; return; }
     if (state.drawerOpen) { mode = "drawer"; drawerAxis = null; el.drawer.style.transition = "none"; return; }
     if (state.sheetOpen) {
       mode = sx < EDGE ? "sheet" : null;

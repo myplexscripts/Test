@@ -73,61 +73,55 @@
 
     <div class="drawer-actions">
       <button class="drawer-action is-active" id="useHome"><i class="ph-duotone ph-house"></i><span>Home · London, ON</span></button>
+      <button class="drawer-action" id="locBtn"><i class="ph-duotone ph-navigation-arrow"></i><span>Use my location</span></button>
       <button class="drawer-action" id="refreshBtn"><i class="ph-duotone ph-arrows-clockwise"></i><span>Refresh now</span></button>
       <button class="drawer-action" id="alertsInfoBtn" hidden><i class="ph-duotone ph-warning"></i><span>Weather alerts explained</span></button>
     </div>
+  </aside>
 
-    <div class="drawer-settings" id="settingsAccordion">
-      <button class="ds-toggle" id="settingsToggle" type="button" aria-expanded="false" aria-controls="settingsBody">
-        <span class="ds-head"><i class="ph-duotone ph-gear-six ds-ic" aria-hidden="true"></i><span class="ds-label">Settings</span></span>
-        <svg class="ds-chev" viewBox="0 0 256 256" aria-hidden="true"><line class="qh-arm qh-arm-l" x1="48" y1="96" x2="128" y2="176" stroke="currentColor" stroke-linecap="round" stroke-width="20"/><line class="qh-arm qh-arm-r" x1="208" y1="96" x2="128" y2="176" stroke="currentColor" stroke-linecap="round" stroke-width="20"/></svg>
-      </button>
-      <div class="ds-content"><div class="ds-clip"><div class="ds-body" id="settingsBody">
-        <div class="seg-row">
-          <span>Temperature</span>
-          <div class="segmented small seg-slide" id="unitSeg" role="group" aria-label="Units">
-            <button class="seg-item is-active" data-units="metric">°C</button>
-            <button class="seg-item" data-units="imperial">°F</button>
-          </div>
-        </div>
-        <div class="seg-row">
-          <span>Animated icons</span>
-          <button class="switch" id="animToggle" role="switch" aria-checked="true" aria-label="Animated icons">
-            <i class="ph ph-pause switch-ic switch-ic-off" aria-hidden="true"></i>
-            <i class="ph ph-play switch-ic switch-ic-on" aria-hidden="true"></i>
-            <span class="switch-thumb"></span>
-          </button>
-        </div>
-        <div class="seg-row">
-          <span>Appearance</span>
-          <button class="switch" id="themeToggle" role="switch" aria-checked="false" aria-label="Dark mode">
-            <i class="ph ph-sun switch-ic switch-ic-sun" aria-hidden="true"></i>
-            <i class="ph ph-moon switch-ic switch-ic-moon" aria-hidden="true"></i>
-            <span class="switch-thumb"></span>
-          </button>
-        </div>
-      </div></div></div>
+  <aside class="drawer settings-drawer" id="settingsDrawer" aria-label="Settings" aria-hidden="true">
+    <div class="drawer-head">
+      <h2>Settings</h2>
+      <button class="icon-btn" id="settingsClose" aria-label="Close settings"><i class="ph ph-x"></i></button>
     </div>
 
-    <button class="drawer-credits" id="creditsBtn"><i class="ph-duotone ph-heart"></i><span>Acknowledgements</span></button>
+    <div class="settings-body" id="settingsBody">
+      <div class="seg-row">
+        <span>Temperature</span>
+        <div class="segmented small seg-slide" id="unitSeg" role="group" aria-label="Units">
+          <button class="seg-item is-active" data-units="metric">°C</button>
+          <button class="seg-item" data-units="imperial">°F</button>
+        </div>
+      </div>
+      <div class="seg-row">
+        <span>Animated icons</span>
+        <button class="switch" id="animToggle" role="switch" aria-checked="true" aria-label="Animated icons">
+          <i class="ph ph-pause switch-ic switch-ic-off" aria-hidden="true"></i>
+          <i class="ph ph-play switch-ic switch-ic-on" aria-hidden="true"></i>
+          <span class="switch-thumb"></span>
+        </button>
+      </div>
+      <div class="seg-row">
+        <span>Appearance</span>
+        <button class="switch" id="themeToggle" role="switch" aria-checked="false" aria-label="Dark mode">
+          <i class="ph ph-sun switch-ic switch-ic-sun" aria-hidden="true"></i>
+          <i class="ph ph-moon switch-ic switch-ic-moon" aria-hidden="true"></i>
+          <span class="switch-thumb"></span>
+        </button>
+      </div>
+    </div>
+
     <p class="drawer-note">Add to your Home Screen for a full-screen app.</p>
   </aside>
 
   <main class="app" id="app">
-    <header class="topbar">
-      <button class="icon-btn" id="menuBtn" aria-label="Open settings"><i class="ph ph-list"></i></button>
-      <div class="place">
-        <span class="place-name" id="placeName">London, Ontario</span>
-      </div>
-      <button class="icon-btn" id="locBtn" aria-label="Use my location"><i class="ph ph-navigation-arrow"></i></button>
-    </header>
-
     <div class="app-cols">
       <div class="col col-now">
 
     <section class="hero" aria-label="Current conditions">
       <div class="hero-icon-wrap"><i class="hero-icon wx-icon" id="heroIcon" aria-hidden="true"></i></div>
       <div class="hero-readout">
+        <p class="hero-place"><span id="placeName">London, Ontario</span></p>
         <h1 class="display is-loading" id="temp"><span class="temp-num" id="tempNum">--</span><span class="temp-deg">°</span></h1>
         <p class="hero-hilo">
           <span class="hilo-item"><i class="ph ph-arrow-down" aria-hidden="true"></i><span id="heroLo">--°</span></span>
@@ -246,8 +240,16 @@
     <footer class="foot">
       <span id="status">Starting…</span>
       <span class="foot-credit">Current conditions provided by Open-Meteo</span>
+      <button class="foot-link" id="creditsBtn">Acknowledgements</button>
     </footer>
   </main>
+
+  <nav class="bottomnav" id="bottomNav" aria-label="Main navigation" data-pos="0">
+    <button class="bn-item is-active" data-nav="home" aria-label="Home"><i class="ph ph-house" aria-hidden="true"></i></button>
+    <button class="bn-item" data-nav="radar" aria-label="Radar map"><i class="ph ph-map-trifold" aria-hidden="true"></i></button>
+    <button class="bn-item" data-nav="search" aria-label="Search locations"><i class="ph ph-magnifying-glass" aria-hidden="true"></i></button>
+    <button class="bn-item" data-nav="settings" aria-label="Settings"><i class="ph ph-gear-six" aria-hidden="true"></i></button>
+  </nav>
 
   <section class="sheet" id="sheet" aria-label="Forecast detail" aria-hidden="true">
     <div class="sheet-scroll" id="sheetScroll">
