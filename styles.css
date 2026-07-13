@@ -1377,6 +1377,16 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .scrim.is-open { opacity: 1; pointer-events: auto; }
 
+/* Pin the page while the drawer is open so the screen behind can't scroll
+   (top is set inline to the frozen scroll offset). */
+body.scroll-locked {
+  position: fixed;
+  left: 0;
+  right: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
 .drawer {
   position: fixed;
   z-index: 56;
