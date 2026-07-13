@@ -3057,9 +3057,23 @@ function drawChart(rows, m, dual, showNow) {
   const dec = m.decimals || 0;
   const lab = (v) => dec ? v.toFixed(dec) : (m.unit === "°" ? `${Math.round(v)}°` : `${Math.round(v)}`);
 
+  // Hourly series carry a per-point dt; we label + rule the 6-hour marks
+  // (12am, 6am, 12pm, 6pm). Daily series have no dt and keep every label.
+  const tz = state.tz || 0;
+  const isHourly = Number.isFinite(rows[0]?.dt);
+  const hourAt = (i) => new Date((rows[i].dt + tz) * 1000).getUTCHours();
+  const majorTicks = isHourly ? rows.map((_, i) => i).filter((i) => hourAt(i) % 6 === 0) : null;
+
   ctx.strokeStyle = ink; ctx.globalAlpha = 0.12; ctx.lineWidth = 1;
   for (let i = 0; i <= 3; i++) { const gy = padTop + (h / 3) * i; ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(rect.width - padR, gy); ctx.stroke(); }
   ctx.globalAlpha = 1;
+
+  // Faint vertical rules at the 6-hour marks.
+  if (majorTicks) {
+    ctx.strokeStyle = ink; ctx.globalAlpha = 0.08; ctx.lineWidth = 1;
+    majorTicks.forEach((i) => { ctx.beginPath(); ctx.moveTo(X(i), padTop); ctx.lineTo(X(i), padTop + h); ctx.stroke(); });
+    ctx.globalAlpha = 1;
+  }
 
   // Precipitation bars along the bottom, on their own mm scale (right axis).
   if (anyPrecip) {
@@ -3159,16 +3173,25 @@ function drawChart(rows, m, dual, showNow) {
   }
 
   ctx.globalAlpha = 0.55; ctx.fillStyle = ink;
-  const step = Math.max(1, Math.ceil(rows.length / 8));
   ctx.textAlign = "center";
-  rows.forEach((r, i) => {
-    if (i % step !== 0) return;
-    // Keep each label centred on its tick, but nudge the first/last inward
-    // just enough that they never clip the plot edge.
-    const hw = ctx.measureText(r.label).width / 2;
-    const x = Math.max(hw + 1, Math.min(rect.width - hw - 1, X(i)));
-    ctx.fillText(r.label, x, rect.height - 10);
-  });
+  if (majorTicks) {
+    // Label the 6-hour marks; the first sits flush with the plot's left edge
+    // so it lines up with the rows below, the last flush right if it's the end.
+    const end = rows.length - 1;
+    majorTicks.forEach((i) => {
+      ctx.textAlign = i === 0 ? "left" : i === end ? "right" : "center";
+      ctx.fillText(rows[i].label, X(i), rect.height - 10);
+    });
+  } else {
+    const step = Math.max(1, Math.ceil(rows.length / 8));
+    rows.forEach((r, i) => {
+      if (i % step !== 0) return;
+      const hw = ctx.measureText(r.label).width / 2;
+      const x = Math.max(hw + 1, Math.min(rect.width - hw - 1, X(i)));
+      ctx.fillText(r.label, x, rect.height - 10);
+    });
+  }
+  ctx.textAlign = "center";
   ctx.globalAlpha = 1;
 
   chartGeom = {
