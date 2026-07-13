@@ -2156,6 +2156,24 @@ function hslToRgb(h, s, l) {
   };
   return [hue(h + 1 / 3) * 255, hue(h) * 255, hue(h - 1 / 3) * 255];
 }
+// The colour halfway between two RGB colours along the hue wheel. When the two
+// hues are near-complementary there are two candidate midpoints (e.g. orange to
+// blue can meet in violet or in green); we take the one farther from green,
+// which is how skies actually blend — warm + cool meets in pink/violet.
+function hueMidColor(a, b) {
+  const A = rgbToHsl(a), B = rgbToHsl(b);
+  let d = B[0] - A[0];
+  if (d > 0.5) d -= 1; else if (d < -0.5) d += 1;
+  let h = (A[0] + d / 2 + 1) % 1;
+  if (Math.abs(d) > 0.28) {
+    const alt = (h + 0.5) % 1;
+    const distGreen = (x) => { const dd = Math.abs(x - 1 / 3); return Math.min(dd, 1 - dd); };
+    if (distGreen(alt) > distGreen(h)) h = alt;
+  }
+  // Average saturation (both inputs are already vivid) — full max-sat made the
+  // seam louder than the skies it bridges.
+  return hslToRgb(h, (A[1] + B[1]) / 2, (A[2] + B[2]) / 2);
+}
 // Take a sky colour straight from the weather-background logic and make it more
 // vibrant: boost saturation, and pull washed-out pastels a little off the white/
 // black extremes so the extra saturation actually reads. Same hue, no new palette.
@@ -2218,15 +2236,18 @@ function bloomGradient(sky, dark) {
     return c;
   };
   const c1 = hexToRgb(legible(vivid(sky.top, dark))), c2 = hexToRgb(legible(vivid(sky.bottom, dark)));
-  // c2 pools down the left, c1 down the right. Averaging two near-complementary
-  // hues makes grey mud, so there are no blended "mid" plumes — the pixel loop
-  // instead fades low-chroma (muddy) pixels toward the page so the transition
-  // reads as a clean, luminous seam rather than flat grey.
+  // The in-between stop is computed in hue space, not RGB: averaging two
+  // near-complementary skies (orange + blue) cancels to grey, so instead we
+  // walk the hue wheel between them — preferring the path that avoids green —
+  // and land on a real colour (pink/violet for warm+cool) at full saturation.
+  const mid = hueMidColor(c1, c2);
+  // c2 pools on the left, c1 owns the right; a slim column of hue-stop plumes
+  // rides the seam between them so the handoff passes through real colour.
   const grid = [
-    { x: 0.12, y: 0.05, c: c2 }, { x: 0.60, y: 0.04, c: c1 }, { x: 0.98, y: 0.14, c: c1 },
-    { x: 0.05, y: 0.26, c: c2 }, { x: 0.95, y: 0.36, c: c1 },
-    { x: 0.10, y: 0.54, c: c2 }, { x: 0.82, y: 0.58, c: c1 },
-    { x: 0.08, y: 0.82, c: c2 }, { x: 0.66, y: 0.88, c: c1 }
+    { x: 0.16, y: 0.06, c: c2 }, { x: 0.72, y: 0.05, c: c1 }, { x: 0.98, y: 0.17, c: c1 },
+    { x: 0.05, y: 0.30, c: c2 }, { x: 0.52, y: 0.25, c: mid }, { x: 1.02, y: 0.42, c: c1 },
+    { x: 0.12, y: 0.56, c: c2 }, { x: 0.42, y: 0.58, c: mid }, { x: 0.90, y: 0.62, c: c1 },
+    { x: 0.10, y: 0.84, c: c2 }, { x: 0.52, y: 0.88, c: mid }, { x: 0.86, y: 0.90, c: c1 }
   ];
   const W = 150, H = 320, power = 2.4, peak = dark ? 0.62 : 0.88;
   const cv = bloomCanvas || (bloomCanvas = document.createElement("canvas"));
@@ -2248,18 +2269,9 @@ function bloomGradient(sky, dark) {
         r += p.c[0] * w; g += p.c[1] * w; b += p.c[2] * w; wsum += w;
       }
       r /= wsum; g /= wsum; b /= wsum;
-      // Lift the mud: where the two complementary hues cancel, chroma drops, so
-      // pull those pixels toward a light tint — the transition reads as a
-      // luminous seam rather than flat grey (light mode goes near-white, dark
-      // stays a soft glow).
-      const chroma = Math.max(r, g, b) - Math.min(r, g, b);
-      if (chroma < 85) {
-        const grey = 1 - chroma / 85;
-        const tgt = dark ? 165 : 250, lift = grey * grey * (dark ? 0.35 : 0.62);
-        r += (tgt - r) * lift; g += (tgt - g) * lift; b += (tgt - b) * lift;
-      }
-      // Saturation boost keeps the pure regions vivid.
-      const lt = (Math.max(r, g, b) + Math.min(r, g, b)) / 2, sat = 1.2;
+      // Gentle saturation boost so the residual averaging between neighbouring
+      // plumes (each pair now close in hue) stays lively.
+      const lt = (Math.max(r, g, b) + Math.min(r, g, b)) / 2, sat = 1.18;
       r = lt + (r - lt) * sat; g = lt + (g - lt) * sat; b = lt + (b - lt) * sat;
       r = r < 0 ? 0 : r > 255 ? 255 : r;
       g = g < 0 ? 0 : g > 255 ? 255 : g;

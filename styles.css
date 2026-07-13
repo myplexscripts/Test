@@ -392,11 +392,16 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   gap: var(--s-3);
   min-width: 0;
 }
+/* Clear hierarchy down the readout: the place is a quiet uppercase kicker,
+   the condition is the headline beneath it, then the display-size number. */
 .hero-place {
   max-width: 100%;
-  font-size: 1.2rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  line-height: 1.15;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  line-height: 1.2;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -410,8 +415,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .hilo-item i { font-size: 0.95em; color: var(--ink-soft); }
 .hero .condition {
   text-align: left;
-  font-size: clamp(1.5rem, 4.8vw, 1.95rem);
-  margin-top: calc(-1 * var(--s-2));   /* tuck under the place line */
+  font-size: clamp(1.8rem, 6vw, 2.4rem);
+  line-height: 1.05;
+  margin-top: calc(-1 * var(--s-2));   /* tuck under the place kicker */
 }
 .hero-when {
   grid-area: when;
@@ -671,6 +677,13 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   color: var(--on-surface);
   border-radius: var(--r-lg);
   padding: clamp(var(--s-5), 4vw, var(--s-6));
+}
+
+/* Frosted tiles: the home tiles sit over the bloom, so blur what's behind
+   them — their translucent card tint stays, but text keeps clean contrast. */
+.metrics, .alert, .nowcast {
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
 }
 
 .metrics {
