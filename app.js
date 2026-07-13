@@ -2756,7 +2756,7 @@ function renderDaySheet() {
     <div class="row">
       <span class="row-label">${fmtHour(it.dt, tz)}</span>
       ${wxIcon(it.weather?.[0], h < 6 || h >= 20, "row-icon")}
-      <span class="row-temp">${Math.round(it.main.temp)}°<span class="row-sub"> · feels ${Math.round(it.main.feels_like)}°</span></span>
+      <span class="row-temp">${Math.round(it.main.temp)}°<span class="row-sub">feels ${Math.round(it.main.feels_like)}°</span></span>
     </div>`;
   }).join("");
 }

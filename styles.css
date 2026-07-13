@@ -1782,7 +1782,7 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
 .sheet-list { display: flex; flex-direction: column; gap: var(--s-2); }
 .row {
   display: grid;
-  grid-template-columns: 1fr 2.4rem minmax(3.75rem, auto);
+  grid-template-columns: 3.5rem 2.4rem 1fr;
   align-items: center;
   gap: var(--s-4);
   padding: var(--s-3) var(--s-4);
@@ -1796,8 +1796,8 @@ body:has(.sheet.is-open) .mini-header { visibility: hidden; }
   font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem;
   justify-self: end; text-align: right; font-variant-numeric: tabular-nums;
 }
-.row .row-sub { font-size: var(--t-cap); color: var(--ink-soft); font-weight: 600; }
-.row-wx { grid-template-columns: 1fr 2.4rem auto minmax(3.2rem, auto); gap: var(--s-3); }
+.row .row-sub { font-size: var(--t-cap); color: var(--ink-soft); font-weight: 600; margin-left: 0.4em; }
+.row-wx { grid-template-columns: 3.5rem 2.4rem auto 1fr; gap: var(--s-3); }
 /* Fixed sub-columns keep the drop, chance and mm aligned across every row,
    whether or not that hour has an mm amount. */
 .row-precip {
