@@ -195,16 +195,17 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   background-size: 100% 100%;
   background-repeat: no-repeat;
   transition: opacity 1.4s var(--ease-out);
-  /* A slow drift + breathing zoom so the bloom feels alive rather than printed.
-     The base overscan scale is generous enough that the sway never reveals an
-     edge. Tied to the settings motion toggle (:root[data-anim]). */
-  animation: bloomDrift 20s var(--ease-in-out, ease-in-out) infinite;
+  /* The plumes make a diagonal fan; sweep that fan from one lean to the other
+     (/ | \ <-> \ | /) with a slow skew, plus a gentle breathing zoom. The base
+     overscan scale is generous enough that neither the skew nor the zoom ever
+     reveals an edge. Tied to the settings motion toggle (:root[data-anim]). */
+  animation: bloomSweep 16s var(--ease-in-out, ease-in-out) infinite;
   will-change: transform;
 }
-@keyframes bloomDrift {
-  0%   { transform: translate3d(-2.4%, -1.2%, 0) scale(1.13); }
-  50%  { transform: translate3d(2.4%,  2.8%, 0) scale(1.20); }
-  100% { transform: translate3d(-2.4%, -1.2%, 0) scale(1.13); }
+@keyframes bloomSweep {
+  0%   { transform: scale(1.28) skewX(4.5deg)  translateY(-1%); }
+  50%  { transform: scale(1.32) skewX(-4.5deg) translateY(1.4%); }
+  100% { transform: scale(1.28) skewX(4.5deg)  translateY(-1%); }
 }
 :root[data-anim="off"] .bg::before,
 :root[data-anim="off"] .bg::after { animation: none; transform: none; }
