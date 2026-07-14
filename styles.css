@@ -433,6 +433,9 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 /* Clear hierarchy down the readout: the place is a quiet uppercase kicker,
    the condition is the headline beneath it, then the display-size number. */
 .hero-place {
+  display: flex;
+  align-items: center;
+  gap: var(--s-1);
   max-width: 100%;
   font-size: 0.95rem;
   font-weight: 700;
@@ -440,10 +443,33 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   text-transform: uppercase;
   color: var(--ink-soft);
   line-height: 1.2;
+}
+.hero-place .place-name {
+  min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  cursor: pointer;
 }
+/* "Use my location" — the old crosshair locate control, sitting just left of
+   the place name. Tapping it (or the name) jumps to the device location. */
+.loc-btn {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  margin-left: -0.28rem;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-spring);
+}
+.loc-btn i { font-size: 1.15rem; }
+.loc-btn:active { transform: scale(0.88); background: var(--card-bg-hi); }
 /* Weight pulled back from 800 so the huge number reads lighter next to the
    line-drawn condition icon; the small negative margin nudges the numerals'
    left side bearing back so "31°" lines up with the place and condition. */

@@ -28,7 +28,7 @@ const THEME_REMAP = {
 const $ = (id) => document.getElementById(id);
 const el = {
   ptr: $("ptr"), splash: $("splash"),
-  locBtn: $("locBtn"),
+  locBtn: $("locBtn"), homeLocBtn: $("homeLocBtn"),
   unitSeg: $("unitSeg"), animToggle: $("animToggle"), themeToggle: $("themeToggle"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
   radarFull: $("radarFull"), searchFull: $("searchFull"),
   locSearch: $("locSearch"), searchResults: $("searchResults"), searchClear: $("searchClear"),
@@ -164,6 +164,13 @@ function initialLocate() {
 function wireEvents() {
   el.refreshBtn.onclick = () => { closeSettingsPop(); refresh(true); };
   el.locBtn.onclick = useMyLocation;
+  // Home-screen locate control: the crosshair button and the place name both
+  // jump to the device's current location.
+  if (el.homeLocBtn) el.homeLocBtn.onclick = useMyLocation;
+  if (el.placeName) {
+    el.placeName.onclick = useMyLocation;
+    el.placeName.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); useMyLocation(); } };
+  }
   if (el.searchBack) el.searchBack.onclick = closeSearch;
   if (el.mapPickConfirm) el.mapPickConfirm.onclick = confirmMapPick;
   if (el.bottomNav) el.bottomNav.querySelectorAll("[data-nav]").forEach((b) => b.onclick = () => navTo(b.dataset.nav));

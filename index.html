@@ -47,7 +47,10 @@
     <section class="hero" aria-label="Current conditions">
       <div class="hero-icon-wrap"><i class="hero-icon wx-icon" id="heroIcon" aria-hidden="true"></i></div>
       <div class="hero-readout">
-        <p class="hero-place"><span id="placeName">London, Ontario</span></p>
+        <p class="hero-place">
+          <button class="loc-btn" id="homeLocBtn" type="button" aria-label="Use my location"><i class="ph ph-crosshair" aria-hidden="true"></i></button>
+          <span id="placeName" class="place-name" role="button" tabindex="0" aria-label="Use my location">London, Ontario</span>
+        </p>
         <p class="condition" id="condition">Weather</p>
         <h1 class="display is-loading" id="temp"><span class="temp-num" id="tempNum">--</span><span class="temp-deg">°</span></h1>
         <p class="hero-hilo">
