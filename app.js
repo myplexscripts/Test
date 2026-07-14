@@ -8,6 +8,10 @@ const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
+const NEWS_KEY = "hw_news_v1";
+// Weather-news proxy endpoint (a small Cloudflare Worker — see worker/README.md).
+// Leave "" to keep the news feature hidden; set your Worker URL to enable it.
+const NEWS_ENDPOINT = "";
 const ACTIVITY_KEY = "hw_activityplan_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
 
@@ -49,6 +53,7 @@ const el = {
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
   radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"), radarLegend: $("radarLegend"), windLegend: $("windLegend"),
   hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
+  newsBlock: $("newsBlock"), newsList: $("newsList"), newsMore: $("newsMore"),
   sheet: $("sheet"), sheetScroll: $("sheetScroll"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"), sheetHeadAux: $("sheetHeadAux"),
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList"), dayStats: $("dayStats")
 };
@@ -60,6 +65,7 @@ const state = {
   data: null,
   hourly: [],
   daily: [],
+  news: [],
   detail: { metric: "temp", range: "hourly" },
   theme: "bloom",
   center: { ...HOME },
@@ -141,6 +147,8 @@ function init() {
     render(cache.data, { cached: true });
     setStatus("Showing saved weather…");
   }
+  loadNewsCache();
+  renderNewsHome();   // show cached headlines instantly; refreshNews() updates them
   initialLocate();
 }
 
@@ -210,6 +218,7 @@ function wireEvents() {
 
   el.hourlyMore.onclick = () => openDetail("temp", "hourly");
   el.dailyMore.onclick = () => openDetail("temp", "daily");
+  if (el.newsMore) el.newsMore.onclick = () => openDetail("news");
   if (el.trendCard) el.trendCard.onclick = () => openDetail("temp", "hourly");
   el.sheetBack.onclick = sheetBack;
   el.windCard.onclick = () => openDetail("wind");
@@ -283,6 +292,7 @@ async function refresh(force) {
     state.data = data;
     saveCache(data);
     render(data);
+    refreshNews();   // headlines load in the background; never blocks the weather
     setStatus(`Updated ${fmtClock(Date.now() / 1000, current.timezone || 0)}`);
   } catch (err) {
     if (state.data) setStatus(`Offline, showing saved weather. (${err.message})`);
@@ -1537,6 +1547,79 @@ function renderAlerts(alerts, tz) {
   if (help) help.onclick = () => openDetail("alerts");
 }
 
+// ---- Weather news -----------------------------------------------------------
+// Headlines come from a small CORS proxy (worker/news.js). The feature stays
+// invisible unless an endpoint is configured and stories come back; the last
+// good batch is cached so it survives a reload or going offline.
+
+async function refreshNews() {
+  if (!NEWS_ENDPOINT) return;                 // feature disabled until deployed
+  const cc = (state.data?.current?.sys?.country || "").toLowerCase();
+  const url = `${NEWS_ENDPOINT}${NEWS_ENDPOINT.includes("?") ? "&" : "?"}country=${cc || "ca"}`;
+  try {
+    const j = await fetchJSON(url, 12000);
+    const stories = Array.isArray(j?.stories) ? j.stories.filter((s) => s && s.title && s.url) : [];
+    if (stories.length) {
+      state.news = stories;
+      try { localStorage.setItem(NEWS_KEY, JSON.stringify({ stories, savedAt: Date.now() })); } catch {}
+    }
+  } catch {
+    /* keep whatever we already have (cached or none) */
+  }
+  renderNewsHome();
+  if (state.sheetOpen && state.detail?.metric === "news") renderNewsSheet();
+}
+
+function loadNewsCache() {
+  try {
+    const c = JSON.parse(localStorage.getItem(NEWS_KEY) || "null");
+    if (c && Array.isArray(c.stories)) state.news = c.stories;
+  } catch {}
+}
+
+// "3h ago" / "just now" style age from an ISO timestamp.
+function newsAgo(iso) {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return "";
+  const mins = Math.round((Date.now() - t) / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.round(hrs / 24);
+  return days === 1 ? "yesterday" : `${days}d ago`;
+}
+
+function newsMeta(s) {
+  return [escapeHTML(s.source || ""), escapeHTML(newsAgo(s.published))].filter(Boolean).join(" · ");
+}
+
+function renderNewsHome() {
+  if (!el.newsBlock) return;
+  const list = state.news || [];
+  if (!list.length) { el.newsBlock.hidden = true; if (el.newsList) el.newsList.innerHTML = ""; return; }
+  el.newsBlock.hidden = false;
+  el.newsList.innerHTML = list.slice(0, 2).map((s) => `
+    <a class="news-card" href="${encodeURI(s.url)}" target="_blank" rel="noopener noreferrer">
+      <span class="news-title">${escapeHTML(s.title)}</span>
+      <span class="news-meta">${newsMeta(s)}</span>
+    </a>`).join("");
+}
+
+function renderNewsSheet() {
+  el.sheetTitle.textContent = "Weather news";
+  const list = state.news || [];
+  el.sheetNote.textContent = list.length
+    ? "Latest weather headlines for your region. Tap a story to read it in full."
+    : "No weather news is available right now.";
+  el.sheetList.innerHTML = list.map((s) => `
+    <a class="news-row" href="${encodeURI(s.url)}" target="_blank" rel="noopener noreferrer">
+      <span class="news-title">${escapeHTML(s.title)}</span>
+      ${s.summary ? `<span class="news-summary">${escapeHTML(s.summary)}</span>` : ""}
+      <span class="news-meta">${newsMeta(s)}</span>
+    </a>`).join("");
+}
+
 function openAlertModal(a, tz) {
   if (!el.alertOverlay) return;
   el.alertModalTitle.textContent = a.event;
@@ -1702,7 +1785,7 @@ function openSheetUI() {
 }
 
 function openDetail(metric, range) {
-  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "alerts";
+  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "alerts" || metric === "news";
   if (!METRICS[metric] && !isInfo) metric = "temp";
   const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
   state.nav = [view];
@@ -1759,7 +1842,7 @@ function syncSlide(seg) {
 function renderDetailSheet() {
   if (el.sheetHeadAux) { el.sheetHeadAux.innerHTML = ""; el.sheetHeadAux.style.display = "none"; }
   const gc = el.graph.closest(".graph-card");
-  if (["aqi", "uv", "moon", "credits", "sun", "alerts"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
+  if (["aqi", "uv", "moon", "credits", "sun", "alerts", "news"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
   if (gc) gc.style.display = "";
   if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
@@ -1782,6 +1865,7 @@ function renderInfoSheet(kind) {
   else if (kind === "sun") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderSunSheet(); }
   else if (kind === "credits") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderCreditsSheet(); }
   else if (kind === "alerts") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAlertsSheet(); }
+  else if (kind === "news") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderNewsSheet(); }
   else if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
 }
