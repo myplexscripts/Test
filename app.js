@@ -1667,8 +1667,8 @@ function applyPalette(kind) {
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;
   // Alert tier colours run through the same vivid() engine as the bloom so the
-  // palette stays cohesive; deepened a touch (via darker bases) to keep the
-  // icon/label legible as small marks on the frosted alert tile.
+  // palette stays cohesive. All three warm tiers are light enough that the
+  // severity chip uses dark text (set in CSS) for legibility on the fill.
   for (const k in TIER_BASE) r.setProperty(`--tier-${k}`, vivid(TIER_BASE[k], false));
   if (p.bloom) { syncBloomFade(); document.documentElement.removeAttribute("data-dyn"); }
   else r.removeProperty("--bloom-fade");

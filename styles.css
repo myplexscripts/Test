@@ -534,8 +534,21 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .alert:active { transform: scale(0.98); background: var(--card-bg-hi); }
 /* The tier colour drives the duotone icon and the "colour warning" label. */
 .alert-ic { font-size: 2.2rem; color: var(--alert-c, var(--ink)); flex: 0 0 auto; line-height: 1; }
-.alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.alert-tier { font-size: var(--t-cap); font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--alert-c, var(--ink-soft)); }
+.alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
+/* Severity chip: the tier colour as a filled tag with dark text, so the
+   "colour warning" reads clearly even where the colour itself (yellow) is too
+   light to be legible as text on the frosted tile. */
+.alert-tier {
+  padding: 2px 8px;
+  border-radius: var(--r-sm);
+  background: var(--alert-c, var(--ink));
+  color: #241400;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  line-height: 1.3;
+}
 .alert-title { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.05rem; line-height: 1.2; }
 .alert-meta { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 .alert-go { font-size: 1.8rem; color: var(--ink); flex: 0 0 auto; }
