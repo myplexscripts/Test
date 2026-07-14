@@ -501,7 +501,9 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   color: color-mix(in srgb, var(--ink) 84%, transparent);
   max-width: 60ch;
 }
-.quickhits { padding-top: var(--s-4); border-top: 2px solid var(--hairline); }
+/* Quick Hits now live inside the summary tile, split from the summary text by
+   the same hairline rule the tile uses elsewhere. */
+.quickhits { padding-top: var(--s-4); border-top: 1px solid var(--hairline); }
 .quickhits:empty { display: none; }
 .qh-toggle {
   display: flex;
