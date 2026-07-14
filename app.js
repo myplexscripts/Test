@@ -108,12 +108,16 @@ let appRevealed = false;
 function revealApp() {
   if (appRevealed) return;
   appRevealed = true;
-  document.body.classList.remove("booting");
-  if (el.splash) {
-    const done = () => el.splash.classList.add("gone");
-    el.splash.addEventListener("transitionend", done, { once: true });
-    setTimeout(done, 700);   // fallback if transitionend doesn't fire
-  }
+  // Wait two frames so the freshly built content is actually painted before the
+  // splash lifts — otherwise you'd watch the page populate through the fade.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    document.body.classList.remove("booting");
+    if (el.splash) {
+      const done = () => el.splash.classList.add("gone");
+      el.splash.addEventListener("transitionend", done, { once: true });
+      setTimeout(done, 700);   // fallback if transitionend doesn't fire
+    }
+  }));
 }
 
 function init() {
@@ -134,7 +138,7 @@ function init() {
   const cache = loadCache();
   if (cache && cache.units === state.units) {
     state.data = cache.data;
-    render(cache.data);
+    render(cache.data, { cached: true });
     setStatus("Showing saved weather…");
   }
   initialLocate();
@@ -570,7 +574,7 @@ function moonSVG(frac) {
   </svg>`;
 }
 
-function render(data) {
+function render(data, opts) {
   const { current, forecast } = data;
   const tz = current.timezone ?? forecast.city?.timezone ?? 0;
   const w = current.weather?.[0] || {};
@@ -623,9 +627,11 @@ function render(data) {
   if (PALETTES[themeKind()]?.isDynamic) updateDynamicBackground();
   if (state.sheetOpen) renderDetailSheet();
 
-  // Real content is on screen (from cache or fetch) — drop the splash now so
-  // the loading placeholders were never shown, and let the entrance play.
-  revealApp();
+  // Drop the splash once real content is painted. Hold it through the initial
+  // cached render (stale) so the splash lifts on the live data instead of
+  // letting you watch values swap in behind it — the fetch render or the
+  // safety timeout in init() takes over.
+  if (!opts?.cached) revealApp();
 }
 
 let scrollFxReady = false;
