@@ -19,7 +19,12 @@ const NEWS_ENDPOINT = "";
 // them directly. As a stop-gap we pull them through a public CORS proxy and
 // parse them client-side. Delete NEWS_PROXY + NEWS_FEEDS once NEWS_ENDPOINT is
 // live — that path supersedes this one.
-const NEWS_PROXY = "https://api.allorigins.win/raw?url=";
+// Tried in order until one returns a parseable feed (public proxies are flaky).
+// Each host must also be listed in the page's connect-src CSP (index.html).
+const NEWS_PROXIES = [
+  "https://api.allorigins.win/raw?url=",
+  "https://corsproxy.io/?url=",
+];
 const NEWS_FEEDS = [
   { url: "https://weather.gc.ca/rss/battleboard/onrm117_e.xml", source: "Environment Canada" },
 ];
@@ -1585,7 +1590,7 @@ async function refreshNews() {
       const url = `${NEWS_ENDPOINT}${NEWS_ENDPOINT.includes("?") ? "&" : "?"}country=${cc || "ca"}`;
       const j = await fetchJSON(url, 12000);
       stories = Array.isArray(j?.stories) ? j.stories : [];
-    } else if (NEWS_PROXY && NEWS_FEEDS.length) {
+    } else if (NEWS_PROXIES.length && NEWS_FEEDS.length) {
       stories = await fetchDirectFeeds();
     } else {
       return;                                 // feature disabled
@@ -1605,14 +1610,25 @@ async function refreshNews() {
 // Stop-gap: read the configured raw feeds through the CORS proxy, parse them in
 // the browser, then merge newest-first and de-dupe.
 async function fetchDirectFeeds() {
-  const batches = await Promise.all(NEWS_FEEDS.map(async (f) => {
-    try { return parseFeed(await fetchText(NEWS_PROXY + encodeURIComponent(f.url), 12000), f.source); }
-    catch { return []; }
-  }));
+  const batches = await Promise.all(NEWS_FEEDS.map((f) => fetchOneFeed(f)));
   // Keep the feeds' own order (Environment Canada lists warnings first, then
   // conditions, then the forecast), de-duping by URL.
   const seen = new Set();
   return batches.flat().filter((s) => s.url && !seen.has(s.url) && seen.add(s.url));
+}
+
+// Try each proxy until one yields entries; log (don't throw) so a dead proxy
+// just falls through to the next and, failing all, hides the section quietly.
+async function fetchOneFeed(f) {
+  for (const proxy of NEWS_PROXIES) {
+    try {
+      const stories = parseFeed(await fetchText(proxy + encodeURIComponent(f.url), 12000), f.source);
+      if (stories.length) return stories;
+    } catch (e) {
+      console.warn(`[news] ${proxy} failed for ${f.url}:`, e.message);
+    }
+  }
+  return [];
 }
 
 // Parse an Atom (<entry>) or RSS (<item>) feed to the story shape. Uses the
