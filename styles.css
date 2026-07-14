@@ -934,15 +934,6 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .moon-card { cursor: pointer; transition: transform var(--dur-release) var(--ease-out), background var(--dur-release) var(--ease-out); }
 .moon-card:active { transform: scale(0.975); background: var(--card-bg-hi); }
 
-/* Frosted tiles: these sit over the bloom, so blur what's behind them and
-   layer a solid-ish page tint on top of the card tint — text keeps strong
-   contrast whatever colours the bloom is pushing underneath. Placed after the
-   tiles' own blocks so this background wins the cascade. */
-.conditions-tile, .alert {
-  background: color-mix(in srgb, var(--bg) 55%, transparent);
-  -webkit-backdrop-filter: blur(28px) saturate(1.2);
-  backdrop-filter: blur(28px) saturate(1.2);
-}
 
 .insight-card {
   display: flex;
