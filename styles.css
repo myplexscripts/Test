@@ -174,24 +174,24 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   top: 0;
   left: 0;
   right: 0;
-  height: calc(var(--safe-t) + 30px);
+  height: calc(var(--safe-t) + 22px);
   z-index: 59;   /* above the bottom nav and drop-up so the status-bar fade overlaps them */
   pointer-events: none;
   background: linear-gradient(to bottom,
-    color-mix(in srgb, #4d86d2 62%, transparent),
-    color-mix(in srgb, #4d86d2 24%, transparent) 55%,
+    color-mix(in srgb, #3f74bd 46%, transparent),
+    color-mix(in srgb, #3f74bd 16%, transparent) 60%,
     transparent);
-  -webkit-backdrop-filter: blur(14px);
-  backdrop-filter: blur(14px);
-  -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent);
-  mask-image: linear-gradient(to bottom, #000 35%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 45%, transparent);
+  mask-image: linear-gradient(to bottom, #000 45%, transparent);
 }
 [data-theme="night"] .status-fade,
 [data-theme="bloomdark"] .status-fade,
 [data-dyn="dark"] .status-fade {
   background: linear-gradient(to bottom,
-    color-mix(in srgb, #2c4a75 70%, transparent),
-    color-mix(in srgb, #2c4a75 28%, transparent) 55%,
+    color-mix(in srgb, #24406b 56%, transparent),
+    color-mix(in srgb, #24406b 20%, transparent) 60%,
     transparent);
 }
 @media (min-width: 821px) { .status-fade { display: none; } }

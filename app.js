@@ -2217,13 +2217,15 @@ function skyGradientAt(bands, nowH) {
 // (keeping their hue), pale skies deepened slightly on the dark page.
 let bloomCanvas = null;
 function bloomGradient(sky, dark) {
+  // The bloom is rendered theme-independently so the colours read identically
+  // in light and dark mode — only the page behind it changes, not the glow.
+  // (dark is accepted for call-site compatibility but no longer tints colours.)
   const legible = (c) => {
     const l = luminance(c);
-    if (!dark && l < 0.4) return lerpHex(c, "#ffffff", (0.4 - l) * 1.5);
-    if (dark && l > 0.75) return lerpHex(c, "#000000", (l - 0.75) * 1.2);
+    if (l < 0.4) return lerpHex(c, "#ffffff", (0.4 - l) * 1.5);
     return c;
   };
-  const c1 = hexToRgb(legible(vivid(sky.top, dark))), c2 = hexToRgb(legible(vivid(sky.bottom, dark)));
+  const c1 = hexToRgb(legible(vivid(sky.top, false))), c2 = hexToRgb(legible(vivid(sky.bottom, false)));
   const mid = [0, 1, 2].map((i) => Math.sqrt((c1[i] * c1[i] + c2[i] * c2[i]) / 2));
   // Two plumes: c2 pools on the left, c1 upper-right, blends where they meet.
   // Lower plumes carry colour down so the glow keeps its hue as it descends.
@@ -2233,7 +2235,7 @@ function bloomGradient(sky, dark) {
     { x: 0.30, y: 0.55, c: mid }, { x: 0.82, y: 0.58, c: mid },
     { x: 0.12, y: 0.82, c: c2 }, { x: 0.72, y: 0.86, c: c1 }
   ];
-  const W = 150, H = 320, power = 2.4, peak = dark ? 0.62 : 0.88;
+  const W = 150, H = 320, power = 2.4, peak = 0.88;
   const cv = bloomCanvas || (bloomCanvas = document.createElement("canvas"));
   cv.width = W; cv.height = H;
   const ctx = cv.getContext("2d");
