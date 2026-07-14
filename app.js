@@ -44,7 +44,6 @@ const el = {
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   trendGraph: $("trendGraph"), trendCard: $("trendCard"),
   sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
-  nowcast: $("nowcast"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
@@ -195,7 +194,6 @@ function wireEvents() {
   });
   el.radarPreview.onclick = () => openRadar();
   el.radarMore.onclick = () => openRadar();
-  if (el.nowcast) el.nowcast.onclick = () => openRadar();
   el.radarBack.onclick = closeRadar;
   el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.onclick = () => {
     // A tap means the user found the picker — cancel the one-time reveal timer.
@@ -257,10 +255,8 @@ async function refresh(force) {
     const data = { current, forecast, air, hourly: points, minutely, alerts, yesterday };
     state.data = data;
     saveCache(data);
-    radar.nowcastObs = null; // fresh forecast; re-sample radar for this location
     render(data);
     setStatus(`Updated ${fmtClock(Date.now() / 1000, current.timezone || 0)}`);
-    refreshRadarNowcast();
   } catch (err) {
     if (state.data) setStatus(`Offline, showing saved weather. (${err.message})`);
     else setStatus(`Couldn't load weather. ${err.message}`);
@@ -597,7 +593,6 @@ function render(data) {
   el.mHumidity.textContent = m.humidity != null ? `${m.humidity}%` : "--";
   el.mFeels.textContent = `${Math.round(m.feels_like ?? m.temp ?? 0)}°`;
 
-  renderNowcast();
   renderHourly();
   renderDaily();
   drawTrend();
@@ -825,128 +820,6 @@ function renderMoon(current) {
 
 function toCelsius(t) { return state.units === "imperial" ? (t - 32) * 5 / 9 : t; }
 function windKmh(speed) { return (speed || 0) * (state.units === "imperial" ? 1.609 : 3.6); }
-
-// Highest chance-of-rain over the next few hours, from the hourly forecast.
-function maxPopSoon() {
-  const now = Math.floor(Date.now() / 1000);
-  return (state.hourly || [])
-    .filter((p) => p.dt >= now - 1800 && p.dt <= now + 3 * 3600)
-    .reduce((m, p) => Math.max(m, p.pop || 0), 0);
-}
-
-function rainNowcast() {
-  const now = Math.floor(Date.now() / 1000);
-  const word = toCelsius(state.data?.current?.main?.temp ?? 5) <= 0.5 ? "Snow" : "Rain";
-  const low = word.toLowerCase();
-
-  // Live radar takes priority: it catches brief, local showers the forecast
-  // model smooths over. Only ever used to *add* rain, never to claim it's dry.
-  const c = state.center || state.loc || {};
-  const obs = radar.nowcastObs;
-  const obsFresh = obs && Date.now() - obs.at < 12 * 60 * 1000 &&
-    Math.abs((obs.lat ?? 999) - (c.lat ?? 0)) < 0.15 && Math.abs((obs.lon ?? 999) - (c.lon ?? 0)) < 0.15;
-  if (obsFresh && obs.nowEcho >= 0.12) return { wet: true, radar: true, text: `${word} on radar right now` };
-  if (obsFresh && obs.reachMin != null) return { wet: true, soon: true, radar: true, text: `${word} reaching you in about ${obs.reachMin} min` };
-
-  // Otherwise the forecast model's 15-minute nowcast for the next two hours.
-  const horizon = (state.data?.minutely || []).filter((p) => p.dt >= now - 450 && p.dt <= now + 7200);
-  const wet = (p) => (p.precip || 0) >= 0.08;
-  const mins = (p) => Math.max(5, Math.round((p.dt - now) / 300) * 5);
-  if (horizon.length >= 2) {
-    if (wet(horizon[0])) {
-      const stop = horizon.find((p) => !wet(p));
-      return stop ? { wet: true, text: `${word} easing in about ${mins(stop)} min` } : { wet: true, text: `${word} continuing for a while` };
-    }
-    const start = horizon.find((p) => wet(p));
-    if (start) return { wet: true, soon: true, text: `${word} starting in about ${mins(start)} min` };
-  } else if (!obsFresh) {
-    return null;
-  }
-
-  // Model shows dry — surface the chance so a real risk doesn't read as "no rain".
-  const pop = Math.round(maxPopSoon() * 100);
-  if (pop >= 30) return { maybe: true, text: `${word} possible · ${pop}% chance` };
-  if (pop >= 15) return { wet: false, text: `${word} unlikely · ${pop}% chance` };
-  return { wet: false, text: `No ${low} for the next 2 hours` };
-}
-
-// Standard slippy-map (Web Mercator) lon/lat -> tile x/y and pixel within tile.
-function lonLatToTilePixel(lon, lat, z, size) {
-  const n = Math.pow(2, z);
-  const xf = (lon + 180) / 360 * n;
-  const latR = lat * Math.PI / 180;
-  const yf = (1 - Math.log(Math.tan(latR) + 1 / Math.cos(latR)) / Math.PI) / 2 * n;
-  const x = Math.floor(xf), y = Math.floor(yf);
-  return { x, y, px: Math.floor((xf - x) * size), py: Math.floor((yf - y) * size) };
-}
-
-// Read the radar echo strength (0..1) at a pixel of one RainViewer frame.
-// Resolves to -1 if the tile can't be sampled (network / no CORS), so callers
-// fall back to the model nowcast instead of guessing.
-function sampleRadarTile(frame, z, x, y, px, py) {
-  return new Promise((resolve) => {
-    const img = new Image();
-    img.crossOrigin = "anonymous";
-    let settled = false;
-    const done = (v) => { if (!settled) { settled = true; resolve(v); } };
-    img.onload = () => {
-      try {
-        const cv = document.createElement("canvas");
-        cv.width = RV_SIZE; cv.height = RV_SIZE;
-        const cx = cv.getContext("2d");
-        cx.drawImage(img, 0, 0);
-        let maxA = 0;
-        for (let dy = -2; dy <= 2; dy++) for (let dx = -2; dx <= 2; dx++) {
-          const sx = Math.min(RV_SIZE - 1, Math.max(0, px + dx));
-          const sy = Math.min(RV_SIZE - 1, Math.max(0, py + dy));
-          const a = cx.getImageData(sx, sy, 1, 1).data[3];
-          if (a > maxA) maxA = a;
-        }
-        done(maxA / 255);
-      } catch { done(-1); }
-    };
-    img.onerror = () => done(-1);
-    setTimeout(() => done(-1), 6000);
-    img.src = `${radar.host}${frame.path}/${RV_SIZE}/${z}/${x}/${y}/${RV_COLOR}/${RV_OPTS}.png`;
-  });
-}
-
-// Sample live radar over the user's location to detect rain the model missed.
-async function refreshRadarNowcast() {
-  try {
-    if (state.radarOpen) return; // don't disturb the open radar animation's frames
-    const c = state.center || state.loc;
-    if (!c || !Number.isFinite(c.lat) || !Number.isFinite(c.lon)) return;
-    const frames = await ensureFrames();
-    if (!frames || !frames.length || !radar.host) return;
-    const z = 7;
-    const { x, y, px, py } = lonLatToTilePixel(c.lon, c.lat, z, RV_SIZE);
-    const past = frames.filter((f) => f.kind === "past");
-    const soon = frames.filter((f) => f.kind === "forecast");
-    const latest = past[past.length - 1];
-    const nowEcho = latest ? await sampleRadarTile(latest, z, x, y, px, py) : -1;
-    let reachMin = null;
-    if (nowEcho >= 0 && nowEcho < 0.12) {
-      for (const f of soon.slice(0, 4)) {
-        const e = await sampleRadarTile(f, z, x, y, px, py);
-        if (e >= 0.12) { reachMin = Math.max(5, Math.round((f.t - Date.now() / 1000) / 300) * 5); break; }
-      }
-    }
-    if (nowEcho < 0) return; // sampling unavailable — keep the model nowcast
-    radar.nowcastObs = { nowEcho, reachMin, lat: c.lat, lon: c.lon, at: Date.now() };
-    renderNowcast();
-  } catch { /* keep the model nowcast */ }
-}
-
-function renderNowcast() {
-  if (!el.nowcast) return;
-  const n = rainNowcast();
-  if (!n) { el.nowcast.style.display = "none"; return; }
-  el.nowcast.style.display = "";
-  el.nowcast.classList.toggle("is-wet", !!n.wet);
-  const code = n.wet ? "10d" : n.maybe ? "02d" : "01d";
-  el.nowcast.innerHTML = `<i class="wx-icon nowcast-ic" aria-hidden="true">${wxSVG(code, true)}</i><span class="nowcast-text">${n.text}</span><i class="ph ph-caret-right nowcast-go" aria-hidden="true"></i>`;
-}
 
 function stargazingTonight() {
   const tz = state.tz || 0;

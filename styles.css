@@ -679,16 +679,25 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   padding: clamp(var(--s-5), 4vw, var(--s-6));
 }
 
+/* Conditions + daily summary share one tile, split by a hairline rule like the
+   rows inside the wind tile. */
+.conditions-tile {
+  background: var(--card-bg);
+  border: 2px solid var(--card-border);
+  border-radius: var(--r-lg);
+  padding: clamp(var(--s-4), 4vw, var(--s-5));
+  color: var(--ink);
+}
+.conditions-tile .summary {
+  margin-top: clamp(var(--s-4), 4vw, var(--s-5));
+  padding-top: clamp(var(--s-4), 4vw, var(--s-5));
+  border-top: 1px solid var(--hairline);
+}
 .metrics {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: var(--s-3);
   text-align: center;
-  /* card styling, matching the other tiles */
-  background: var(--card-bg);
-  border: 2px solid var(--card-border);
-  border-radius: var(--r-lg);
-  padding: clamp(var(--s-4), 4vw, var(--s-5));
   color: var(--ink);
 }
 .metric { display: flex; flex-direction: column; align-items: center; gap: var(--s-2); min-width: 0; }
@@ -937,35 +946,15 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .moon-card { cursor: pointer; transition: transform var(--dur-release) var(--ease-out), background var(--dur-release) var(--ease-out); }
 .moon-card:active { transform: scale(0.975); background: var(--card-bg-hi); }
 
-.nowcast {
-  display: flex;
-  align-items: center;
-  gap: var(--s-3);
-  width: 100%;
-  border: 2px solid var(--card-border);
-  background: var(--card-bg);
-  border-radius: var(--r-md);
-  padding: var(--s-4) var(--s-5);
-  color: var(--ink);
-  text-align: left;
-  cursor: pointer;
-  transition: transform var(--dur-release) var(--ease-out), background var(--dur-release) var(--ease-out);
-}
-.nowcast:active { transform: scale(0.98); background: var(--card-bg-hi); }
-.nowcast.is-wet { border-color: color-mix(in srgb, var(--ink) 34%, transparent); }
 /* Frosted tiles: these sit over the bloom, so blur what's behind them and
    layer a solid-ish page tint on top of the card tint — text keeps strong
    contrast whatever colours the bloom is pushing underneath. Placed after the
    tiles' own blocks so this background wins the cascade. */
-.metrics, .alert, .nowcast {
+.conditions-tile, .alert {
   background: color-mix(in srgb, var(--bg) 55%, transparent);
   -webkit-backdrop-filter: blur(28px) saturate(1.2);
   backdrop-filter: blur(28px) saturate(1.2);
 }
-
-.nowcast-ic { font-size: 2.2rem; flex: 0 0 auto; }
-.nowcast-text { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: var(--t-body); line-height: 1.25; }
-.nowcast-go { margin-left: auto; font-size: 1rem; color: var(--ink-faint); flex: 0 0 auto; }
 
 .insight-card {
   display: flex;

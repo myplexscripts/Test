@@ -57,7 +57,8 @@
 
     <section class="alerts" id="alerts" aria-label="Weather alerts" hidden></section>
 
-    <section class="metrics card-tile" id="metrics" aria-label="Key metrics">
+    <section class="conditions-tile" aria-label="Conditions and daily summary">
+    <div class="metrics" id="metrics">
       <div class="metric">
         <svg class="cond-ic cond-wind" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
           <circle cx="120" cy="72" r="24" opacity="0.2"/><circle cx="208" cy="104" r="24" opacity="0.2"/><circle cx="152" cy="184" r="24" opacity="0.2"/>
@@ -88,14 +89,12 @@
         </svg>
         <strong id="mFeels">--</strong><span>Feels like</span>
       </div>
-    </section>
-
-    <section class="summary">
+    </div>
+    <div class="summary">
       <h2 class="block-title">Daily Summary</h2>
       <p class="summary-text" id="summary">Loading your local weather…</p>
+    </div>
     </section>
-
-    <button class="nowcast" id="nowcast" aria-label="Open radar" style="display:none"></button>
 
     <div class="quickhits" id="quickHits"></div>
 
