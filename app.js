@@ -27,7 +27,7 @@ const THEME_REMAP = {
 
 const $ = (id) => document.getElementById(id);
 const el = {
-  ptr: $("ptr"),
+  ptr: $("ptr"), splash: $("splash"),
   locBtn: $("locBtn"),
   unitSeg: $("unitSeg"), animToggle: $("animToggle"), themeToggle: $("themeToggle"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
   radarFull: $("radarFull"), searchFull: $("searchFull"),
@@ -102,12 +102,28 @@ function ecccLayer() {
   return main === "snow" ? ECCC_LAYER_SNOW : ECCC_LAYER_RAIN;
 }
 
+// Dismiss the splash and let the entrance animations play. Idempotent, so the
+// first of {content rendered, safety timeout} wins — no lingering splash.
+let appRevealed = false;
+function revealApp() {
+  if (appRevealed) return;
+  appRevealed = true;
+  document.body.classList.remove("booting");
+  if (el.splash) {
+    const done = () => el.splash.classList.add("gone");
+    el.splash.addEventListener("transitionend", done, { once: true });
+    setTimeout(done, 700);   // fallback if transitionend doesn't fire
+  }
+}
+
 function init() {
   loadState();
   wireEvents();
   registerSW();
   syncControls();
   applyPalette(themeKind());
+  // Safety net: never hold the splash longer than needed if data is slow/offline.
+  setTimeout(revealApp, 2600);
 
   const appEl = document.getElementById("app");
   if (appEl && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -606,6 +622,10 @@ function render(data) {
 
   if (PALETTES[themeKind()]?.isDynamic) updateDynamicBackground();
   if (state.sheetOpen) renderDetailSheet();
+
+  // Real content is on screen (from cache or fetch) — drop the splash now so
+  // the loading placeholders were never shown, and let the entrance play.
+  revealApp();
 }
 
 let scrollFxReady = false;

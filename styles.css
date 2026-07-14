@@ -2,11 +2,14 @@
 :root {
   color-scheme: light;
 
-  --bg: #ffe442;
-  --ink: #050505;
-  --surface: #050505;
-  --on-surface: #ffe442;
-  --surface-accent: #ffe442;
+  /* Defaults match the Bloom (light) palette so the first paint — before JS
+     applies the theme — never flashes the old solid colour. Dark-preferring
+     devices get the Bloom-dark values below. */
+  --bg: #f7f5f0;
+  --ink: #121212;
+  --surface: #121212;
+  --on-surface: #f7f5f0;
+  --surface-accent: #f7f5f0;
   --theme: #050505;
   --moon-lit: transparent;
   --moon-shadow: var(--ink);
@@ -64,6 +67,19 @@
   --max: 760px;
   --gutter: clamp(18px, 5vw, 28px);
   --nav-clear: 88px;   /* floating bottom nav (60px) + offset + breathing room */
+}
+
+/* Pre-JS default for dark-preferring devices — matches the Bloom-dark palette
+   so the splash and first paint are dark, not a light flash. */
+@media (prefers-color-scheme: dark) {
+  :root {
+    color-scheme: dark;
+    --bg: #111113;
+    --ink: #f2f0eb;
+    --surface: #f2f0eb;
+    --on-surface: #111113;
+    --surface-accent: #111113;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -139,6 +155,37 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   z-index: -1;
   background-color: var(--bg);
   transition: background-color var(--dur-slow) var(--ease-out);
+}
+
+/* Splash: covers the first paint (theme flash + "--" loading placeholders) on
+   the page background, then fades out the moment the app is ready. It is only
+   as long as it needs to be — revealApp() dismisses it as soon as content
+   renders (or a short safety timeout), and the entrance animations are held
+   paused until then so they play in view rather than behind the splash. */
+.splash {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+  transition: opacity 420ms var(--ease-out);
+}
+.splash-mark {
+  width: 96px;
+  height: 96px;
+  opacity: 0.92;
+  animation: splashPulse 1.6s var(--ease-in-out, ease-in-out) infinite;
+}
+@keyframes splashPulse { 0%, 100% { opacity: 0.55; transform: scale(0.97); } 50% { opacity: 1; transform: scale(1); } }
+body:not(.booting) .splash { opacity: 0; pointer-events: none; }
+.splash.gone { display: none; }
+/* Hold the home-screen entrance animations paused behind the splash so the
+   full staggered reveal is seen once the app appears, not missed underneath. */
+body.booting .app *, body.booting .foot { animation-play-state: paused !important; }
+@media (prefers-reduced-motion: reduce) {
+  .splash-mark { animation: none; }
+  .splash { transition: none; }
 }
 .bg::before, .bg::after {
   content: "";
