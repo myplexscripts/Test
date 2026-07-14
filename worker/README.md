@@ -1,8 +1,8 @@
 # Weather-news proxy
 
 `news.js` is a single-file [Cloudflare Worker](https://workers.cloudflare.com/)
-that turns weather-news RSS feeds into a CORS-friendly JSON endpoint the app can
-read from the browser. It is free on Cloudflare's Workers free plan.
+that turns Environment Canada's weather feeds into a CORS-friendly JSON endpoint
+the app can read from the browser. It is free on Cloudflare's Workers free plan.
 
 ## What it returns
 
@@ -13,15 +13,19 @@ GET https://<your-worker>.workers.dev/?country=ca
   "country": "ca",
   "updated": "2026-07-14T12:00:00.000Z",
   "stories": [
-    { "title": "...", "url": "https://...", "source": "CBC News",
+    { "title": "Heat Warning in effect, City of London - Middlesex",
+      "url": "https://weather.gc.ca/warnings/report_e.html?on117",
+      "source": "Environment Canada",
       "published": "2026-07-14T11:40:00.000Z", "summary": "..." }
   ]
 }
 ```
 
-`country` defaults to `ca` (Canada-first). Other supported codes: `us`, `gb`,
-`au`, `nz`, `ie`, `in`. Add more in the `COUNTRIES` map at the top of `news.js`.
-The app sends the visitor's own country code and falls back to Canada.
+`country` defaults to `ca` (Canada-first). The feeds are configured in the
+`FEEDS` map at the top of `news.js` — add more Environment Canada region/city
+feeds (or feeds for other countries under a new code) there; they're fetched
+best-effort and merged, so one dead feed never blanks the rest. The app sends
+the visitor's own country code and falls back to Canada.
 
 ## Deploy (two options)
 
@@ -49,8 +53,10 @@ const NEWS_ENDPOINT = "https://<your-worker>.workers.dev";
 Leave it as `""` to keep the news feature disabled (the section stays hidden).
 
 ## Notes
-- Results are edge-cached for 15 minutes, so upstream is hit at most a few times
-  an hour regardless of traffic.
-- Source is Google News RSS (an aggregator), so headlines link out via a
-  `news.google.com` redirect to the original article.
+- Results are edge-cached for 15 minutes (only non-empty ones), so upstream is
+  hit at most a few times an hour regardless of traffic.
+- Source is Environment Canada (`weather.gc.ca`), so entries are the region's
+  warnings, current conditions and forecast — each links to the EC page. Unlike
+  a news aggregator, government feeds don't rate-limit datacenter IPs, so the
+  Worker fetches them reliably.
 - No API keys are involved and nothing is stored.
