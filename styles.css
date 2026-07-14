@@ -199,13 +199,13 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
      (/ | \ <-> \ | /) with a slow skew, plus a gentle breathing zoom. The base
      overscan scale is generous enough that neither the skew nor the zoom ever
      reveals an edge. Tied to the settings motion toggle (:root[data-anim]). */
-  animation: bloomSweep 16s var(--ease-in-out, ease-in-out) infinite;
+  animation: bloomSweep 12s var(--ease-in-out, ease-in-out) infinite;
   will-change: transform;
 }
 @keyframes bloomSweep {
-  0%   { transform: scale(1.28) skewX(4.5deg)  translateY(-1%); }
-  50%  { transform: scale(1.32) skewX(-4.5deg) translateY(1.4%); }
-  100% { transform: scale(1.28) skewX(4.5deg)  translateY(-1%); }
+  0%   { transform: scale(1.35) skewX(5.5deg)  translateY(-1.6%); }
+  50%  { transform: scale(1.42) skewX(-5.5deg) translateY(1.8%); }
+  100% { transform: scale(1.35) skewX(5.5deg)  translateY(-1.6%); }
 }
 :root[data-anim="off"] .bg::before,
 :root[data-anim="off"] .bg::after { animation: none; transform: none; }
@@ -611,8 +611,9 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
 }
 .alert:active { transform: scale(0.98); background: var(--card-bg-hi); }
-/* The tier colour drives the duotone icon and the "colour warning" label. */
-.alert-ic { font-size: 2.2rem; color: var(--alert-c, var(--ink)); flex: 0 0 auto; line-height: 1; }
+/* The tier colour drives the "colour warning" label; the icon stays ink so it
+   reads as a neutral white/black mark that adapts to the theme. */
+.alert-ic { font-size: 2.2rem; color: var(--ink); flex: 0 0 auto; line-height: 1; }
 .alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 /* Severity chip: the tier colour as a filled tag with dark text, so the
    "colour warning" reads clearly even where the colour itself (yellow) is too
