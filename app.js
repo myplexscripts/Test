@@ -40,7 +40,6 @@ const el = {
   heroLo: $("heroLo"), heroHi: $("heroHi"), heroWhen: $("heroWhen"),
   alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
   hero: document.querySelector(".hero"),
-  miniHeader: $("miniHeader"), miniTemp: $("miniTemp"), miniCond: $("miniCond"), miniPlace: $("miniPlace"), miniIcon: $("miniIcon"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mFeels: $("mFeels"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   trendGraph: $("trendGraph"), trendCard: $("trendCard"),
@@ -593,10 +592,6 @@ function render(data) {
   renderQuickHits();
   renderAlerts(data.alerts, tz);
 
-  if (el.miniIcon) { el.miniIcon.className = `mini-ic wx-icon ${wxCategory(heroCode)}`; el.miniIcon.innerHTML = wxSVG(heroCode, true); }
-  if (el.miniPlace) el.miniPlace.textContent = el.placeName.textContent;
-  if (el.miniCond) el.miniCond.textContent = w.description || w.main || "Weather";
-  if (el.miniTemp) el.miniTemp.textContent = `${Math.round(m.temp ?? 0)}°`;
 
   el.mWind.textContent = windText(current.wind?.speed || 0);
   el.mHumidity.textContent = m.humidity != null ? `${m.humidity}%` : "--";
@@ -622,13 +617,6 @@ let scrollFxReady = false;
 function setupScrollFx() {
   if (scrollFxReady || !("IntersectionObserver" in window)) return;
   scrollFxReady = true;
-
-  if (el.hero && el.miniHeader) {
-    new IntersectionObserver(([e]) => {
-      el.miniHeader.classList.toggle("show", !e.isIntersecting);
-      el.miniHeader.setAttribute("aria-hidden", e.isIntersecting ? "true" : "false");
-    }, { threshold: 0, rootMargin: "-72px 0px 0px 0px" }).observe(el.hero);
-  }
 
   const reveal = new IntersectionObserver((entries) => {
     entries.forEach((e) => {
@@ -2236,18 +2224,14 @@ function bloomGradient(sky, dark) {
     return c;
   };
   const c1 = hexToRgb(legible(vivid(sky.top, dark))), c2 = hexToRgb(legible(vivid(sky.bottom, dark)));
-  // The in-between stop is computed in hue space, not RGB: averaging two
-  // near-complementary skies (orange + blue) cancels to grey, so instead we
-  // walk the hue wheel between them — preferring the path that avoids green —
-  // and land on a real colour (pink/violet for warm+cool) at full saturation.
-  const mid = hueMidColor(c1, c2);
-  // c2 pools on the left, c1 owns the right; a slim column of hue-stop plumes
-  // rides the seam between them so the handoff passes through real colour.
+  const mid = [0, 1, 2].map((i) => Math.sqrt((c1[i] * c1[i] + c2[i] * c2[i]) / 2));
+  // Two plumes: c2 pools on the left, c1 upper-right, blends where they meet.
+  // Lower plumes carry colour down so the glow keeps its hue as it descends.
   const grid = [
     { x: 0.16, y: 0.06, c: c2 }, { x: 0.72, y: 0.05, c: c1 }, { x: 0.98, y: 0.17, c: c1 },
-    { x: 0.05, y: 0.30, c: c2 }, { x: 0.52, y: 0.25, c: mid }, { x: 1.02, y: 0.42, c: c1 },
-    { x: 0.12, y: 0.56, c: c2 }, { x: 0.42, y: 0.58, c: mid }, { x: 0.90, y: 0.62, c: c1 },
-    { x: 0.10, y: 0.84, c: c2 }, { x: 0.52, y: 0.88, c: mid }, { x: 0.86, y: 0.90, c: c1 }
+    { x: 0.05, y: 0.30, c: c2 }, { x: 0.50, y: 0.27, c: mid }, { x: 1.02, y: 0.42, c: c1 },
+    { x: 0.30, y: 0.55, c: mid }, { x: 0.82, y: 0.58, c: mid },
+    { x: 0.12, y: 0.82, c: c2 }, { x: 0.72, y: 0.86, c: c1 }
   ];
   const W = 150, H = 320, power = 2.4, peak = dark ? 0.62 : 0.88;
   const cv = bloomCanvas || (bloomCanvas = document.createElement("canvas"));
@@ -2262,16 +2246,19 @@ function bloomGradient(sky, dark) {
     const alpha = Math.round(255 * peak * (1 - t * t * (3 - 2 * t)));
     for (let x = 0; x < W; x++) {
       const nx = x / W;
+      // Blend in linear-light (squared) space: gamma-naive RGB averaging is
+      // what dips the meeting zone into dark grey mud — mixing the squares
+      // and square-rooting back keeps the crossover bright and airy.
       let r = 0, g = 0, b = 0, wsum = 0;
       for (const p of grid) {
         const dx = nx - p.x, dy = ny - p.y;
         const w = 1 / Math.pow(dx * dx + dy * dy + 1e-4, power / 2);
-        r += p.c[0] * w; g += p.c[1] * w; b += p.c[2] * w; wsum += w;
+        r += p.c[0] * p.c[0] * w; g += p.c[1] * p.c[1] * w; b += p.c[2] * p.c[2] * w; wsum += w;
       }
-      r /= wsum; g /= wsum; b /= wsum;
-      // Gentle saturation boost so the residual averaging between neighbouring
-      // plumes (each pair now close in hue) stays lively.
-      const lt = (Math.max(r, g, b) + Math.min(r, g, b)) / 2, sat = 1.18;
+      r = Math.sqrt(r / wsum); g = Math.sqrt(g / wsum); b = Math.sqrt(b / wsum);
+      // Saturation boost recovers the chroma that averaging washes out of the
+      // middle, so what's left there reads as colour rather than grey.
+      const lt = (Math.max(r, g, b) + Math.min(r, g, b)) / 2, sat = 1.35;
       r = lt + (r - lt) * sat; g = lt + (g - lt) * sat; b = lt + (b - lt) * sat;
       r = r < 0 ? 0 : r > 255 ? 255 : r;
       g = g < 0 ? 0 : g > 255 ? 255 : g;

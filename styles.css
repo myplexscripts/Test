@@ -165,54 +165,41 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 :root[data-theme="bloomdark"] body:has(.sheet.is-open) .bg::before,
 :root[data-theme="bloomdark"] body:has(.sheet.is-open) .bg::after { opacity: 0; }
 
+/* Status-bar scrim: a soft blue gradient with a masked backdrop blur instead
+   of the old solid black block. Strong enough at the very top that the status
+   bar stays legible over any bloom, then the mask dissolves both the tint and
+   the blur so scrolled content slides under a subtle fade, not a hard edge. */
 .status-fade {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
-  height: var(--safe-t);
+  height: calc(var(--safe-t) + 30px);
   z-index: 59;   /* above the bottom nav and drop-up so the status-bar fade overlaps them */
   pointer-events: none;
-  background-color: var(--statusbar, var(--surface));
-  background-image: none;
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, #4d86d2 62%, transparent),
+    color-mix(in srgb, #4d86d2 24%, transparent) 55%,
+    transparent);
+  -webkit-backdrop-filter: blur(14px);
+  backdrop-filter: blur(14px);
+  -webkit-mask-image: linear-gradient(to bottom, #000 35%, transparent);
+  mask-image: linear-gradient(to bottom, #000 35%, transparent);
+}
+[data-theme="night"] .status-fade,
+[data-theme="bloomdark"] .status-fade,
+[data-dyn="dark"] .status-fade {
+  background: linear-gradient(to bottom,
+    color-mix(in srgb, #2c4a75 70%, transparent),
+    color-mix(in srgb, #2c4a75 28%, transparent) 55%,
+    transparent);
 }
 @media (min-width: 821px) { .status-fade { display: none; } }
 
-.mini-header {
-  position: fixed;
-  top: 0; left: 0; right: 0;
-  z-index: 35;
-  background: var(--statusbar, var(--surface));
-  color: var(--on-surface);
-  padding: calc(var(--safe-t) + 8px) calc(var(--gutter) + var(--safe-r)) 10px calc(var(--gutter) + var(--safe-l));
-  transform: translateY(-101%);
-  opacity: 0;
-  pointer-events: none;
-  transition: transform 300ms var(--ease-in), opacity 300ms var(--ease-in);
-  will-change: transform, opacity;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
-}
-.mini-header.show {
-  transform: translateY(0);
-  opacity: 1;
-  pointer-events: auto;
-  transition: transform 380ms var(--ease-out), opacity 240ms var(--ease-out);
-}
-.mini-inner { display: flex; align-items: center; gap: var(--s-3); max-width: var(--max); margin: 0 auto; }
-.mini-ic { font-size: 1.6rem; color: var(--surface-accent); flex: 0 0 auto; }
-.mini-text { display: flex; flex-direction: column; min-width: 0; line-height: 1.15; }
-.mini-place { font-size: var(--t-cap); font-weight: 700; color: var(--on-surface-soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mini-cond { font-size: 0.95rem; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.mini-temp { margin-left: auto; font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: 1.5rem; flex: 0 0 auto; }
-@media (min-width: 821px) { .mini-header { display: none; } }
-
-[data-theme="night"] .mini-header,
 [data-theme="night"] .bottomnav,
 [data-theme="night"] .nav-pop,
-[data-theme="bloomdark"] .mini-header,
 [data-theme="bloomdark"] .bottomnav,
 [data-theme="bloomdark"] .nav-pop,
-[data-dyn="dark"] .mini-header,
 [data-dyn="dark"] .bottomnav,
 [data-dyn="dark"] .nav-pop {
   --surface: #1c1c1e;
@@ -679,13 +666,6 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
   padding: clamp(var(--s-5), 4vw, var(--s-6));
 }
 
-/* Frosted tiles: the home tiles sit over the bloom, so blur what's behind
-   them — their translucent card tint stays, but text keeps clean contrast. */
-.metrics, .alert, .nowcast {
-  -webkit-backdrop-filter: blur(18px) saturate(1.1);
-  backdrop-filter: blur(18px) saturate(1.1);
-}
-
 .metrics {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -960,6 +940,16 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 }
 .nowcast:active { transform: scale(0.98); background: var(--card-bg-hi); }
 .nowcast.is-wet { border-color: color-mix(in srgb, var(--ink) 34%, transparent); }
+/* Frosted tiles: these sit over the bloom, so blur what's behind them and
+   layer a solid-ish page tint on top of the card tint — text keeps strong
+   contrast whatever colours the bloom is pushing underneath. Placed after the
+   tiles' own blocks so this background wins the cascade. */
+.metrics, .alert, .nowcast {
+  background: color-mix(in srgb, var(--bg) 55%, transparent);
+  -webkit-backdrop-filter: blur(28px) saturate(1.2);
+  backdrop-filter: blur(28px) saturate(1.2);
+}
+
 .nowcast-ic { font-size: 2.2rem; flex: 0 0 auto; }
 .nowcast-text { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: var(--t-body); line-height: 1.25; }
 .nowcast-go { margin-left: auto; font-size: 1rem; color: var(--ink-faint); flex: 0 0 auto; }
@@ -1853,8 +1843,7 @@ body:has(.sheet.is-full) .bottomnav {
   will-change: transform;
 }
 .sheet.is-open { transform: translateX(0); }
-body:has(.sheet.is-open) .app,
-body:has(.sheet.is-open) .mini-header { visibility: hidden; }
+body:has(.sheet.is-open) .app { visibility: hidden; }
 .sheet > * { width: 100%; max-width: var(--max); margin-inline: auto; position: relative; z-index: 1; }
 .sheet-scroll {
   flex: 1;
