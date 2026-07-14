@@ -11,7 +11,18 @@ const CACHE_KEY = "hw_cache_v1";
 const NEWS_KEY = "hw_news_v1";
 // Weather-news proxy endpoint (a small Cloudflare Worker — see worker/README.md).
 // Leave "" to keep the news feature hidden; set your Worker URL to enable it.
+// When set, it takes priority over the temporary direct-feed path below.
 const NEWS_ENDPOINT = "";
+
+// --- Temporary, until the Worker is deployed --------------------------------
+// Government RSS/Atom feeds don't send CORS headers, so the browser can't read
+// them directly. As a stop-gap we pull them through a public CORS proxy and
+// parse them client-side. Delete NEWS_PROXY + NEWS_FEEDS once NEWS_ENDPOINT is
+// live — that path supersedes this one.
+const NEWS_PROXY = "https://api.allorigins.win/raw?url=";
+const NEWS_FEEDS = [
+  { url: "https://weather.gc.ca/rss/battleboard/onrm117_e.xml", source: "Environment Canada" },
+];
 const ACTIVITY_KEY = "hw_activityplan_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
 
@@ -318,6 +329,20 @@ async function fetchJSON(url, timeoutMs = 15000) {
   try { data = JSON.parse(text); } catch { data = { message: text || res.statusText }; }
   if (!res.ok) throw new Error(data.message || res.statusText || "Request failed");
   return data;
+}
+
+async function fetchText(url, timeoutMs = 15000) {
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { cache: "no-store", signal: ctl.signal });
+    if (!res.ok) throw new Error(res.statusText || "Request failed");
+    return await res.text();
+  } catch (err) {
+    throw err.name === "AbortError" ? new Error("Request timed out") : err;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 const GEOMET_WMS = "https://geo.weather.gc.ca/geomet";
@@ -1553,21 +1578,71 @@ function renderAlerts(alerts, tz) {
 // good batch is cached so it survives a reload or going offline.
 
 async function refreshNews() {
-  if (!NEWS_ENDPOINT) return;                 // feature disabled until deployed
-  const cc = (state.data?.current?.sys?.country || "").toLowerCase();
-  const url = `${NEWS_ENDPOINT}${NEWS_ENDPOINT.includes("?") ? "&" : "?"}country=${cc || "ca"}`;
+  let stories = [];
   try {
-    const j = await fetchJSON(url, 12000);
-    const stories = Array.isArray(j?.stories) ? j.stories.filter((s) => s && s.title && s.url) : [];
-    if (stories.length) {
-      state.news = stories;
-      try { localStorage.setItem(NEWS_KEY, JSON.stringify({ stories, savedAt: Date.now() })); } catch {}
+    if (NEWS_ENDPOINT) {
+      const cc = (state.data?.current?.sys?.country || "").toLowerCase();
+      const url = `${NEWS_ENDPOINT}${NEWS_ENDPOINT.includes("?") ? "&" : "?"}country=${cc || "ca"}`;
+      const j = await fetchJSON(url, 12000);
+      stories = Array.isArray(j?.stories) ? j.stories : [];
+    } else if (NEWS_PROXY && NEWS_FEEDS.length) {
+      stories = await fetchDirectFeeds();
+    } else {
+      return;                                 // feature disabled
     }
   } catch {
     /* keep whatever we already have (cached or none) */
   }
+  stories = stories.filter((s) => s && s.title && s.url);
+  if (stories.length) {
+    state.news = stories;
+    try { localStorage.setItem(NEWS_KEY, JSON.stringify({ stories, savedAt: Date.now() })); } catch {}
+  }
   renderNewsHome();
   if (state.sheetOpen && state.detail?.metric === "news") renderNewsSheet();
+}
+
+// Stop-gap: read the configured raw feeds through the CORS proxy, parse them in
+// the browser, then merge newest-first and de-dupe.
+async function fetchDirectFeeds() {
+  const batches = await Promise.all(NEWS_FEEDS.map(async (f) => {
+    try { return parseFeed(await fetchText(NEWS_PROXY + encodeURIComponent(f.url), 12000), f.source); }
+    catch { return []; }
+  }));
+  // Keep the feeds' own order (Environment Canada lists warnings first, then
+  // conditions, then the forecast), de-duping by URL.
+  const seen = new Set();
+  return batches.flat().filter((s) => s.url && !seen.has(s.url) && seen.add(s.url));
+}
+
+// Parse an Atom (<entry>) or RSS (<item>) feed to the story shape. Uses the
+// browser's XML parser, so it handles namespaces and entities properly.
+function parseFeed(xml, source) {
+  const doc = new DOMParser().parseFromString(xml, "application/xml");
+  if (doc.querySelector("parsererror")) return [];
+  const atom = !!doc.querySelector("entry");
+  const nodes = [...doc.querySelectorAll(atom ? "entry" : "item")];
+  const t = (n, sel) => { const e = n.querySelector(sel); return e ? e.textContent.trim() : ""; };
+  const strip = (s) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  const iso = (s) => { const ms = Date.parse(s); return Number.isFinite(ms) ? new Date(ms).toISOString() : null; };
+  return nodes.map((n) => {
+    let url = "";
+    if (atom) {
+      const links = [...n.querySelectorAll("link")];
+      const alt = links.find((l) => (l.getAttribute("rel") || "alternate") === "alternate") || links[0];
+      url = alt ? alt.getAttribute("href") : "";
+    } else {
+      url = t(n, "link");
+    }
+    const summary = strip(t(n, "summary") || t(n, "description") || t(n, "content"));
+    return {
+      title: strip(t(n, "title")),
+      url,
+      source,
+      published: iso(t(n, "updated") || t(n, "published") || t(n, "pubDate")),
+      summary: summary.length > 180 ? summary.slice(0, 177) + "…" : summary,
+    };
+  }).filter((s) => s.title && s.url);
 }
 
 function loadNewsCache() {
