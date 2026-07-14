@@ -1666,6 +1666,10 @@ function applyPalette(kind) {
   document.documentElement.setAttribute("data-theme", kind);
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;
+  // Alert tier colours run through the same vivid() engine as the bloom so the
+  // palette stays cohesive; deepened a touch (via darker bases) to keep the
+  // icon/label legible as small marks on the frosted alert tile.
+  for (const k in TIER_BASE) r.setProperty(`--tier-${k}`, vivid(TIER_BASE[k], false));
   if (p.bloom) { syncBloomFade(); document.documentElement.removeAttribute("data-dyn"); }
   else r.removeProperty("--bloom-fade");
   updateMapTheme();
@@ -2216,6 +2220,10 @@ function skyGradientAt(bands, nowH) {
 // ink readable: near-black night skies are lifted toward the light page
 // (keeping their hue), pale skies deepened slightly on the dark page.
 let bloomCanvas = null;
+// Warm bases for the three alert tiers, chosen from the app's warm bloom range
+// and deepened enough that vivid() lands them legible on the light frosted tile.
+const TIER_BASE = { yellow: "#d99500", orange: "#e7601a", red: "#d8342a" };
+
 function bloomGradient(sky, dark) {
   // The bloom is rendered theme-independently so the colours read identically
   // in light and dark mode — only the page behind it changes, not the glow.

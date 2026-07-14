@@ -539,9 +539,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .alert-title { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.05rem; line-height: 1.2; }
 .alert-meta { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 .alert-go { font-size: 1.8rem; color: var(--ink); flex: 0 0 auto; }
-.alert--yellow { --alert-c: #cf9a00; }
-.alert--orange { --alert-c: #e0701a; }
-.alert--red    { --alert-c: #d63a2f; }
+.alert--yellow { --alert-c: var(--tier-yellow, #cf9a00); }
+.alert--orange { --alert-c: var(--tier-orange, #e0701a); }
+.alert--red    { --alert-c: var(--tier-red, #d63a2f); }
 .alert-help {
   display: inline-flex;
   align-items: center;
@@ -588,9 +588,9 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 .tier-row { display: flex; gap: var(--s-3); align-items: flex-start; }
 .tier-row + .tier-row { margin-top: var(--s-4); }
 .tier-dot { width: 18px; height: 18px; border-radius: 50%; margin-top: 3px; flex: 0 0 auto; }
-.tier-yellow .tier-dot { background: #f2c200; }
-.tier-orange .tier-dot { background: #ef7d1a; }
-.tier-red .tier-dot { background: #e23b30; }
+.tier-yellow .tier-dot { background: var(--tier-yellow, #f2c200); }
+.tier-orange .tier-dot { background: var(--tier-orange, #ef7d1a); }
+.tier-red .tier-dot { background: var(--tier-red, #e23b30); }
 .tier-body { min-width: 0; }
 .tier-name { font-weight: 700; margin-bottom: 2px; }
 
