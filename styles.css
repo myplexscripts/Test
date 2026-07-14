@@ -354,7 +354,7 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   .b-daily .day-card {
     width: 100%;
     display: grid;
-    grid-template-columns: 3.6rem 1fr auto auto;
+    grid-template-columns: 3.6rem 1fr auto auto auto;
     align-items: center;
     gap: var(--s-3);
     text-align: left;
@@ -364,6 +364,17 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   .b-daily .day-card i { font-size: 1.7rem; justify-self: center; }
   .b-daily .day-card .lo { order: 3; min-width: 2.6ch; text-align: right; font-variant-numeric: tabular-nums; }
   .b-daily .day-card .hi { order: 4; font-size: 1.2rem; min-width: 2.6ch; text-align: right; font-variant-numeric: tabular-nums; }
+  /* In the row layout the divider becomes a vertical hairline on the left. */
+  .b-daily .day-card .day-pop {
+    order: 5;
+    width: auto;
+    min-width: 4ch;
+    justify-content: flex-end;
+    padding-top: 0;
+    padding-left: var(--s-3);
+    border-top: 0;
+    border-left: 1px solid var(--hairline);
+  }
 }
 
 @media (min-width: 1360px) {
@@ -830,6 +841,18 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 .day-card { width: 116px; }
 .day-card .hi { font-size: 1.45rem; }
 .day-card .lo { color: var(--ink-soft); font-weight: 700; }
+/* Day's chance of precip, split from the temps by a subtle hairline. */
+.day-card .day-pop {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 100%;
+  padding-top: var(--s-2);
+  border-top: 1px solid var(--hairline);
+  font-variant-numeric: tabular-nums;
+}
+.day-card .day-pop i { font-size: 0.85rem; color: var(--ink-faint); }
 
 .detail-grid {
   display: grid;

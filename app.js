@@ -712,6 +712,7 @@ function renderDaily() {
       ${wxIcon({ main: d.main, icon: d.icon }, false)}
       <strong class="hi">${Math.round(d.max)}°</strong>
       <span class="lo">${Math.round(d.min)}°</span>
+      <span class="day-pop"><i class="ph-fill ph-drop" aria-hidden="true"></i>${Math.round((d.pop || 0) * 100)}%</span>
     </button>`).join("");
   if (el.dayRail.__sig === html) return;
   el.dayRail.__sig = html;
