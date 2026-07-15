@@ -2813,7 +2813,7 @@ function drawDetailChart() {
     const day = state.daily[state.detail.dayIndex];
     if (!day) return;
     const tz = state.tz || 0;
-    drawChart((day.items || []).map((it) => ({ label: fmtHour(it.dt, tz), hi: it.main.temp, lo: Number.isFinite(it.main.feels_like) ? it.main.feels_like : it.main.temp, dt: it.dt, precip: it.precip || 0 })), METRICS.temp, true, day.label === "Today", el.graph, false);
+    drawChart((day.items || []).map((it) => ({ label: fmtHour(it.dt, tz), hi: it.main.temp, lo: Number.isFinite(it.main.feels_like) ? it.main.feels_like : it.main.temp, dt: it.dt, precip: it.precip || 0, uv: uvForHour(it.dt) })), METRICS.temp, true, day.label === "Today", el.graph, false);
     return;
   }
   const m = METRICS[state.detail.metric];
@@ -3028,6 +3028,21 @@ function drawTrend() {
 // Reuses drawChart so the home card, the day sheet and the daily forecast all
 // share one look: temperature (bold) over feels-like (soft), the range shaded
 // between them, with precipitation bars. Just fed today's 24 hours.
+// UV for a given hour from the air feed (today only — that feed is one day of
+// local hours). Returns null when unavailable so the UV line simply drops out.
+function uvForHour(dt) {
+  const air = state.data?.air?.hourly;
+  if (!air?.uv_index || !air?.time) return null;
+  const tz = state.tz || 0;
+  const today = new Date((Math.floor(Date.now() / 1000) + tz) * 1000).toISOString().slice(0, 10);
+  if (new Date((dt + tz) * 1000).toISOString().slice(0, 10) !== today) return null;
+  const h = new Date((dt + tz) * 1000).getUTCHours();
+  for (let i = 0; i < air.time.length; i++) {
+    if (parseInt(String(air.time[i]).slice(11, 13), 10) === h) return Number.isFinite(air.uv_index[i]) ? air.uv_index[i] : null;
+  }
+  return null;
+}
+
 function renderDayView() {
   if (!el.dayGraph) return;
   const tz = state.tz || 0;
@@ -3042,7 +3057,8 @@ function renderDayView() {
     hi: p.main.temp,
     lo: Number.isFinite(p.main.feels_like) ? p.main.feels_like : p.main.temp,
     dt: p.dt,
-    precip: p.precip || 0
+    precip: p.precip || 0,
+    uv: uvForHour(p.dt)
   }));
   drawChart(rows, METRICS.temp, true, true, el.dayGraph, false);
 }
@@ -3137,6 +3153,28 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
   const stroke = (key, alpha, width) => { ctx.beginPath(); curve(key); ctx.strokeStyle = ink; ctx.globalAlpha = alpha; ctx.lineWidth = width; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke(); ctx.globalAlpha = 1; };
   if (dual) stroke("lo", 0.4, 3);
   stroke("hi", 1, 3.5);
+
+  // Optional UV overlay: a dotted line on its own 0-11 scale (shape, not the
+  // temperature axis), with the day's peak labelled. Drawn when rows carry uv.
+  if (rows.some((r) => Number.isFinite(r.uv))) {
+    const UY = (u) => padTop + h - Math.min(1, Math.max(0, u / 11)) * h * 0.92;
+    const uvAt = (i) => Number.isFinite(rows[i].uv) ? rows[i].uv : 0;
+    ctx.setLineDash([1.5, 4]); ctx.strokeStyle = hexA(ink, 0.5); ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.beginPath();
+    rows.forEach((r, i) => {
+      const px = X(i), py = UY(uvAt(i));
+      if (i === 0) ctx.moveTo(px, py);
+      else { const cx = (X(i - 1) + px) / 2; ctx.bezierCurveTo(cx, UY(uvAt(i - 1)), cx, py, px, py); }
+    });
+    ctx.stroke(); ctx.setLineDash([]);
+    let up = 0; rows.forEach((_, i) => { if (uvAt(i) > uvAt(up)) up = i; });
+    if (uvAt(up) >= 1) {
+      const uy = UY(uvAt(up));
+      ctx.fillStyle = hexA(ink, 0.75); ctx.font = "700 10px Inter, system-ui"; ctx.textAlign = "center";
+      ctx.beginPath(); ctx.arc(X(up), uy, 2.2, 0, Math.PI * 2); ctx.fill();
+      ctx.fillText(`UV ${Math.round(uvAt(up))}`, Math.max(padL + 18, Math.min(rect.width - padR - 18, X(up))), uy - 5);
+    }
+  }
 
   if (showNow && rows.length && rows[0].dt != null) {
     const now = Date.now() / 1000;

@@ -1243,6 +1243,10 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 .dvl-item { display: flex; align-items: center; gap: 6px; font-size: var(--t-cap); font-weight: 700; color: var(--ink-soft); }
 .dvl-line { width: 16px; height: 3px; border-radius: 2px; background: var(--ink); }
 .dvl-line.dvl-soft { background: color-mix(in srgb, var(--ink) 40%, transparent); }
+.dvl-line.dvl-dot {
+  height: 0; background: none;
+  border-top: 2px dotted color-mix(in srgb, var(--ink) 60%, transparent);
+}
 .dvl-bar { width: 8px; height: 12px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 24%, transparent); }
 
 .sheet.radar-sheet {
