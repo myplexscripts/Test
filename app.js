@@ -1300,8 +1300,19 @@ function renderDetails(current, forecast) {
   }
   items.push(["clouds", "ph-cloud", "Cloud cover", cloudPct != null ? `${cloudPct}%` : "--", cloudDescriptor(cloudPct), null, cloudPct != null ? rangeMeter(cloudPct, 0, 100) : ""]);
 
+  // A single "scale" tile grows to double width when its reading is high enough
+  // to be worth surfacing. If several qualify, the highest-priority one wins —
+  // only ever one large tile at a time.
+  const promo = [];
+  if (aq.index != null && aq.index >= 7) promo.push(["aqi", 5]);
+  if (air && air.uv_index != null && air.uv_index >= 8) promo.push(["uv", 4]);
+  if (popNow != null && popNow * 100 >= 70) promo.push(["precip", 3]);
+  if (m.humidity != null && m.humidity >= 85) promo.push(["humidity", 2]);
+  if (cloudPct != null && cloudPct >= 90) promo.push(["clouds", 1]);
+  const bigMetric = promo.sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
   el.detailGrid.innerHTML = items.map(([metric, icon, label, value, sub, range, spark]) => `
-    <button class="detail" data-metric="${metric}"${range ? ` data-range="${range}"` : ""}>
+    <button class="detail${metric === bigMetric ? " detail--wide" : ""}" data-metric="${metric}"${range ? ` data-range="${range}"` : ""}>
       <i class="ph-duotone ${icon}"></i>
       <span class="d-label">${label}</span>
       <strong class="d-value">${value}</strong>
