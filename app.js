@@ -8,26 +8,6 @@ const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
-const NEWS_KEY = "hw_news_v1";
-// Weather-news proxy endpoint (a small Cloudflare Worker — see worker/README.md).
-// Leave "" to keep the news feature hidden; set your Worker URL to enable it.
-// When set, it takes priority over the temporary direct-feed path below.
-const NEWS_ENDPOINT = "";
-
-// --- Temporary, until the Worker is deployed --------------------------------
-// Government RSS/Atom feeds don't send CORS headers, so the browser can't read
-// them directly. As a stop-gap we pull them through a public CORS proxy and
-// parse them client-side. Delete NEWS_PROXY + NEWS_FEEDS once NEWS_ENDPOINT is
-// live — that path supersedes this one.
-// Tried in order until one returns a parseable feed (public proxies are flaky).
-// Each host must also be listed in the page's connect-src CSP (index.html).
-const NEWS_PROXIES = [
-  "https://api.allorigins.win/raw?url=",
-  "https://corsproxy.io/?url=",
-];
-const NEWS_FEEDS = [
-  { url: "https://weather.gc.ca/rss/battleboard/onrm117_e.xml", source: "Environment Canada" },
-];
 const ACTIVITY_KEY = "hw_activityplan_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
 
@@ -69,7 +49,6 @@ const el = {
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
   radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"), radarLegend: $("radarLegend"), windLegend: $("windLegend"),
   hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
-  newsBlock: $("newsBlock"), newsList: $("newsList"), newsMore: $("newsMore"),
   sheet: $("sheet"), sheetScroll: $("sheetScroll"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"), sheetHeadAux: $("sheetHeadAux"),
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList"), dayStats: $("dayStats")
 };
@@ -81,7 +60,6 @@ const state = {
   data: null,
   hourly: [],
   daily: [],
-  news: [],
   detail: { metric: "temp", range: "hourly" },
   theme: "bloom",
   center: { ...HOME },
@@ -163,8 +141,6 @@ function init() {
     render(cache.data, { cached: true });
     setStatus("Showing saved weather…");
   }
-  loadNewsCache();
-  renderNewsHome();   // show cached headlines instantly; refreshNews() updates them
   initialLocate();
 }
 
@@ -234,7 +210,6 @@ function wireEvents() {
 
   el.hourlyMore.onclick = () => openDetail("temp", "hourly");
   el.dailyMore.onclick = () => openDetail("temp", "daily");
-  if (el.newsMore) el.newsMore.onclick = () => openDetail("news");
   if (el.trendCard) el.trendCard.onclick = () => openDetail("temp", "hourly");
   el.sheetBack.onclick = sheetBack;
   el.windCard.onclick = () => openDetail("wind");
@@ -308,7 +283,6 @@ async function refresh(force) {
     state.data = data;
     saveCache(data);
     render(data);
-    refreshNews();   // headlines load in the background; never blocks the weather
     setStatus(`Updated ${fmtClock(Date.now() / 1000, current.timezone || 0)}`);
   } catch (err) {
     if (state.data) setStatus(`Offline, showing saved weather. (${err.message})`);
@@ -334,20 +308,6 @@ async function fetchJSON(url, timeoutMs = 15000) {
   try { data = JSON.parse(text); } catch { data = { message: text || res.statusText }; }
   if (!res.ok) throw new Error(data.message || res.statusText || "Request failed");
   return data;
-}
-
-async function fetchText(url, timeoutMs = 15000) {
-  const ctl = new AbortController();
-  const timer = setTimeout(() => ctl.abort(), timeoutMs);
-  try {
-    const res = await fetch(url, { cache: "no-store", signal: ctl.signal });
-    if (!res.ok) throw new Error(res.statusText || "Request failed");
-    return await res.text();
-  } catch (err) {
-    throw err.name === "AbortError" ? new Error("Request timed out") : err;
-  } finally {
-    clearTimeout(timer);
-  }
 }
 
 const GEOMET_WMS = "https://geo.weather.gc.ca/geomet";
@@ -1577,140 +1537,6 @@ function renderAlerts(alerts, tz) {
   if (help) help.onclick = () => openDetail("alerts");
 }
 
-// ---- Weather news -----------------------------------------------------------
-// Headlines come from a small CORS proxy (worker/news.js). The feature stays
-// invisible unless an endpoint is configured and stories come back; the last
-// good batch is cached so it survives a reload or going offline.
-
-async function refreshNews() {
-  let stories = [];
-  try {
-    if (NEWS_ENDPOINT) {
-      const cc = (state.data?.current?.sys?.country || "").toLowerCase();
-      const url = `${NEWS_ENDPOINT}${NEWS_ENDPOINT.includes("?") ? "&" : "?"}country=${cc || "ca"}`;
-      const j = await fetchJSON(url, 12000);
-      stories = Array.isArray(j?.stories) ? j.stories : [];
-    } else if (NEWS_PROXIES.length && NEWS_FEEDS.length) {
-      stories = await fetchDirectFeeds();
-    } else {
-      return;                                 // feature disabled
-    }
-  } catch {
-    /* keep whatever we already have (cached or none) */
-  }
-  stories = stories.filter((s) => s && s.title && s.url);
-  if (stories.length) {
-    state.news = stories;
-    try { localStorage.setItem(NEWS_KEY, JSON.stringify({ stories, savedAt: Date.now() })); } catch {}
-  }
-  renderNewsHome();
-  if (state.sheetOpen && state.detail?.metric === "news") renderNewsSheet();
-}
-
-// Stop-gap: read the configured raw feeds through the CORS proxy, parse them in
-// the browser, then merge newest-first and de-dupe.
-async function fetchDirectFeeds() {
-  const batches = await Promise.all(NEWS_FEEDS.map((f) => fetchOneFeed(f)));
-  // Keep the feeds' own order (Environment Canada lists warnings first, then
-  // conditions, then the forecast), de-duping by URL.
-  const seen = new Set();
-  return batches.flat().filter((s) => s.url && !seen.has(s.url) && seen.add(s.url));
-}
-
-// Try each proxy until one yields entries; log (don't throw) so a dead proxy
-// just falls through to the next and, failing all, hides the section quietly.
-async function fetchOneFeed(f) {
-  for (const proxy of NEWS_PROXIES) {
-    try {
-      const stories = parseFeed(await fetchText(proxy + encodeURIComponent(f.url), 12000), f.source);
-      if (stories.length) return stories;
-    } catch (e) {
-      console.warn(`[news] ${proxy} failed for ${f.url}:`, e.message);
-    }
-  }
-  return [];
-}
-
-// Parse an Atom (<entry>) or RSS (<item>) feed to the story shape. Uses the
-// browser's XML parser, so it handles namespaces and entities properly.
-function parseFeed(xml, source) {
-  const doc = new DOMParser().parseFromString(xml, "application/xml");
-  if (doc.querySelector("parsererror")) return [];
-  const atom = !!doc.querySelector("entry");
-  const nodes = [...doc.querySelectorAll(atom ? "entry" : "item")];
-  const t = (n, sel) => { const e = n.querySelector(sel); return e ? e.textContent.trim() : ""; };
-  const strip = (s) => s.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  const iso = (s) => { const ms = Date.parse(s); return Number.isFinite(ms) ? new Date(ms).toISOString() : null; };
-  return nodes.map((n) => {
-    let url = "";
-    if (atom) {
-      const links = [...n.querySelectorAll("link")];
-      const alt = links.find((l) => (l.getAttribute("rel") || "alternate") === "alternate") || links[0];
-      url = alt ? alt.getAttribute("href") : "";
-    } else {
-      url = t(n, "link");
-    }
-    const summary = strip(t(n, "summary") || t(n, "description") || t(n, "content"));
-    return {
-      title: strip(t(n, "title")),
-      url,
-      source,
-      published: iso(t(n, "updated") || t(n, "published") || t(n, "pubDate")),
-      summary: summary.length > 180 ? summary.slice(0, 177) + "…" : summary,
-    };
-  }).filter((s) => s.title && s.url);
-}
-
-function loadNewsCache() {
-  try {
-    const c = JSON.parse(localStorage.getItem(NEWS_KEY) || "null");
-    if (c && Array.isArray(c.stories)) state.news = c.stories;
-  } catch {}
-}
-
-// "3h ago" / "just now" style age from an ISO timestamp.
-function newsAgo(iso) {
-  const t = iso ? Date.parse(iso) : NaN;
-  if (!Number.isFinite(t)) return "";
-  const mins = Math.round((Date.now() - t) / 60000);
-  if (mins < 1) return "just now";
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.round(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.round(hrs / 24);
-  return days === 1 ? "yesterday" : `${days}d ago`;
-}
-
-function newsMeta(s) {
-  return [escapeHTML(s.source || ""), escapeHTML(newsAgo(s.published))].filter(Boolean).join(" · ");
-}
-
-function renderNewsHome() {
-  if (!el.newsBlock) return;
-  const list = state.news || [];
-  if (!list.length) { el.newsBlock.hidden = true; if (el.newsList) el.newsList.innerHTML = ""; return; }
-  el.newsBlock.hidden = false;
-  el.newsList.innerHTML = list.slice(0, 2).map((s) => `
-    <a class="news-card" href="${encodeURI(s.url)}" target="_blank" rel="noopener noreferrer">
-      <span class="news-title">${escapeHTML(s.title)}</span>
-      <span class="news-meta">${newsMeta(s)}</span>
-    </a>`).join("");
-}
-
-function renderNewsSheet() {
-  el.sheetTitle.textContent = "Weather news";
-  const list = state.news || [];
-  el.sheetNote.textContent = list.length
-    ? "Latest weather headlines for your region. Tap a story to read it in full."
-    : "No weather news is available right now.";
-  el.sheetList.innerHTML = list.map((s) => `
-    <a class="news-row" href="${encodeURI(s.url)}" target="_blank" rel="noopener noreferrer">
-      <span class="news-title">${escapeHTML(s.title)}</span>
-      ${s.summary ? `<span class="news-summary">${escapeHTML(s.summary)}</span>` : ""}
-      <span class="news-meta">${newsMeta(s)}</span>
-    </a>`).join("");
-}
-
 function openAlertModal(a, tz) {
   if (!el.alertOverlay) return;
   el.alertModalTitle.textContent = a.event;
@@ -1876,7 +1702,7 @@ function openSheetUI() {
 }
 
 function openDetail(metric, range) {
-  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "alerts" || metric === "news";
+  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "alerts";
   if (!METRICS[metric] && !isInfo) metric = "temp";
   const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
   state.nav = [view];
@@ -1933,7 +1759,7 @@ function syncSlide(seg) {
 function renderDetailSheet() {
   if (el.sheetHeadAux) { el.sheetHeadAux.innerHTML = ""; el.sheetHeadAux.style.display = "none"; }
   const gc = el.graph.closest(".graph-card");
-  if (["aqi", "uv", "moon", "credits", "sun", "alerts", "news"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
+  if (["aqi", "uv", "moon", "credits", "sun", "alerts"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
   if (gc) gc.style.display = "";
   if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
@@ -1956,7 +1782,6 @@ function renderInfoSheet(kind) {
   else if (kind === "sun") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderSunSheet(); }
   else if (kind === "credits") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderCreditsSheet(); }
   else if (kind === "alerts") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAlertsSheet(); }
-  else if (kind === "news") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderNewsSheet(); }
   else if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
 }
