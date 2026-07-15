@@ -347,11 +347,14 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   .app-cols {
     grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) minmax(260px, 340px);
     grid-template-rows: auto auto auto auto;
+    /* Reading order: current conditions anchor top-left; forecasts flow
+       right of them (next hours -> today's curve -> the week); the map and
+       the today details close out the page. */
     grid-template-areas:
-      "hourly hourly hourly"
-      "now    trend  daily"
-      "now    radar  daily"
-      "today  today  today";
+      "now   hourly hourly"
+      "now   trend  daily"
+      "now   radar  daily"
+      "today today  today";
     column-gap: var(--s-8);
   }
   .b-daily {
@@ -377,9 +380,6 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   .b-daily .day-card .day-meta { justify-self: end; }
 }
 
-@media (min-width: 1360px) {
-  .b-today .detail-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
 
 .icon-btn {
   width: 48px;
@@ -2241,4 +2241,70 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ============================================================================
+   Desktop layout refinements (>=1000px). Placed last so they win the cascade
+   over the base component rules above. Mobile is untouched.
+   ============================================================================ */
+@media (min-width: 1000px) {
+  /* Nav docks bottom-right with breathing room from the screen edge. Content
+     already reserves --nav-clear at the page bottom, so nothing hides under it. */
+  .bottomnav {
+    left: auto;
+    right: var(--s-8);
+    bottom: var(--s-8);
+    transform: none;
+  }
+  /* Full-screen maps: same bow-out exit, minus the centering shift. */
+  body:has(.sheet.is-full) .bottomnav {
+    transform: translateY(calc(100% + var(--s-8) + 12px));
+  }
+  /* Settings pop anchors above the docked nav and grows out of the gear
+     (right-most item) instead of the screen centre. */
+  .nav-pop {
+    left: auto;
+    right: var(--s-8);
+    bottom: calc(var(--s-8) + 72px);
+    transform: translateY(10px) scale(0.55);
+    transform-origin: calc(100% - 33px) calc(100% + 24px);
+  }
+  .nav-pop.is-open { transform: translateY(0) scale(1); }
+
+  /* The Today group keeps its members but lays them on a grid instead of a
+     full-width stack. Wind is a naturally horizontal card so it takes the full
+     row; sun + moon are similar heights so they pair up, which holds the sun
+     arc to a column width instead of letting it balloon. The small tiles stay
+     together as one unit beneath. */
+  .b-today {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-areas:
+      "bt   bt"
+      "wind wind"
+      "sun  moon"
+      "det  det";
+    gap: var(--s-4);
+  }
+  .b-today .block-title { grid-area: bt; }
+  .b-today .wind-card { grid-area: wind; }
+  .b-today .sun-card { grid-area: sun; }
+  .b-today .moon-card { grid-area: moon; }
+  .b-today .detail-grid { grid-area: det; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  /* When the grid stretches the sun card, distribute its rows (header / arc /
+     times) instead of pooling the slack at the bottom. */
+  .sun-card { justify-content: space-between; }
+}
+
+@media (min-width: 1240px) {
+  /* Full-width Today band: one row of the three feature cards (sun centred),
+     then the small tiles in four aligned columns. */
+  .b-today {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-areas:
+      "bt   bt  bt"
+      "wind sun moon"
+      "det  det det";
+  }
+  .b-today .detail-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
