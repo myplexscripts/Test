@@ -323,8 +323,6 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   .col-now {
     grid-area: now;
     align-self: start;
-    position: sticky;
-    top: var(--s-6);
   }
   .b-trend { grid-area: trend; }
   .b-hourly { grid-area: hourly; }
@@ -359,8 +357,6 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   }
   .b-daily {
     align-self: start;
-    position: sticky;
-    top: var(--s-6);
   }
   .b-daily .rail {
     flex-direction: column;
