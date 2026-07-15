@@ -1303,12 +1303,14 @@ function renderDetails(current, forecast) {
   // A single "scale" tile grows to double width when its reading is high enough
   // to be worth surfacing. If several qualify, the highest-priority one wins —
   // only ever one large tile at a time.
+  // Thresholds are deliberately low — this is a stylistic highlight, not an
+  // alert, so a tile gets featured whenever a reading is merely elevated.
   const promo = [];
-  if (aq.index != null && aq.index >= 7) promo.push(["aqi", 5]);
-  if (air && air.uv_index != null && air.uv_index >= 8) promo.push(["uv", 4]);
-  if (popNow != null && popNow * 100 >= 70) promo.push(["precip", 3]);
-  if (m.humidity != null && m.humidity >= 85) promo.push(["humidity", 2]);
-  if (cloudPct != null && cloudPct >= 90) promo.push(["clouds", 1]);
+  if (aq.index != null && aq.index >= 4) promo.push(["aqi", 5]);
+  if (air && air.uv_index != null && air.uv_index >= 5) promo.push(["uv", 4]);
+  if (popNow != null && popNow * 100 >= 40) promo.push(["precip", 3]);
+  if (m.humidity != null && m.humidity >= 65) promo.push(["humidity", 2]);
+  if (cloudPct != null && cloudPct >= 60) promo.push(["clouds", 1]);
   const bigMetric = promo.sort((a, b) => b[1] - a[1])[0]?.[0] || null;
 
   el.detailGrid.innerHTML = items.map(([metric, icon, label, value, sub, range, spark]) => `
