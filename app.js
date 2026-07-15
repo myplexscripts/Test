@@ -258,7 +258,7 @@ function wireEvents() {
 
   window.addEventListener("resize", () => {
     if (radar.preview) radar.preview.invalidateSize();
-    if (state.data) { drawTrend(); if (dayViewRevealed) drawDayView(1); }
+    if (state.data) { drawTrend(); renderDayView(); }
     if (!state.sheetOpen) return;
     if (state.detail.metric === "uv") drawUvChart(state.data?.air?.hourly);
     else if (state.detail.metric !== "aqi") drawDetailChart();
@@ -688,11 +688,10 @@ function setupScrollFx() {
       if (!e.isIntersecting) return;
       if (e.target === el.sunCard) animateSun();
       if (e.target === el.windCard) animateCompass();
-      if (e.target === el.dayGraph) animateDayView();
       reveal.unobserve(e.target);
     });
   }, { threshold: 0.2 });
-  [el.sunCard, el.windCard, el.dayGraph].forEach((t) => t && reveal.observe(t));
+  [el.sunCard, el.windCard].forEach((t) => t && reveal.observe(t));
 }
 
 function tween(ms, ease, step) {
@@ -1631,7 +1630,7 @@ function applyPalette(kind) {
   if (p.bloom) { syncBloomFade(); document.documentElement.removeAttribute("data-dyn"); }
   else r.removeProperty("--bloom-fade");
   updateMapTheme();
-  if (state.data) { drawTrend(); if (dayViewRevealed) drawDayView(1); }
+  if (state.data) { drawTrend(); renderDayView(); }
 
   if (p.isDynamic) startDynamicTheme(); else stopDynamicTheme();
 }
@@ -2151,7 +2150,7 @@ function setDynamicPalette(dark) {
   document.documentElement.setAttribute("data-dyn", dark ? "dark" : "light");
   const changed = state.dark !== dark;
   state.dark = dark;
-  if (changed) { updateMapTheme(); if (state.data) { drawTrend(); if (dayViewRevealed) drawDayView(1); } }
+  if (changed) { updateMapTheme(); if (state.data) { drawTrend(); renderDayView(); } }
 }
 function skyGradientAt(bands, nowH) {
   const anchors = bands.map((b) => ({ h: (b[0] + b[1]) / 2, key: b[2] }));
@@ -2814,7 +2813,7 @@ function drawDetailChart() {
     const day = state.daily[state.detail.dayIndex];
     if (!day) return;
     const tz = state.tz || 0;
-    drawChart((day.items || []).map((it) => ({ label: fmtHour(it.dt, tz), hi: it.main.temp, dt: it.dt, precip: it.precip || 0 })), METRICS.temp, false, day.label === "Today");
+    drawChart((day.items || []).map((it) => ({ label: fmtHour(it.dt, tz), hi: it.main.temp, lo: Number.isFinite(it.main.feels_like) ? it.main.feels_like : it.main.temp, dt: it.dt, precip: it.precip || 0 })), METRICS.temp, true, day.label === "Today", el.graph, false);
     return;
   }
   const m = METRICS[state.detail.metric];
@@ -3025,47 +3024,36 @@ function drawTrend() {
   });
 }
 
-// ---- Day overview: a compact meteogram for everything happening today -------
-// Temperature + feels-like lines, precip bars, a wind-arrow lane and a UV ridge,
-// all sharing one hourly x-axis. Monochrome like the rest of the app; series are
-// told apart by weight, dashing and shape rather than colour. Reveals with a
-// left-to-right sweep when it scrolls into view.
-let dayViewRevealed = false;
-function dayAnimAllowed() {
-  return state.animate !== false && !matchMedia("(prefers-reduced-motion: reduce)").matches;
-}
+// ---- Day overview: today's temperature band, same chart as the daily views --
+// Reuses drawChart so the home card, the day sheet and the daily forecast all
+// share one look: temperature (bold) over feels-like (soft), the range shaded
+// between them, with precipitation bars. Just fed today's 24 hours.
 function renderDayView() {
   if (!el.dayGraph) return;
-  const willSweep = !dayViewRevealed && dayAnimAllowed() && "IntersectionObserver" in window;
-  drawDayView(willSweep ? 0 : 1);
-}
-function animateDayView() {
-  if (dayViewRevealed) return;
-  dayViewRevealed = true;
-  if (!dayAnimAllowed()) { drawDayView(1); return; }
-  tween(1000, easeOutCubic, (p) => drawDayView(p));
-}
-
-function smoothPath(ctx, pts) {
-  if (!pts.length) return;
-  ctx.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 1; i < pts.length; i++) {
-    const cx = (pts[i - 1][0] + pts[i][0]) / 2;
-    ctx.bezierCurveTo(cx, pts[i - 1][1], cx, pts[i][1], pts[i][0], pts[i][1]);
-  }
-}
-function barTop(ctx, x, y, w, h, r) {
-  r = Math.max(0, Math.min(r, w / 2, h));
-  ctx.beginPath();
-  ctx.moveTo(x, y + h);
-  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
-  ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
-  ctx.lineTo(x + w, y + h); ctx.closePath(); ctx.fill();
+  const tz = state.tz || 0;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const localDay = (s) => new Date((s + tz) * 1000).toISOString().slice(0, 10);
+  const today = localDay(nowSec);
+  const all = (state.data?.hourly || []).filter((p) => Number.isFinite(p.main?.temp));
+  let src = all.filter((p) => localDay(p.dt) === today);
+  if (src.length < 3) src = all.filter((p) => p.dt >= nowSec - 3600).slice(0, 24);
+  const rows = src.map((p) => ({
+    label: fmtHour(p.dt, tz),
+    hi: p.main.temp,
+    lo: Number.isFinite(p.main.feels_like) ? p.main.feels_like : p.main.temp,
+    dt: p.dt,
+    precip: p.precip || 0
+  }));
+  drawChart(rows, METRICS.temp, true, true, el.dayGraph, false);
 }
 
-function drawDayView(progress = 1) {
-  const canvas = el.dayGraph;
-  if (!canvas) return;
+function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
+  // Shared band chart. Defaults to the detail-sheet canvas (with the scrubber
+  // geometry); pass another canvas (e.g. the day-overview) to reuse the exact
+  // same look without the interactive state. labelLo can be turned off when the
+  // two lines run close (temp vs feels-like) so their labels don't collide.
+  canvas = canvas || el.graph;
+  const interactive = canvas === el.graph;
   const ctx = canvas.getContext("2d");
   const rect = canvas.getBoundingClientRect();
   if (!rect.width || !rect.height) return;
@@ -3074,174 +3062,7 @@ function drawDayView(progress = 1) {
   canvas.height = Math.max(1, Math.round(rect.height * dpr));
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, rect.width, rect.height);
-
-  const tz = state.tz || 0;
-  const nowSec = Math.floor(Date.now() / 1000);
-  const localDay = (s) => { const d = new Date((s + tz) * 1000); return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`; };
-  const localHour = (s) => new Date((s + tz) * 1000).getUTCHours();
-  const today = localDay(nowSec);
-
-  const all = (state.data?.hourly || []).filter((p) => Number.isFinite(p.main?.temp));
-  let src = all.filter((p) => localDay(p.dt) === today);
-  if (src.length < 3) src = all.filter((p) => p.dt >= nowSec - 3600).slice(0, 24);
-  if (src.length < 2) return;
-
-  // UV comes from the air feed (today, local ISO hours) — line it up by hour.
-  const uvArr = state.data?.air?.hourly?.uv_index, uvTime = state.data?.air?.hourly?.time;
-  const uvByHour = {};
-  if (Array.isArray(uvArr) && Array.isArray(uvTime)) {
-    uvTime.forEach((t, i) => { const h = parseInt(String(t).slice(11, 13), 10); if (Number.isFinite(h) && Number.isFinite(uvArr[i])) uvByHour[h] = uvArr[i]; });
-  }
-  const hasUV = Object.keys(uvByHour).length > 0;
-
-  const P = src.map((p) => ({
-    t: p.dt,
-    temp: p.main.temp,
-    feels: Number.isFinite(p.main.feels_like) ? p.main.feels_like : p.main.temp,
-    precip: p.precip || 0,
-    wind: p.wind?.speed || 0,
-    deg: p.wind?.deg,
-    uv: hasUV ? (uvByHour[localHour(p.dt)] ?? 0) : null
-  }));
-  const n = P.length;
-
-  const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#101010";
-  const font = "Inter, system-ui, sans-serif";
-  const W = rect.width, H = rect.height;
-
-  const padL = 34, padR = 16, padT = 18, padB = 22;
-  const x0 = padL, x1 = W - padR;
-  const plotTop = padT, plotBot = H - padB, plotH = plotBot - plotTop;
-  const X = (i) => x0 + (x1 - x0) * (i / (n - 1));
-  const revX = x0 + (x1 - x0) * progress;
-  const timeToX = (s) => {
-    if (s <= P[0].t) return x0;
-    if (s >= P[n - 1].t) return x1;
-    for (let i = 0; i < n - 1; i++) if (s >= P[i].t && s <= P[i + 1].t) {
-      const f = (s - P[i].t) / Math.max(1, P[i + 1].t - P[i].t);
-      return X(i) + f * (X(i + 1) - X(i));
-    }
-    return x0;
-  };
-
-  // Temperature drives the visible axis; feels-like shares it. UV and wind are
-  // overlaid on their own normalised scales (their shape matters, not absolute
-  // height), so everything sits on one plot.
-  const temps = P.flatMap((p) => [p.temp, p.feels]);
-  let tMin = Math.min(...temps), tMax = Math.max(...temps);
-  if (tMin === tMax) { tMin -= 1; tMax += 1; }
-  const tp = (tMax - tMin) * 0.28 || 1; tMin -= tp; tMax += tp;
-  const TY = (v) => plotBot - ((v - tMin) / (tMax - tMin)) * plotH;
-  const NY = (v, max) => plotBot - Math.min(1, Math.max(0, v / max)) * plotH * 0.9;
-
-  ctx.lineJoin = "round"; ctx.lineCap = "round";
-
-  // Night context: faint shade before sunrise / after sunset.
-  const sr = state.data?.current?.sys?.sunrise, ss = state.data?.current?.sys?.sunset;
-  if (sr && ss) {
-    ctx.fillStyle = hexA(ink, 0.045);
-    if (sr > P[0].t) ctx.fillRect(x0, plotTop, timeToX(sr) - x0, plotH);
-    if (ss < P[n - 1].t) ctx.fillRect(timeToX(ss), plotTop, x1 - timeToX(ss), plotH);
-  }
-
-  // Vertical hour guides + x labels.
-  ctx.textBaseline = "alphabetic"; ctx.textAlign = "center"; ctx.font = `700 10px ${font}`;
-  const step = Math.max(1, Math.round(n / 6));
-  for (let i = 0; i < n; i += step) {
-    const gx = X(i);
-    ctx.strokeStyle = hexA(ink, 0.06); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(gx, plotTop); ctx.lineTo(gx, plotBot); ctx.stroke();
-    ctx.fillStyle = hexA(ink, 0.5);
-    ctx.fillText(fmtHour(P[i].t, tz), Math.max(x0 + 14, Math.min(x1 - 14, gx)), H - 6);
-  }
-
-  // Temp gridlines + axis.
-  ctx.textBaseline = "middle"; ctx.textAlign = "right"; ctx.font = `600 10px ${font}`;
-  for (let i = 0; i < 3; i++) {
-    const v = tMax - ((tMax - tMin) / 2) * i, gy = TY(v);
-    ctx.strokeStyle = hexA(ink, 0.08); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(x0, gy); ctx.lineTo(x1, gy); ctx.stroke();
-    ctx.fillStyle = hexA(ink, 0.45); ctx.fillText(`${Math.round(v)}°`, x0 - 6, gy);
-  }
-
-  // Everything data-driven reveals left-to-right via the sweep clip.
-  ctx.save();
-  ctx.beginPath(); ctx.rect(0, 0, revX + 1, H); ctx.clip();
-
-  // Precip bars sit behind the lines.
-  const hasPrecip = P.some((p) => p.precip > 0);
-  if (hasPrecip) {
-    const maxP = Math.max(0.2, ...P.map((p) => p.precip));
-    const barMax = plotH * 0.32;
-    const bw = Math.min((x1 - x0) / n * 0.5, 10);
-    ctx.fillStyle = hexA(ink, 0.14);
-    P.forEach((p, i) => { if (p.precip > 0) { const bh = (p.precip / maxP) * barMax; barTop(ctx, X(i) - bw / 2, plotBot - bh, bw, bh, Math.min(3, bw / 2)); } });
-  }
-
-  // UV: dotted line.
-  if (hasUV) {
-    ctx.setLineDash([1.5, 4]); ctx.strokeStyle = hexA(ink, 0.52); ctx.lineWidth = 2;
-    ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), NY(p.uv || 0, 11)])); ctx.stroke();
-    ctx.setLineDash([]);
-  }
-
-  // Feels-like: dashed, medium.
-  ctx.setLineDash([5, 4]); ctx.strokeStyle = hexA(ink, 0.42); ctx.lineWidth = 1.6;
-  ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), TY(p.feels)])); ctx.stroke();
-  ctx.setLineDash([]);
-
-  // Temperature: bold, with soft fill, drawn last so it reads on top.
-  ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), TY(p.temp)]));
-  ctx.lineTo(X(n - 1), plotBot); ctx.lineTo(X(0), plotBot); ctx.closePath();
-  const g = ctx.createLinearGradient(0, plotTop, 0, plotBot);
-  g.addColorStop(0, hexA(ink, 0.16)); g.addColorStop(1, hexA(ink, 0));
-  ctx.fillStyle = g; ctx.fill();
-  ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), TY(p.temp)]));
-  ctx.strokeStyle = ink; ctx.lineWidth = 2.6; ctx.stroke();
-
-  ctx.restore();
-
-  // Peak labels appear as the sweep passes them.
-  let hi = 0, lo = 0, up = 0;
-  P.forEach((p, i) => { if (p.temp > P[hi].temp) hi = i; if (p.temp < P[lo].temp) lo = i; if ((p.uv || 0) > (P[up].uv || 0)) up = i; });
-  ctx.fillStyle = ink; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.font = `700 11px ${font}`;
-  [[hi, -9], [lo, 15]].forEach(([idx, dy]) => {
-    if (hi === lo && idx === lo) return;
-    if (X(idx) > revX + 0.5) return;
-    ctx.beginPath(); ctx.arc(X(idx), TY(P[idx].temp), 2.6, 0, 7); ctx.fill();
-    ctx.fillText(`${Math.round(P[idx].temp)}°`, Math.max(x0 + 12, Math.min(x1 - 12, X(idx))), TY(P[idx].temp) + dy);
-  });
-  if (hasUV && (P[up].uv || 0) >= 1 && X(up) <= revX + 0.5) {
-    const uy = NY(P[up].uv, 11);
-    ctx.fillStyle = hexA(ink, 0.75); ctx.font = `700 10px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-    ctx.beginPath(); ctx.arc(X(up), uy, 2.2, 0, 7); ctx.fill();
-    ctx.fillText(`UV ${Math.round(P[up].uv)}`, Math.max(x0 + 18, Math.min(x1 - 18, X(up))), uy - 5);
-  }
-
-  // Now marker across the plot.
-  if (nowSec >= P[0].t && nowSec <= P[n - 1].t) {
-    const nx = timeToX(nowSec);
-    if (nx <= revX + 0.5) {
-      ctx.setLineDash([3, 4]); ctx.strokeStyle = hexA(ink, 0.4); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(nx, plotTop); ctx.lineTo(nx, plotBot); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = hexA(ink, 0.55); ctx.font = `700 10px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-      ctx.fillText("Now", Math.max(x0 + 12, Math.min(x1 - 12, nx)), plotTop - 4);
-    }
-  }
-}
-
-function drawChart(rows, m, dual, showNow) {
-  const canvas = el.graph;
-  const ctx = canvas.getContext("2d");
-  const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(1, Math.round(rect.width * dpr));
-  canvas.height = Math.max(1, Math.round(rect.height * dpr));
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, rect.width, rect.height);
-  chartGeom = null;
-  chartRedraw = null;
+  if (interactive) { chartGeom = null; chartRedraw = null; }
   if (!rows.length) return;
 
   const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
@@ -3360,7 +3181,7 @@ function drawChart(rows, m, dual, showNow) {
     ctx.fillText(lab(rows[i].hi), labelX(i), Y(rows[i].hi) + dy);
   });
   ctx.textAlign = "center";
-  if (dual) {
+  if (dual && labelLo) {
     ctx.globalAlpha = 0.7;
     loMap.forEach((dy, i) => {
       ctx.beginPath(); ctx.arc(X(i), Y(rows[i].lo), 3.5, 0, Math.PI * 2); ctx.fill();
@@ -3393,11 +3214,13 @@ function drawChart(rows, m, dual, showNow) {
   ctx.textAlign = "center";
   ctx.globalAlpha = 1;
 
-  chartGeom = {
-    xs: rows.map((_, i) => X(i)), ys: rows.map((r) => Y(r.hi)),
-    rows, padTop, h, rect, dual, fmt: lab
-  };
-  chartRedraw = () => drawChart(rows, m, dual, showNow);
+  if (interactive) {
+    chartGeom = {
+      xs: rows.map((_, i) => X(i)), ys: rows.map((r) => Y(r.hi)),
+      rows, padTop, h, rect, dual, fmt: lab
+    };
+    chartRedraw = () => drawChart(rows, m, dual, showNow, canvas, labelLo);
+  }
 }
 
 function showChartPoint(clientX) {
