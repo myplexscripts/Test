@@ -308,16 +308,15 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   }
   .app-cols {
     display: grid;
-    grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
-    grid-template-rows: auto auto auto auto 1fr;
+    grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-rows: auto auto auto auto;
     grid-template-areas:
-      "now hourly"
-      "now daily"
-      "now trend"
-      "now radar"
-      "now today";
+      "now hourly hourly"
+      "now trend  radar"
+      "now daily  daily"
+      "now today  today";
     gap: var(--s-8);
-    column-gap: var(--s-10);
+    column-gap: var(--s-8);
   }
   .col-details { display: contents; }
   .col-now {
@@ -346,13 +345,13 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 
 @media (min-width: 1240px) {
   .app-cols {
-    grid-template-columns: minmax(280px, 350px) minmax(0, 1fr) minmax(250px, 320px);
-    grid-template-rows: auto auto auto 1fr;
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) minmax(260px, 340px);
+    grid-template-rows: auto auto auto auto;
     grid-template-areas:
-      "now hourly daily"
-      "now trend  daily"
-      "now radar  daily"
-      "now today  daily";
+      "hourly hourly hourly"
+      "now    trend  daily"
+      "now    radar  daily"
+      "today  today  today";
     column-gap: var(--s-8);
   }
   .b-daily {
