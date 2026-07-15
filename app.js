@@ -3118,18 +3118,9 @@ function drawDayView(progress = 1) {
   const font = "Inter, system-ui, sans-serif";
   const W = rect.width, H = rect.height;
 
-  const padL = 34, padR = 16, padT = 14, padB = 20;
+  const padL = 34, padR = 16, padT = 18, padB = 22;
   const x0 = padL, x1 = W - padR;
-  const availH = H - padT - padB;
-  const fT = hasUV ? 0.54 : 0.7, fW = hasUV ? 0.2 : 0.3, fU = hasUV ? 0.26 : 0;
-  const gap = 12, nGap = hasUV ? 2 : 1;
-  const laneH = availH - gap * nGap;
-  const tempH = laneH * fT, windH = laneH * fW, uvH = laneH * fU;
-  const tempTop = padT, tempBot = tempTop + tempH;
-  const windTop = tempBot + gap, windBot = windTop + windH;
-  const uvTop = windBot + gap, uvBot = uvTop + uvH;
-  const laneBot = hasUV ? uvBot : windBot;
-
+  const plotTop = padT, plotBot = H - padB, plotH = plotBot - plotTop;
   const X = (i) => x0 + (x1 - x0) * (i / (n - 1));
   const revX = x0 + (x1 - x0) * progress;
   const timeToX = (s) => {
@@ -3142,11 +3133,16 @@ function drawDayView(progress = 1) {
     return x0;
   };
 
+  // Temperature drives the visible axis; feels-like shares it. UV and wind are
+  // overlaid on their own normalised scales (their shape matters, not absolute
+  // height), so everything sits on one plot.
   const temps = P.flatMap((p) => [p.temp, p.feels]);
   let tMin = Math.min(...temps), tMax = Math.max(...temps);
   if (tMin === tMax) { tMin -= 1; tMax += 1; }
-  const tp = (tMax - tMin) * 0.22 || 1; tMin -= tp; tMax += tp;
-  const TY = (v) => tempBot - ((v - tMin) / (tMax - tMin)) * (tempBot - tempTop);
+  const tp = (tMax - tMin) * 0.28 || 1; tMin -= tp; tMax += tp;
+  const TY = (v) => plotBot - ((v - tMin) / (tMax - tMin)) * plotH;
+  const NY = (v, max) => plotBot - Math.min(1, Math.max(0, v / max)) * plotH * 0.9;
+  const maxWind = Math.max(1, ...P.map((p) => p.wind));
 
   ctx.lineJoin = "round"; ctx.lineCap = "round";
 
@@ -3154,17 +3150,17 @@ function drawDayView(progress = 1) {
   const sr = state.data?.current?.sys?.sunrise, ss = state.data?.current?.sys?.sunset;
   if (sr && ss) {
     ctx.fillStyle = hexA(ink, 0.045);
-    if (sr > P[0].t) ctx.fillRect(x0, tempTop, timeToX(sr) - x0, laneBot - tempTop);
-    if (ss < P[n - 1].t) ctx.fillRect(timeToX(ss), tempTop, x1 - timeToX(ss), laneBot - tempTop);
+    if (sr > P[0].t) ctx.fillRect(x0, plotTop, timeToX(sr) - x0, plotH);
+    if (ss < P[n - 1].t) ctx.fillRect(timeToX(ss), plotTop, x1 - timeToX(ss), plotH);
   }
 
-  // Vertical hour guides + x labels (frame, drawn in full).
+  // Vertical hour guides + x labels.
   ctx.textBaseline = "alphabetic"; ctx.textAlign = "center"; ctx.font = `700 10px ${font}`;
   const step = Math.max(1, Math.round(n / 6));
   for (let i = 0; i < n; i += step) {
     const gx = X(i);
     ctx.strokeStyle = hexA(ink, 0.06); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(gx, tempTop); ctx.lineTo(gx, laneBot); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gx, plotTop); ctx.lineTo(gx, plotBot); ctx.stroke();
     ctx.fillStyle = hexA(ink, 0.5);
     ctx.fillText(fmtHour(P[i].t, tz), Math.max(x0 + 14, Math.min(x1 - 14, gx)), H - 6);
   }
@@ -3178,61 +3174,57 @@ function drawDayView(progress = 1) {
     ctx.fillStyle = hexA(ink, 0.45); ctx.fillText(`${Math.round(v)}°`, x0 - 6, gy);
   }
 
-  // Everything data-driven is revealed left-to-right by the sweep clip.
+  // Everything data-driven reveals left-to-right via the sweep clip.
   ctx.save();
   ctx.beginPath(); ctx.rect(0, 0, revX + 1, H); ctx.clip();
 
+  // Precip bars sit behind the lines.
   const hasPrecip = P.some((p) => p.precip > 0);
   if (hasPrecip) {
     const maxP = Math.max(0.2, ...P.map((p) => p.precip));
-    const barMax = (tempBot - tempTop) * 0.4;
+    const barMax = plotH * 0.32;
     const bw = Math.min((x1 - x0) / n * 0.5, 10);
-    ctx.fillStyle = hexA(ink, 0.16);
-    P.forEach((p, i) => { if (p.precip > 0) barTop(ctx, X(i) - bw / 2, tempBot - (p.precip / maxP) * barMax, bw, (p.precip / maxP) * barMax, Math.min(3, bw / 2)); });
+    ctx.fillStyle = hexA(ink, 0.14);
+    P.forEach((p, i) => { if (p.precip > 0) { const bh = (p.precip / maxP) * barMax; barTop(ctx, X(i) - bw / 2, plotBot - bh, bw, bh, Math.min(3, bw / 2)); } });
   }
 
-  // Feels-like (dashed, faint).
-  ctx.setLineDash([4, 4]); ctx.strokeStyle = hexA(ink, 0.4); ctx.lineWidth = 1.5;
+  // Wind: faint line (relative speed) with direction arrows riding on it.
+  if (P.some((p) => p.wind != null)) {
+    ctx.strokeStyle = hexA(ink, 0.3); ctx.lineWidth = 1.4;
+    ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), NY(p.wind, maxWind)])); ctx.stroke();
+    const wStep = Math.max(1, Math.round(n / 9));
+    for (let i = 0; i < n; i += wStep) {
+      if (P[i].deg == null) continue;
+      windArrow(ctx, X(i), NY(P[i].wind, maxWind), (P[i].deg + 180) % 360, 5, hexA(ink, 0.5));
+    }
+  }
+
+  // UV: dotted line.
+  if (hasUV) {
+    ctx.setLineDash([1.5, 4]); ctx.strokeStyle = hexA(ink, 0.52); ctx.lineWidth = 2;
+    ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), NY(p.uv || 0, 11)])); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Feels-like: dashed, medium.
+  ctx.setLineDash([5, 4]); ctx.strokeStyle = hexA(ink, 0.42); ctx.lineWidth = 1.6;
   ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), TY(p.feels)])); ctx.stroke();
   ctx.setLineDash([]);
 
-  // Temperature (bold) + soft fill.
+  // Temperature: bold, with soft fill, drawn last so it reads on top.
   ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), TY(p.temp)]));
-  ctx.lineTo(X(n - 1), tempBot); ctx.lineTo(X(0), tempBot); ctx.closePath();
-  const g = ctx.createLinearGradient(0, tempTop, 0, tempBot);
-  g.addColorStop(0, hexA(ink, 0.18)); g.addColorStop(1, hexA(ink, 0));
+  ctx.lineTo(X(n - 1), plotBot); ctx.lineTo(X(0), plotBot); ctx.closePath();
+  const g = ctx.createLinearGradient(0, plotTop, 0, plotBot);
+  g.addColorStop(0, hexA(ink, 0.16)); g.addColorStop(1, hexA(ink, 0));
   ctx.fillStyle = g; ctx.fill();
   ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), TY(p.temp)]));
-  ctx.strokeStyle = ink; ctx.lineWidth = 2.5; ctx.stroke();
+  ctx.strokeStyle = ink; ctx.lineWidth = 2.6; ctx.stroke();
 
-  // Wind arrows.
-  const wy = (windTop + windBot) / 2, maxW = Math.max(1, ...P.map((p) => p.wind));
-  const wStep = Math.max(1, Math.round(n / 9));
-  for (let i = 0; i < n; i += wStep) {
-    if (P[i].deg == null) continue;
-    windArrow(ctx, X(i), wy, (P[i].deg + 180) % 360, 6.5, hexA(ink, 0.32 + 0.55 * Math.min(1, P[i].wind / maxW)));
-  }
-
-  // UV ridge.
-  if (hasUV) {
-    const UY = (u) => uvBot - Math.min(1, Math.max(0, u) / 11) * (uvBot - uvTop);
-    ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), UY(p.uv || 0)]));
-    ctx.lineTo(X(n - 1), uvBot); ctx.lineTo(X(0), uvBot); ctx.closePath();
-    ctx.fillStyle = hexA(ink, 0.14); ctx.fill();
-    ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), UY(p.uv || 0)]));
-    ctx.strokeStyle = hexA(ink, 0.5); ctx.lineWidth = 1.5; ctx.stroke();
-  }
   ctx.restore();
 
-  // Lane labels (left gutter).
-  ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.font = `800 9px ${font}`;
-  ctx.fillStyle = hexA(ink, 0.4);
-  ctx.fillText("WIND", 2, windTop + 8);
-  if (hasUV) ctx.fillText("UV", 2, uvTop + 8);
-
-  // Hi/lo temp marks (appear as the sweep passes them).
-  let hi = 0, lo = 0;
-  P.forEach((p, i) => { if (p.temp > P[hi].temp) hi = i; if (p.temp < P[lo].temp) lo = i; });
+  // Peak labels appear as the sweep passes them.
+  let hi = 0, lo = 0, up = 0;
+  P.forEach((p, i) => { if (p.temp > P[hi].temp) hi = i; if (p.temp < P[lo].temp) lo = i; if ((p.uv || 0) > (P[up].uv || 0)) up = i; });
   ctx.fillStyle = ink; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.font = `700 11px ${font}`;
   [[hi, -9], [lo, 15]].forEach(([idx, dy]) => {
     if (hi === lo && idx === lo) return;
@@ -3240,25 +3232,22 @@ function drawDayView(progress = 1) {
     ctx.beginPath(); ctx.arc(X(idx), TY(P[idx].temp), 2.6, 0, 7); ctx.fill();
     ctx.fillText(`${Math.round(P[idx].temp)}°`, Math.max(x0 + 12, Math.min(x1 - 12, X(idx))), TY(P[idx].temp) + dy);
   });
-
-  if (hasUV) {
-    let up = 0; P.forEach((p, i) => { if ((p.uv || 0) > (P[up].uv || 0)) up = i; });
-    if ((P[up].uv || 0) >= 1 && X(up) <= revX + 0.5) {
-      const uy = uvBot - Math.min(1, (P[up].uv || 0) / 11) * (uvBot - uvTop);
-      ctx.fillStyle = ink; ctx.font = `700 10px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-      ctx.fillText(String(Math.round(P[up].uv)), Math.max(x0 + 10, Math.min(x1 - 10, X(up))), uy - 4);
-    }
+  if (hasUV && (P[up].uv || 0) >= 1 && X(up) <= revX + 0.5) {
+    const uy = NY(P[up].uv, 11);
+    ctx.fillStyle = hexA(ink, 0.75); ctx.font = `700 10px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+    ctx.beginPath(); ctx.arc(X(up), uy, 2.2, 0, 7); ctx.fill();
+    ctx.fillText(`UV ${Math.round(P[up].uv)}`, Math.max(x0 + 18, Math.min(x1 - 18, X(up))), uy - 5);
   }
 
-  // Now marker across all lanes.
+  // Now marker across the plot.
   if (nowSec >= P[0].t && nowSec <= P[n - 1].t) {
     const nx = timeToX(nowSec);
     if (nx <= revX + 0.5) {
       ctx.setLineDash([3, 4]); ctx.strokeStyle = hexA(ink, 0.4); ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(nx, tempTop); ctx.lineTo(nx, laneBot); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(nx, plotTop); ctx.lineTo(nx, plotBot); ctx.stroke();
       ctx.setLineDash([]);
       ctx.fillStyle = hexA(ink, 0.55); ctx.font = `700 10px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-      ctx.fillText("Now", Math.max(x0 + 12, Math.min(x1 - 12, nx)), tempTop - 3);
+      ctx.fillText("Now", Math.max(x0 + 12, Math.min(x1 - 12, nx)), plotTop - 4);
     }
   }
 }

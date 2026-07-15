@@ -1246,6 +1246,11 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   height: 0; background: none;
   border-top: 2px dashed color-mix(in srgb, var(--ink) 50%, transparent);
 }
+.dvl-line.dvl-dot {
+  height: 0; background: none;
+  border-top: 2px dotted color-mix(in srgb, var(--ink) 60%, transparent);
+}
+.dvl-line.dvl-thin { height: 2px; background: color-mix(in srgb, var(--ink) 34%, transparent); }
 .dvl-bar { width: 8px; height: 12px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 24%, transparent); }
 
 .sheet.radar-sheet {
