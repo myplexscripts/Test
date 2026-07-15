@@ -3054,15 +3054,6 @@ function smoothPath(ctx, pts) {
     ctx.bezierCurveTo(cx, pts[i - 1][1], cx, pts[i][1], pts[i][0], pts[i][1]);
   }
 }
-function windArrow(ctx, cx, cy, angleDeg, size, color) {
-  ctx.save();
-  ctx.translate(cx, cy);
-  ctx.rotate(angleDeg * Math.PI / 180);
-  ctx.strokeStyle = color; ctx.lineWidth = 1.4; ctx.lineCap = "round"; ctx.lineJoin = "round";
-  ctx.beginPath(); ctx.moveTo(0, size); ctx.lineTo(0, -size); ctx.stroke();
-  ctx.beginPath(); ctx.moveTo(-size * 0.5, -size * 0.4); ctx.lineTo(0, -size); ctx.lineTo(size * 0.5, -size * 0.4); ctx.stroke();
-  ctx.restore();
-}
 function barTop(ctx, x, y, w, h, r) {
   r = Math.max(0, Math.min(r, w / 2, h));
   ctx.beginPath();
@@ -3142,7 +3133,6 @@ function drawDayView(progress = 1) {
   const tp = (tMax - tMin) * 0.28 || 1; tMin -= tp; tMax += tp;
   const TY = (v) => plotBot - ((v - tMin) / (tMax - tMin)) * plotH;
   const NY = (v, max) => plotBot - Math.min(1, Math.max(0, v / max)) * plotH * 0.9;
-  const maxWind = Math.max(1, ...P.map((p) => p.wind));
 
   ctx.lineJoin = "round"; ctx.lineCap = "round";
 
@@ -3186,17 +3176,6 @@ function drawDayView(progress = 1) {
     const bw = Math.min((x1 - x0) / n * 0.5, 10);
     ctx.fillStyle = hexA(ink, 0.14);
     P.forEach((p, i) => { if (p.precip > 0) { const bh = (p.precip / maxP) * barMax; barTop(ctx, X(i) - bw / 2, plotBot - bh, bw, bh, Math.min(3, bw / 2)); } });
-  }
-
-  // Wind: faint line (relative speed) with direction arrows riding on it.
-  if (P.some((p) => p.wind != null)) {
-    ctx.strokeStyle = hexA(ink, 0.3); ctx.lineWidth = 1.4;
-    ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), NY(p.wind, maxWind)])); ctx.stroke();
-    const wStep = Math.max(1, Math.round(n / 9));
-    for (let i = 0; i < n; i += wStep) {
-      if (P[i].deg == null) continue;
-      windArrow(ctx, X(i), NY(P[i].wind, maxWind), (P[i].deg + 180) % 360, 5, hexA(ink, 0.5));
-    }
   }
 
   // UV: dotted line.
