@@ -249,6 +249,17 @@ function wireEvents() {
   el.graph.addEventListener("pointercancel", endScrub);
   el.graph.addEventListener("pointerleave", endScrub);
 
+  // The home day-overview chart is scrubbable too; it clears on release.
+  if (el.dayGraph) {
+    let dayScrub = false;
+    el.dayGraph.addEventListener("pointerdown", (e) => { dayScrub = true; showDayPoint(e.clientX); });
+    el.dayGraph.addEventListener("pointermove", (e) => { if (dayScrub) showDayPoint(e.clientX); });
+    const endDay = () => { if (dayScrub && dayRedraw) dayRedraw(); dayScrub = false; };
+    el.dayGraph.addEventListener("pointerup", endDay);
+    el.dayGraph.addEventListener("pointercancel", endDay);
+    el.dayGraph.addEventListener("pointerleave", endDay);
+  }
+
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") { closeAlertModal(); closeSheet(); closeSettingsPop(); closeRadar(); closeSearch(); }
   });
@@ -2813,7 +2824,7 @@ function drawDetailChart() {
     const day = state.daily[state.detail.dayIndex];
     if (!day) return;
     const tz = state.tz || 0;
-    drawChart((day.items || []).map((it) => ({ label: fmtHour(it.dt, tz), hi: it.main.temp, lo: Number.isFinite(it.main.feels_like) ? it.main.feels_like : it.main.temp, dt: it.dt, precip: it.precip || 0, uv: uvForHour(it.dt) })), METRICS.temp, true, day.label === "Today", el.graph, false);
+    drawChart((day.items || []).map((it) => ({ label: fmtHour(it.dt, tz), hi: it.main.temp, lo: Number.isFinite(it.main.feels_like) ? it.main.feels_like : it.main.temp, dt: it.dt, precip: it.precip || 0, uv: uvForHour(it.dt) })), METRICS.temp, true, day.label === "Today", el.graph);
     return;
   }
   const m = METRICS[state.detail.metric];
@@ -3060,7 +3071,7 @@ function renderDayView() {
     precip: p.precip || 0,
     uv: uvForHour(p.dt)
   }));
-  drawChart(rows, METRICS.temp, true, true, el.dayGraph, false);
+  drawChart(rows, METRICS.temp, true, true, el.dayGraph);
 }
 
 function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
@@ -3111,20 +3122,16 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
     ctx.globalAlpha = 1;
   }
 
-  // Precipitation bars along the bottom, on their own mm scale (right axis).
+  // Precipitation bars along the bottom, on their own mm scale (left axis).
+  const maxP = anyPrecip ? Math.max(0.1, ...rows.map((r) => r.precip || 0)) : 0;
+  const barMaxH = h * 0.4;
   if (anyPrecip) {
-    const maxP = Math.max(0.1, ...rows.map((r) => r.precip || 0));
-    const barMaxH = h * 0.4;
     const slotW = w / Math.max(1, rows.length - 1);
     const barW = Math.min(slotW * 0.55, 12);
-    rows.forEach((r, i) => {
-      const p = r.precip || 0;
-      if (p <= 0) return;
-      const bh = (p / maxP) * barMaxH;
-      ctx.fillStyle = hexA(ink, 0.2);
-      ctx.fillRect(X(i) - barW / 2, padTop + h - bh, barW, bh);
-    });
+    ctx.fillStyle = hexA(ink, 0.2);
+    rows.forEach((r, i) => { const p = r.precip || 0; if (p > 0) { const bh = (p / maxP) * barMaxH; ctx.fillRect(X(i) - barW / 2, padTop + h - bh, barW, bh); } });
   }
+  const hasUV = rows.some((r) => Number.isFinite(r.uv));
 
   const curve = (key) => {
     rows.forEach((r, i) => {
@@ -3154,9 +3161,9 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
   if (dual) stroke("lo", 0.4, 3);
   stroke("hi", 1, 3.5);
 
-  // Optional UV overlay: a dotted line on its own 0-11 scale (shape, not the
-  // temperature axis), with the day's peak labelled. Drawn when rows carry uv.
-  if (rows.some((r) => Number.isFinite(r.uv))) {
+  // Optional UV overlay: a dotted line on its own 0-11 scale (right axis), with
+  // the day's peak labelled. Drawn when rows carry uv.
+  if (hasUV) {
     const UY = (u) => padTop + h - Math.min(1, Math.max(0, u / 11)) * h * 0.92;
     const uvAt = (i) => Number.isFinite(rows[i].uv) ? rows[i].uv : 0;
     ctx.setLineDash([1.5, 4]); ctx.strokeStyle = hexA(ink, 0.5); ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
@@ -3174,6 +3181,24 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
       ctx.beginPath(); ctx.arc(X(up), uy, 2.2, 0, Math.PI * 2); ctx.fill();
       ctx.fillText(`UV ${Math.round(uvAt(up))}`, Math.max(padL + 18, Math.min(rect.width - padR - 18, X(up))), uy - 5);
     }
+  }
+
+  // Band charts carry two secondary axes: precipitation (mm) on the left and
+  // UV on the right. Drawn inset over the plot so it stays edge-to-edge.
+  if (dual) {
+    ctx.font = "700 9px Inter, system-ui"; ctx.textBaseline = "alphabetic";
+    if (anyPrecip) {
+      ctx.textAlign = "left"; ctx.fillStyle = hexA(ink, 0.5);
+      const pmax = maxP >= 10 ? `${Math.round(maxP)}` : `${Math.round(maxP * 10) / 10}`;
+      ctx.fillText(`${pmax}mm`, padL + 2, padTop + h - barMaxH - 4);
+      ctx.fillText("0", padL + 2, padTop + h - 3);
+    }
+    if (hasUV) {
+      ctx.textAlign = "right"; ctx.fillStyle = hexA(ink, 0.5);
+      ctx.fillText("UV 11", rect.width - padR - 2, padTop + h * 0.08 + 8);
+      ctx.fillText("0", rect.width - padR - 2, padTop + h - 3);
+    }
+    ctx.textAlign = "center";
   }
 
   if (showNow && rows.length && rows[0].dt != null) {
@@ -3198,37 +3223,40 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
 
   const keyIdx = (arr) => { let mn = 0, mx = 0; arr.forEach((v, i) => { if (v < arr[mn]) mn = i; if (v > arr[mx]) mx = i; }); return { mn, mx }; };
   const end = rows.length - 1;
-  let hiMap, loMap = new Map();
+  let hiIdx, loIdx = new Set();
   if (rows.length > 10) {
     const k = keyIdx(rows.map((r) => r.hi));
-    hiMap = new Map([[0, -12], [end, -12], [k.mx, -14], [k.mn, 20]]);
-    if (dual) { const kl = keyIdx(rows.map((r) => r.lo)); loMap = new Map([[0, 20], [end, 20], [kl.mn, 20], [kl.mx, -12]]); }
+    hiIdx = new Set([0, end, k.mx, k.mn]);
+    if (dual) { const kl = keyIdx(rows.map((r) => r.lo)); loIdx = new Set([0, end, kl.mn, kl.mx]); }
   } else {
-    hiMap = new Map(rows.map((_, i) => [i, -12]));
-    if (dual) loMap = new Map(rows.map((_, i) => [i, 20]));
+    hiIdx = new Set(rows.map((_, i) => i));
+    if (dual) loIdx = new Set(rows.map((_, i) => i));
   }
+  // Label each line on its outer side (away from the other), so temp and feels-
+  // like labels never collide even where the two run close or cross.
+  const hiSide = (i) => (!dual || rows[i].hi >= rows[i].lo) ? -13 : 18;
+  const loSide = (i) => (rows[i].lo >= rows[i].hi) ? -13 : 18;
 
-  ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center"; ctx.fillStyle = ink;
+  ctx.font = "700 12px Inter, system-ui"; ctx.fillStyle = ink;
   // Anchor the endpoint labels to the plot edges so they don't clip now that
   // the plot runs edge-to-edge to line up with the rows below.
   const labelX = (i) => i === 0 ? X(0) : i === end ? X(end) : X(i);
   const labelAlign = (i) => i === 0 ? "left" : i === end ? "right" : "center";
-  hiMap.forEach((dy, i) => {
+  hiIdx.forEach((i) => {
     ctx.beginPath(); ctx.arc(X(i), Y(rows[i].hi), 3.5, 0, Math.PI * 2); ctx.fill();
     ctx.textAlign = labelAlign(i);
-    ctx.fillText(lab(rows[i].hi), labelX(i), Y(rows[i].hi) + dy);
+    ctx.fillText(lab(rows[i].hi), labelX(i), Y(rows[i].hi) + hiSide(i));
   });
-  ctx.textAlign = "center";
   if (dual && labelLo) {
     ctx.globalAlpha = 0.7;
-    loMap.forEach((dy, i) => {
+    loIdx.forEach((i) => {
       ctx.beginPath(); ctx.arc(X(i), Y(rows[i].lo), 3.5, 0, Math.PI * 2); ctx.fill();
       ctx.textAlign = labelAlign(i);
-      ctx.fillText(lab(rows[i].lo), labelX(i), Y(rows[i].lo) + dy);
+      ctx.fillText(lab(rows[i].lo), labelX(i), Y(rows[i].lo) + loSide(i));
     });
-    ctx.textAlign = "center";
     ctx.globalAlpha = 1;
   }
+  ctx.textAlign = "center";
 
   ctx.globalAlpha = 0.55; ctx.fillStyle = ink;
   ctx.textAlign = "center";
@@ -3252,26 +3280,31 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
   ctx.textAlign = "center";
   ctx.globalAlpha = 1;
 
-  if (interactive) {
-    chartGeom = {
-      xs: rows.map((_, i) => X(i)), ys: rows.map((r) => Y(r.hi)),
-      rows, padTop, h, rect, dual, fmt: lab
-    };
-    chartRedraw = () => drawChart(rows, m, dual, showNow, canvas, labelLo);
-  }
+  const geom = {
+    xs: rows.map((_, i) => X(i)), ys: rows.map((r) => Y(r.hi)),
+    rows, padTop, h, rect, dual, fmt: lab
+  };
+  const redraw = () => drawChart(rows, m, dual, showNow, canvas, labelLo);
+  if (interactive) { chartGeom = geom; chartRedraw = redraw; }
+  else if (canvas === el.dayGraph) { dayGeom = geom; dayRedraw = redraw; }
 }
+let dayGeom = null, dayRedraw = null;
 
-function showChartPoint(clientX) {
-  if (!chartGeom || !chartRedraw) return;
-  const rect = el.graph.getBoundingClientRect();
+function showChartPoint(clientX) { scrubChart(el.graph, chartGeom, chartRedraw, clientX); }
+function showDayPoint(clientX) { scrubChart(el.dayGraph, dayGeom, dayRedraw, clientX); }
+
+// Tap/drag to read a chart. Works on any canvas given its geometry + redraw fn.
+function scrubChart(canvas, g, redraw, clientX) {
+  if (!canvas || !g || !redraw) return;
+  const rect = canvas.getBoundingClientRect();
   const x = clientX - rect.left;
-  const xs = chartGeom.xs;
+  const xs = g.xs;
   let idx = 0, best = Infinity;
   for (let i = 0; i < xs.length; i++) { const d = Math.abs(xs[i] - x); if (d < best) { best = d; idx = i; } }
-  chartRedraw();
-  const g = chartGeom, r = g.rows[idx];
+  redraw();
+  const r = g.rows[idx];
   if (!r) return;
-  const ctx = el.graph.getContext("2d");
+  const ctx = canvas.getContext("2d");
   const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
   const bg = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#fff";
   const px = g.xs[idx], py = g.ys[idx];
@@ -3282,8 +3315,9 @@ function showChartPoint(clientX) {
   ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(px, py, 6, 0, Math.PI * 2); ctx.fill();
   ctx.fillStyle = bg; ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
   const val = g.fmt(r.hi) + (g.dual && r.lo != null ? ` / ${g.fmt(r.lo)}` : "");
+  const uv = Number.isFinite(r.uv) ? `  ·  UV ${Math.round(r.uv)}` : "";
   const rain = (r.precip || 0) > 0 ? `  ·  ${r.precip >= 10 ? Math.round(r.precip) : Math.round(r.precip * 10) / 10} mm` : "";
-  const text = `${r.label}  ${val}${rain}`;
+  const text = `${r.label}  ${val}${uv}${rain}`;
   ctx.font = "700 12px Inter, system-ui"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
   const tw = ctx.measureText(text).width + 18, bh = 24;
   let bx = Math.max(2, Math.min(g.rect.width - tw - 2, px - tw / 2));
