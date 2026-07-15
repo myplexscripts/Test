@@ -505,33 +505,69 @@ function adaptOpenMeteo(j, place, lat, lon) {
 }
 
 const POLLUTANTS = {
-  pm2_5:            { name: "PM2.5", desc: "Tiny inhalable particles from smoke, dust and combustion.", ref: 25 },
-  pm10:             { name: "PM10", desc: "Coarser particles like dust, pollen and mould.", ref: 50 },
-  ozone:            { name: "Ozone (O₃)", desc: "Forms in sunlight from traffic and industry; irritates the lungs.", ref: 100 },
-  nitrogen_dioxide: { name: "Nitrogen dioxide (NO₂)", desc: "Mostly from vehicle exhaust and burning fuel.", ref: 40 },
-  sulphur_dioxide:  { name: "Sulphur dioxide (SO₂)", desc: "From burning fossil fuels; can irritate airways.", ref: 40 },
-  carbon_monoxide:  { name: "Carbon monoxide (CO)", desc: "Colourless gas from incomplete combustion, e.g. engines.", ref: 4000 }
+  pm2_5: {
+    name: "PM2.5",
+    desc: "Tiny pollution particles that are about 30 times smaller than the width of a human hair. Because they're so small, they can travel deep into your lungs and even enter your bloodstream.",
+    sources: "Wildfire smoke, wood stoves, vehicle exhaust, diesel engines, factories, power plants, candles, cooking fumes.",
+    bounds: [11, 23, 35, 41, 47, 53, 58, 64, 70]
+  },
+  pm10: {
+    name: "PM10",
+    desc: "Larger airborne particles that can be breathed into your nose and upper airways. They can irritate your eyes, nose and throat, and some can still reach your lungs.",
+    sources: "Dust, pollen, mould spores, road dust, construction sites, farming, crushed leaves, sand.",
+    bounds: [16, 33, 50, 58, 66, 75, 83, 91, 100]
+  },
+  ozone: {
+    name: "Ozone (O₃)",
+    desc: "A harmful gas that forms when sunlight reacts with pollution from vehicles, industry and wildfire smoke. It can build up far from where the pollution started because wind can carry it long distances. It can irritate your lungs and make it harder to breathe.",
+    sources: "Vehicle exhaust, industrial emissions, gasoline vapours, wildfire smoke. Ozone itself isn't emitted directly — it forms in the air from these pollutants.",
+    bounds: [33, 66, 100, 120, 140, 160, 187, 213, 240]
+  },
+  nitrogen_dioxide: {
+    name: "Nitrogen dioxide (NO₂)",
+    desc: "A harmful gas released whenever fuel is burned. It can irritate your lungs, worsen asthma and contribute to the formation of ozone and fine particle pollution.",
+    sources: "Car and truck exhaust, buses, gas stoves, gas furnaces, fireplaces, power plants, industrial facilities.",
+    bounds: [67, 134, 200, 267, 334, 400, 467, 534, 600]
+  },
+  sulphur_dioxide: {
+    name: "Sulphur dioxide (SO₂)",
+    desc: "A harmful gas released when fuels containing sulphur are burned or certain metals are processed. It can irritate your airways and also contributes to the formation of fine particle pollution.",
+    sources: "Coal and oil power plants, oil refineries, metal smelters, ships, diesel fuel, volcanic eruptions.",
+    bounds: [88, 177, 266, 354, 443, 532, 710, 887, 1064]
+  },
+  carbon_monoxide: {
+    name: "Carbon monoxide (CO)",
+    desc: "An invisible, odourless gas produced when fuel doesn't burn completely. At high levels, it reduces the amount of oxygen your blood can carry, which can be dangerous or even fatal.",
+    sources: "Car engines, generators, fireplaces, wood stoves, gas furnaces, charcoal grills, gas-powered equipment, boats."
+  }
 };
 
-function primaryPollutant(air) {
-  let best = null, bestRatio = -1;
+// Air quality on a simple 1-10 scale (the UK Daily Air Quality Index): each
+// pollutant maps to a sub-index from its concentration, and the overall index
+// is the worst of them. Bands: 1-3 low, 4-6 moderate, 7-9 high, 10 very high.
+// (CO has no DAQI band, so it's shown for reference but doesn't drive the index.)
+function daqiSub(value, bounds) {
+  if (value == null || !bounds) return null;
+  for (let i = 0; i < bounds.length; i++) if (value <= bounds[i]) return i + 1;
+  return 10;
+}
+function airIndex(air) {
+  if (!air) return { index: null, pollutant: null };
+  let index = null, pollutant = null;
   for (const key in POLLUTANTS) {
-    const v = air[key];
-    if (v == null) continue;
-    const ratio = v / POLLUTANTS[key].ref;
-    if (ratio > bestRatio) { bestRatio = ratio; best = key; }
+    const sub = daqiSub(air[key], POLLUTANTS[key].bounds);
+    if (sub == null) continue;
+    if (index == null || sub > index) { index = sub; pollutant = key; }
   }
-  return best;
+  return { index, pollutant };
 }
 
-function aqiBand(aqi) {
-  if (aqi == null) return { label: "--", advice: "" };
-  if (aqi <= 50)  return { label: "Good", advice: "Air quality is satisfactory." };
-  if (aqi <= 100) return { label: "Moderate", advice: "Acceptable; unusually sensitive people should take care." };
-  if (aqi <= 150) return { label: "Unhealthy for sensitive groups", advice: "Sensitive groups may feel effects." };
-  if (aqi <= 200) return { label: "Unhealthy", advice: "Everyone may begin to feel effects." };
-  if (aqi <= 300) return { label: "Very unhealthy", advice: "Health alert. Limit time outdoors." };
-  return { label: "Hazardous", advice: "Avoid outdoor activity." };
+function aqiBand(index) {
+  if (index == null) return { label: "--", advice: "" };
+  if (index <= 3) return { label: "Low", advice: "Air quality is good — enjoy your usual activities outdoors." };
+  if (index <= 6) return { label: "Moderate", advice: "Unusually sensitive people should consider easing back on strenuous activity outdoors." };
+  if (index <= 9) return { label: "High", advice: "Anyone with heart or lung problems should cut down on strenuous activity outdoors." };
+  return { label: "Very high", advice: "Reduce strenuous activity outdoors, especially if you have heart or lung problems." };
 }
 
 function uvBand(uv) {
@@ -1237,9 +1273,10 @@ function renderDetails(current, forecast) {
   items.push(pd);
 
   const air = state.data?.air;
-  if (air && air.us_aqi != null) {
-    const b = aqiBand(air.us_aqi);
-    items.push(["aqi", "ph-waves", "Air quality", `${Math.round(air.us_aqi)}`, b.label, null, rangeMeter(air.us_aqi, 0, 300, "Good", "Poor")]);
+  const aq = airIndex(air);
+  if (aq.index != null) {
+    const b = aqiBand(aq.index);
+    items.push(["aqi", "ph-waves", "Air quality", `${aq.index}`, b.label, null, rangeMeter(aq.index, 0, 10, "Good", "Poor")]);
   }
   if (air && air.uv_index != null) {
     const u = uvBand(air.uv_index);
@@ -1458,8 +1495,8 @@ function summaryNotes(current, hrs) {
   const uvMax = uvArr && uvArr.length ? Math.max(...uvArr.filter(Number.isFinite)) : (state.data?.air?.uv_index ?? 0);
   if (uvMax >= 8) out.push("UV climbs to very high near midday, so sun protection matters.");
   else if (uvMax >= 6) out.push("UV is high near midday, so wear sunscreen.");
-  const aqi = state.data?.air?.us_aqi;
-  if (aqi != null && aqi > 150) out.push("Air quality is unhealthy today.");
+  const aqIdx = airIndex(state.data?.air).index;
+  if (aqIdx != null && aqIdx >= 7) out.push("Air quality is poor today.");
   return out.slice(0, 2);
 }
 
@@ -1804,29 +1841,32 @@ function scaleBar(pos, ends) {
 
 function renderAqiSheet(air) {
   el.sheetTitle.textContent = "Air Quality";
-  if (air.us_aqi == null) { el.sheetNote.textContent = "Air quality data is unavailable right now."; el.sheetList.innerHTML = ""; return; }
-  const aqi = Math.round(air.us_aqi);
-  const b = aqiBand(aqi);
-  el.sheetNote.textContent = `The air quality index is ${aqi}, ${b.label.toLowerCase()}.`;
+  const { index, pollutant } = airIndex(air);
+  if (index == null) { el.sheetNote.textContent = "Air quality data is unavailable right now."; el.sheetList.innerHTML = ""; return; }
+  const b = aqiBand(index);
+  el.sheetNote.textContent = `The air quality index is ${index} out of 10 — ${b.label.toLowerCase()}.`;
 
-  const scale = scaleBar((aqi / 300) * 100, ["0", "Good", "Unhealthy", "300+"]);
+  const scale = scaleBar((index / 10) * 100, ["1", "Low", "High", "10"]);
 
-  const pk = primaryPollutant(air);
-  const primary = pk
-    ? section(`Main pollutant · ${POLLUTANTS[pk].name}`, `<p class="info-text">${POLLUTANTS[pk].desc}</p>`)
+  const primary = pollutant
+    ? section(`Main pollutant · ${POLLUTANTS[pollutant].name}`,
+        `<p class="info-text">${POLLUTANTS[pollutant].desc}</p>` +
+        `<p class="info-text"><strong>Common sources:</strong> ${POLLUTANTS[pollutant].sources}</p>`)
     : "";
 
   const breakdown = Object.keys(POLLUTANTS).filter((k) => air[k] != null).map((k) => `
     <div class="pollutant">
       <div class="pollutant-top"><span class="pollutant-name">${POLLUTANTS[k].name}</span><strong class="pollutant-val">${Math.round(air[k])} µg/m³</strong></div>
       <p class="info-text">${POLLUTANTS[k].desc}</p>
+      <p class="info-text"><strong>Common sources:</strong> ${POLLUTANTS[k].sources}</p>
     </div>`).join("");
 
   el.sheetList.innerHTML =
-    `<div class="aqi-hero"><span class="aqi-big">${aqi}</span><span class="aqi-band">${b.label}</span></div>` +
+    `<div class="aqi-hero"><span class="aqi-big">${index}</span><span class="aqi-band">${b.label}</span></div>` +
     scale +
     section("What this means", `<p class="info-text">${b.advice}</p>`) +
     primary +
+    section("About the 1–10 scale", `<p class="info-text">This is the Daily Air Quality Index. 1–3 is low, 4–6 moderate, 7–9 high and 10 very high. The overall number reflects whichever pollutant is worst right now.</p>`) +
     section("Pollutants right now", breakdown, true);
 }
 
