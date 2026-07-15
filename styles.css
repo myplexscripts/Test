@@ -309,15 +309,17 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   .app-cols {
     display: grid;
     grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto auto auto auto;
+    grid-template-rows: auto auto auto auto auto;
     grid-template-areas:
-      "now hourly hourly"
-      "now trend  radar"
-      "now daily  daily"
-      "now today  today";
+      "now hourly  hourly"
+      "now trend   radar"
+      "now daily   daily"
+      "dayview dayview dayview"
+      "today today  today";
     gap: var(--s-8);
     column-gap: var(--s-8);
   }
+  .b-dayview { grid-area: dayview; }
   .col-details { display: contents; }
   .col-now {
     grid-area: now;
@@ -346,15 +348,16 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 @media (min-width: 1240px) {
   .app-cols {
     grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) minmax(260px, 340px);
-    grid-template-rows: auto auto auto auto;
+    grid-template-rows: auto auto auto auto auto;
     /* Reading order: current conditions anchor top-left; forecasts flow
-       right of them (next hours -> today's curve -> the week); the map and
-       the today details close out the page. */
+       right of them (next hours -> today's curve -> the week); the day
+       overview, map and today details close out the page. */
     grid-template-areas:
-      "now   hourly hourly"
-      "now   trend  daily"
-      "now   radar  daily"
-      "today today  today";
+      "now     hourly hourly"
+      "now     trend  daily"
+      "now     radar  daily"
+      "dayview dayview dayview"
+      "today   today  today";
     column-gap: var(--s-8);
   }
   .b-daily {
@@ -1220,6 +1223,30 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 }
 .tl-line { width: 16px; height: 3px; border-radius: 2px; background: var(--ink); }
 .tl-bar { width: 8px; height: 12px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 24%, transparent); }
+
+/* Day overview — a taller meteogram card, styled like the trend card. */
+.dayview-card {
+  display: block;
+  width: 100%;
+  padding: var(--s-4) 0 var(--s-3);
+  border: 2px solid var(--card-border);
+  border-radius: var(--r-lg);
+  background: var(--card-bg);
+  color: var(--ink);
+}
+.dayview-card #dayGraph { display: block; width: 100%; height: 340px; }
+.dayview-legend {
+  display: flex;
+  gap: var(--s-4);
+  padding: 0 var(--s-5) var(--s-3);
+}
+.dvl-item { display: flex; align-items: center; gap: 6px; font-size: var(--t-cap); font-weight: 700; color: var(--ink-soft); }
+.dvl-line { width: 16px; height: 3px; border-radius: 2px; background: var(--ink); }
+.dvl-line.dvl-dash {
+  height: 0; background: none;
+  border-top: 2px dashed color-mix(in srgb, var(--ink) 50%, transparent);
+}
+.dvl-bar { width: 8px; height: 12px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 24%, transparent); }
 
 .sheet.radar-sheet {
   display: flex;
@@ -2214,7 +2241,8 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .app.intro .rail .card:nth-child(7) { animation-delay: 1670ms; }
 .app.intro .rail .card:nth-child(n+8) { animation-delay: 1730ms; }
 
-[aria-label="Radar"]          { animation: eFade 0.6s var(--ease-out) backwards 1500ms; }
+[aria-label="Day overview"]   { animation: eFade 0.6s var(--ease-out) backwards 1450ms; }
+[aria-label="Radar"]          { animation: eFade 0.6s var(--ease-out) backwards 1550ms; }
 [aria-label="Today's details"]{ animation: eFade 0.6s var(--ease-out) backwards 1650ms; }
 .foot { animation: eFade 0.6s var(--ease-out) backwards 1800ms; }
 

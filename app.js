@@ -42,7 +42,7 @@ const el = {
   hero: document.querySelector(".hero"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mFeels: $("mFeels"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
-  trendGraph: $("trendGraph"), trendCard: $("trendCard"),
+  trendGraph: $("trendGraph"), trendCard: $("trendCard"), dayGraph: $("dayGraph"),
   sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
@@ -258,7 +258,7 @@ function wireEvents() {
 
   window.addEventListener("resize", () => {
     if (radar.preview) radar.preview.invalidateSize();
-    if (state.data) drawTrend();
+    if (state.data) { drawTrend(); if (dayViewRevealed) drawDayView(1); }
     if (!state.sheetOpen) return;
     if (state.detail.metric === "uv") drawUvChart(state.data?.air?.hourly);
     else if (state.detail.metric !== "aqi") drawDetailChart();
@@ -659,6 +659,7 @@ function render(data, opts) {
   renderHourly();
   renderDaily();
   drawTrend();
+  renderDayView();
   renderWind(current);
   renderSun(current);
   renderMoon(current);
@@ -687,10 +688,11 @@ function setupScrollFx() {
       if (!e.isIntersecting) return;
       if (e.target === el.sunCard) animateSun();
       if (e.target === el.windCard) animateCompass();
+      if (e.target === el.dayGraph) animateDayView();
       reveal.unobserve(e.target);
     });
   }, { threshold: 0.2 });
-  [el.sunCard, el.windCard].forEach((t) => t && reveal.observe(t));
+  [el.sunCard, el.windCard, el.dayGraph].forEach((t) => t && reveal.observe(t));
 }
 
 function tween(ms, ease, step) {
@@ -1629,7 +1631,7 @@ function applyPalette(kind) {
   if (p.bloom) { syncBloomFade(); document.documentElement.removeAttribute("data-dyn"); }
   else r.removeProperty("--bloom-fade");
   updateMapTheme();
-  if (state.data) drawTrend();
+  if (state.data) { drawTrend(); if (dayViewRevealed) drawDayView(1); }
 
   if (p.isDynamic) startDynamicTheme(); else stopDynamicTheme();
 }
@@ -2149,7 +2151,7 @@ function setDynamicPalette(dark) {
   document.documentElement.setAttribute("data-dyn", dark ? "dark" : "light");
   const changed = state.dark !== dark;
   state.dark = dark;
-  if (changed) { updateMapTheme(); if (state.data) drawTrend(); }
+  if (changed) { updateMapTheme(); if (state.data) { drawTrend(); if (dayViewRevealed) drawDayView(1); } }
 }
 function skyGradientAt(bands, nowH) {
   const anchors = bands.map((b) => ({ h: (b[0] + b[1]) / 2, key: b[2] }));
@@ -3021,6 +3023,244 @@ function drawTrend() {
     if (i % labelStep !== 0) return;
     ctx.fillText(fmtHour(p.t, tz), Math.max(x0 + 16, Math.min(x1 - 16, X(i))), H - 8);
   });
+}
+
+// ---- Day overview: a compact meteogram for everything happening today -------
+// Temperature + feels-like lines, precip bars, a wind-arrow lane and a UV ridge,
+// all sharing one hourly x-axis. Monochrome like the rest of the app; series are
+// told apart by weight, dashing and shape rather than colour. Reveals with a
+// left-to-right sweep when it scrolls into view.
+let dayViewRevealed = false;
+function dayAnimAllowed() {
+  return state.animate !== false && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+function renderDayView() {
+  if (!el.dayGraph) return;
+  const willSweep = !dayViewRevealed && dayAnimAllowed() && "IntersectionObserver" in window;
+  drawDayView(willSweep ? 0 : 1);
+}
+function animateDayView() {
+  if (dayViewRevealed) return;
+  dayViewRevealed = true;
+  if (!dayAnimAllowed()) { drawDayView(1); return; }
+  tween(1000, easeOutCubic, (p) => drawDayView(p));
+}
+
+function smoothPath(ctx, pts) {
+  if (!pts.length) return;
+  ctx.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 1; i < pts.length; i++) {
+    const cx = (pts[i - 1][0] + pts[i][0]) / 2;
+    ctx.bezierCurveTo(cx, pts[i - 1][1], cx, pts[i][1], pts[i][0], pts[i][1]);
+  }
+}
+function windArrow(ctx, cx, cy, angleDeg, size, color) {
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(angleDeg * Math.PI / 180);
+  ctx.strokeStyle = color; ctx.lineWidth = 1.4; ctx.lineCap = "round"; ctx.lineJoin = "round";
+  ctx.beginPath(); ctx.moveTo(0, size); ctx.lineTo(0, -size); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(-size * 0.5, -size * 0.4); ctx.lineTo(0, -size); ctx.lineTo(size * 0.5, -size * 0.4); ctx.stroke();
+  ctx.restore();
+}
+function barTop(ctx, x, y, w, h, r) {
+  r = Math.max(0, Math.min(r, w / 2, h));
+  ctx.beginPath();
+  ctx.moveTo(x, y + h);
+  ctx.lineTo(x, y + r); ctx.arcTo(x, y, x + r, y, r);
+  ctx.lineTo(x + w - r, y); ctx.arcTo(x + w, y, x + w, y + r, r);
+  ctx.lineTo(x + w, y + h); ctx.closePath(); ctx.fill();
+}
+
+function drawDayView(progress = 1) {
+  const canvas = el.dayGraph;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.max(1, Math.round(rect.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+
+  const tz = state.tz || 0;
+  const nowSec = Math.floor(Date.now() / 1000);
+  const localDay = (s) => { const d = new Date((s + tz) * 1000); return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`; };
+  const localHour = (s) => new Date((s + tz) * 1000).getUTCHours();
+  const today = localDay(nowSec);
+
+  const all = (state.data?.hourly || []).filter((p) => Number.isFinite(p.main?.temp));
+  let src = all.filter((p) => localDay(p.dt) === today);
+  if (src.length < 3) src = all.filter((p) => p.dt >= nowSec - 3600).slice(0, 24);
+  if (src.length < 2) return;
+
+  // UV comes from the air feed (today, local ISO hours) — line it up by hour.
+  const uvArr = state.data?.air?.hourly?.uv_index, uvTime = state.data?.air?.hourly?.time;
+  const uvByHour = {};
+  if (Array.isArray(uvArr) && Array.isArray(uvTime)) {
+    uvTime.forEach((t, i) => { const h = parseInt(String(t).slice(11, 13), 10); if (Number.isFinite(h) && Number.isFinite(uvArr[i])) uvByHour[h] = uvArr[i]; });
+  }
+  const hasUV = Object.keys(uvByHour).length > 0;
+
+  const P = src.map((p) => ({
+    t: p.dt,
+    temp: p.main.temp,
+    feels: Number.isFinite(p.main.feels_like) ? p.main.feels_like : p.main.temp,
+    precip: p.precip || 0,
+    wind: p.wind?.speed || 0,
+    deg: p.wind?.deg,
+    uv: hasUV ? (uvByHour[localHour(p.dt)] ?? 0) : null
+  }));
+  const n = P.length;
+
+  const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#101010";
+  const font = "Inter, system-ui, sans-serif";
+  const W = rect.width, H = rect.height;
+
+  const padL = 34, padR = 16, padT = 14, padB = 20;
+  const x0 = padL, x1 = W - padR;
+  const availH = H - padT - padB;
+  const fT = hasUV ? 0.54 : 0.7, fW = hasUV ? 0.2 : 0.3, fU = hasUV ? 0.26 : 0;
+  const gap = 12, nGap = hasUV ? 2 : 1;
+  const laneH = availH - gap * nGap;
+  const tempH = laneH * fT, windH = laneH * fW, uvH = laneH * fU;
+  const tempTop = padT, tempBot = tempTop + tempH;
+  const windTop = tempBot + gap, windBot = windTop + windH;
+  const uvTop = windBot + gap, uvBot = uvTop + uvH;
+  const laneBot = hasUV ? uvBot : windBot;
+
+  const X = (i) => x0 + (x1 - x0) * (i / (n - 1));
+  const revX = x0 + (x1 - x0) * progress;
+  const timeToX = (s) => {
+    if (s <= P[0].t) return x0;
+    if (s >= P[n - 1].t) return x1;
+    for (let i = 0; i < n - 1; i++) if (s >= P[i].t && s <= P[i + 1].t) {
+      const f = (s - P[i].t) / Math.max(1, P[i + 1].t - P[i].t);
+      return X(i) + f * (X(i + 1) - X(i));
+    }
+    return x0;
+  };
+
+  const temps = P.flatMap((p) => [p.temp, p.feels]);
+  let tMin = Math.min(...temps), tMax = Math.max(...temps);
+  if (tMin === tMax) { tMin -= 1; tMax += 1; }
+  const tp = (tMax - tMin) * 0.22 || 1; tMin -= tp; tMax += tp;
+  const TY = (v) => tempBot - ((v - tMin) / (tMax - tMin)) * (tempBot - tempTop);
+
+  ctx.lineJoin = "round"; ctx.lineCap = "round";
+
+  // Night context: faint shade before sunrise / after sunset.
+  const sr = state.data?.current?.sys?.sunrise, ss = state.data?.current?.sys?.sunset;
+  if (sr && ss) {
+    ctx.fillStyle = hexA(ink, 0.045);
+    if (sr > P[0].t) ctx.fillRect(x0, tempTop, timeToX(sr) - x0, laneBot - tempTop);
+    if (ss < P[n - 1].t) ctx.fillRect(timeToX(ss), tempTop, x1 - timeToX(ss), laneBot - tempTop);
+  }
+
+  // Vertical hour guides + x labels (frame, drawn in full).
+  ctx.textBaseline = "alphabetic"; ctx.textAlign = "center"; ctx.font = `700 10px ${font}`;
+  const step = Math.max(1, Math.round(n / 6));
+  for (let i = 0; i < n; i += step) {
+    const gx = X(i);
+    ctx.strokeStyle = hexA(ink, 0.06); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(gx, tempTop); ctx.lineTo(gx, laneBot); ctx.stroke();
+    ctx.fillStyle = hexA(ink, 0.5);
+    ctx.fillText(fmtHour(P[i].t, tz), Math.max(x0 + 14, Math.min(x1 - 14, gx)), H - 6);
+  }
+
+  // Temp gridlines + axis.
+  ctx.textBaseline = "middle"; ctx.textAlign = "right"; ctx.font = `600 10px ${font}`;
+  for (let i = 0; i < 3; i++) {
+    const v = tMax - ((tMax - tMin) / 2) * i, gy = TY(v);
+    ctx.strokeStyle = hexA(ink, 0.08); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x0, gy); ctx.lineTo(x1, gy); ctx.stroke();
+    ctx.fillStyle = hexA(ink, 0.45); ctx.fillText(`${Math.round(v)}°`, x0 - 6, gy);
+  }
+
+  // Everything data-driven is revealed left-to-right by the sweep clip.
+  ctx.save();
+  ctx.beginPath(); ctx.rect(0, 0, revX + 1, H); ctx.clip();
+
+  const hasPrecip = P.some((p) => p.precip > 0);
+  if (hasPrecip) {
+    const maxP = Math.max(0.2, ...P.map((p) => p.precip));
+    const barMax = (tempBot - tempTop) * 0.4;
+    const bw = Math.min((x1 - x0) / n * 0.5, 10);
+    ctx.fillStyle = hexA(ink, 0.16);
+    P.forEach((p, i) => { if (p.precip > 0) barTop(ctx, X(i) - bw / 2, tempBot - (p.precip / maxP) * barMax, bw, (p.precip / maxP) * barMax, Math.min(3, bw / 2)); });
+  }
+
+  // Feels-like (dashed, faint).
+  ctx.setLineDash([4, 4]); ctx.strokeStyle = hexA(ink, 0.4); ctx.lineWidth = 1.5;
+  ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), TY(p.feels)])); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Temperature (bold) + soft fill.
+  ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), TY(p.temp)]));
+  ctx.lineTo(X(n - 1), tempBot); ctx.lineTo(X(0), tempBot); ctx.closePath();
+  const g = ctx.createLinearGradient(0, tempTop, 0, tempBot);
+  g.addColorStop(0, hexA(ink, 0.18)); g.addColorStop(1, hexA(ink, 0));
+  ctx.fillStyle = g; ctx.fill();
+  ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), TY(p.temp)]));
+  ctx.strokeStyle = ink; ctx.lineWidth = 2.5; ctx.stroke();
+
+  // Wind arrows.
+  const wy = (windTop + windBot) / 2, maxW = Math.max(1, ...P.map((p) => p.wind));
+  const wStep = Math.max(1, Math.round(n / 9));
+  for (let i = 0; i < n; i += wStep) {
+    if (P[i].deg == null) continue;
+    windArrow(ctx, X(i), wy, (P[i].deg + 180) % 360, 6.5, hexA(ink, 0.32 + 0.55 * Math.min(1, P[i].wind / maxW)));
+  }
+
+  // UV ridge.
+  if (hasUV) {
+    const UY = (u) => uvBot - Math.min(1, Math.max(0, u) / 11) * (uvBot - uvTop);
+    ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), UY(p.uv || 0)]));
+    ctx.lineTo(X(n - 1), uvBot); ctx.lineTo(X(0), uvBot); ctx.closePath();
+    ctx.fillStyle = hexA(ink, 0.14); ctx.fill();
+    ctx.beginPath(); smoothPath(ctx, P.map((p, i) => [X(i), UY(p.uv || 0)]));
+    ctx.strokeStyle = hexA(ink, 0.5); ctx.lineWidth = 1.5; ctx.stroke();
+  }
+  ctx.restore();
+
+  // Lane labels (left gutter).
+  ctx.textAlign = "left"; ctx.textBaseline = "middle"; ctx.font = `800 9px ${font}`;
+  ctx.fillStyle = hexA(ink, 0.4);
+  ctx.fillText("WIND", 2, windTop + 8);
+  if (hasUV) ctx.fillText("UV", 2, uvTop + 8);
+
+  // Hi/lo temp marks (appear as the sweep passes them).
+  let hi = 0, lo = 0;
+  P.forEach((p, i) => { if (p.temp > P[hi].temp) hi = i; if (p.temp < P[lo].temp) lo = i; });
+  ctx.fillStyle = ink; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic"; ctx.font = `700 11px ${font}`;
+  [[hi, -9], [lo, 15]].forEach(([idx, dy]) => {
+    if (hi === lo && idx === lo) return;
+    if (X(idx) > revX + 0.5) return;
+    ctx.beginPath(); ctx.arc(X(idx), TY(P[idx].temp), 2.6, 0, 7); ctx.fill();
+    ctx.fillText(`${Math.round(P[idx].temp)}°`, Math.max(x0 + 12, Math.min(x1 - 12, X(idx))), TY(P[idx].temp) + dy);
+  });
+
+  if (hasUV) {
+    let up = 0; P.forEach((p, i) => { if ((p.uv || 0) > (P[up].uv || 0)) up = i; });
+    if ((P[up].uv || 0) >= 1 && X(up) <= revX + 0.5) {
+      const uy = uvBot - Math.min(1, (P[up].uv || 0) / 11) * (uvBot - uvTop);
+      ctx.fillStyle = ink; ctx.font = `700 10px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+      ctx.fillText(String(Math.round(P[up].uv)), Math.max(x0 + 10, Math.min(x1 - 10, X(up))), uy - 4);
+    }
+  }
+
+  // Now marker across all lanes.
+  if (nowSec >= P[0].t && nowSec <= P[n - 1].t) {
+    const nx = timeToX(nowSec);
+    if (nx <= revX + 0.5) {
+      ctx.setLineDash([3, 4]); ctx.strokeStyle = hexA(ink, 0.4); ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(nx, tempTop); ctx.lineTo(nx, laneBot); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = hexA(ink, 0.55); ctx.font = `700 10px ${font}`; ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+      ctx.fillText("Now", Math.max(x0 + 12, Math.min(x1 - 12, nx)), tempTop - 3);
+    }
+  }
 }
 
 function drawChart(rows, m, dual, showNow) {
