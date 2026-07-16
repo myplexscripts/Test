@@ -105,6 +105,18 @@
       </div>
       <div class="col col-details">
 
+    <section class="block b-dayview" aria-label="Day overview">
+      <div class="dayview-card">
+        <div class="dayview-legend">
+          <span class="dvl-item"><span class="dvl-line"></span>Temp</span>
+          <span class="dvl-item"><span class="dvl-line dvl-soft"></span>Feels like</span>
+          <span class="dvl-item"><span class="dvl-line dvl-dot"></span>UV</span>
+          <span class="dvl-item"><span class="dvl-bar"></span>Precip</span>
+        </div>
+        <canvas id="dayGraph" role="img" aria-label="Everything happening today: temperature, feels-like, precipitation, wind direction and UV, hour by hour"></canvas>
+      </div>
+    </section>
+
     <template id="tplVisibility">
       <div class="metric">
         <svg class="cond-ic cond-eye" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
@@ -118,7 +130,7 @@
 
     <section class="block b-hourly" aria-label="Hourly forecast">
       <div class="block-head">
-        <h2>Hourly</h2>
+        <h2>Hourly Forecast</h2>
         <button class="arrow-btn" id="hourlyMore" aria-label="Open hourly graph"><svg class="arrow-ic" viewBox="-144 0 368 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" aria-hidden="true"><line x1="-136" y1="128" x2="216" y2="128"/><polyline points="144 56 216 128 144 200"/></svg></button>
       </div>
       <div class="rail" id="hourRail"></div>
@@ -130,28 +142,6 @@
         <button class="arrow-btn" id="dailyMore" aria-label="Open daily graph"><svg class="arrow-ic" viewBox="-144 0 368 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" aria-hidden="true"><line x1="-136" y1="128" x2="216" y2="128"/><polyline points="144 56 216 128 144 200"/></svg></button>
       </div>
       <div class="rail" id="dayRail"></div>
-    </section>
-
-    <section class="block b-trend" aria-label="Today's temperature and precipitation trend">
-      <button class="trend-card" id="trendCard" aria-label="Open hourly graph">
-        <div class="trend-legend">
-          <span class="tl-item"><span class="tl-line"></span>Temp (°)</span>
-          <span class="tl-item"><span class="tl-bar"></span>Rain (mm)</span>
-        </div>
-        <canvas id="trendGraph" role="img" aria-label="Temperature line and precipitation bars over the coming days"></canvas>
-      </button>
-    </section>
-
-    <section class="block b-dayview" aria-label="Day overview">
-      <div class="dayview-card">
-        <div class="dayview-legend">
-          <span class="dvl-item"><span class="dvl-line"></span>Temp</span>
-          <span class="dvl-item"><span class="dvl-line dvl-soft"></span>Feels like</span>
-          <span class="dvl-item"><span class="dvl-line dvl-dot"></span>UV</span>
-          <span class="dvl-item"><span class="dvl-bar"></span>Precip</span>
-        </div>
-        <canvas id="dayGraph" role="img" aria-label="Everything happening today: temperature, feels-like, precipitation, wind direction and UV, hour by hour"></canvas>
-      </div>
     </section>
 
     <section class="block b-radar" aria-label="Radar">

@@ -309,13 +309,12 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   .app-cols {
     display: grid;
     grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto auto auto auto auto;
+    grid-template-rows: auto auto auto auto;
     grid-template-areas:
-      "now hourly  hourly"
-      "now trend   radar"
-      "now daily   daily"
-      "dayview dayview dayview"
-      "today today  today";
+      "now     dayview dayview"
+      "now     hourly  hourly"
+      "now     daily   radar"
+      "today   today   today";
     gap: var(--s-8);
     column-gap: var(--s-8);
   }
@@ -325,7 +324,6 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
     grid-area: now;
     align-self: start;
   }
-  .b-trend { grid-area: trend; }
   .b-hourly { grid-area: hourly; }
   .b-daily { grid-area: daily; }
   .b-radar { grid-area: radar; }
@@ -348,16 +346,15 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 @media (min-width: 1240px) {
   .app-cols {
     grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) minmax(260px, 340px);
-    grid-template-rows: auto auto auto auto auto;
-    /* Reading order: current conditions anchor top-left; forecasts flow
-       right of them (next hours -> today's curve -> the week); the day
-       overview, map and today details close out the page. */
+    grid-template-rows: auto auto auto auto;
+    /* Reading order: current conditions anchor top-left; today's overview
+       graph leads the right area, then the next hours and radar stack under
+       it while the week runs as a tall column; today details close out. */
     grid-template-areas:
-      "now     hourly hourly"
-      "now     trend  daily"
-      "now     radar  daily"
-      "dayview dayview dayview"
-      "today   today  today";
+      "now     dayview dayview"
+      "now     hourly  daily"
+      "now     radar   daily"
+      "today   today   today";
     column-gap: var(--s-8);
   }
   .b-daily {
@@ -1186,45 +1183,7 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 .radar-preview:active { transform: scale(0.98); }
 .radar-map { position: absolute; inset: 0; }
 
-.trend-card {
-  display: block;
-  width: 100%;
-  padding: var(--s-4) 0 var(--s-3);
-  border: 2px solid var(--card-border);
-  border-radius: var(--r-lg);
-  background: var(--card-bg);
-  color: var(--ink);
-  transition: transform var(--dur-fast) var(--ease-spring);
-}
-.trend-card:active { transform: scale(0.98); }
-.trend-card #trendGraph {
-  display: block;
-  width: 100%;
-  aspect-ratio: 3 / 2;
-  height: auto;
-  max-height: 300px;
-  /* concentric: card radius --r-lg minus its --s-3 side padding */
-  border-radius: calc(var(--r-lg) - var(--s-3));
-}
-.trend-legend {
-  display: flex;
-  gap: var(--s-4);
-  /* Inset from the card's rounded corner — the card itself has no side
-     padding so the chart can run full width, so the legend carries its own. */
-  padding: var(--s-2) var(--s-5) var(--s-3);
-}
-.tl-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: var(--t-cap);
-  font-weight: 700;
-  color: var(--ink-soft);
-}
-.tl-line { width: 16px; height: 3px; border-radius: 2px; background: var(--ink); }
-.tl-bar { width: 8px; height: 12px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 24%, transparent); }
-
-/* Day overview — a taller meteogram card, styled like the trend card. */
+/* Day overview — the meteogram card leading the details column. */
 .dayview-card {
   display: block;
   width: 100%;
@@ -2058,7 +2017,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .detail.static:active { transform: none; background: var(--card-bg); }
 
 .card:active, .detail:active, .sun-card:active, .moon-card:active, .wind-card:active,
-.radar-preview:active, .trend-card:active, .row-tap:active, .alert:active, .nowcast:active,
+.radar-preview:active, .row-tap:active, .alert:active, .nowcast:active,
 .drawer-action:active, .switch:active, .bn-item:active,
 .icon-btn:active, .arrow-btn:active, .back-btn:active, .radar-play:active,
 .alert-modal-close:active {
@@ -2229,23 +2188,25 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .metrics .metric:nth-child(2) { animation: eFade 0.45s var(--ease-out) backwards 1085ms; }
 .metrics .metric:nth-child(3) { animation: eFade 0.45s var(--ease-out) backwards 1160ms; }
 
+/* Day overview leads the details column now, so it enters first. */
+[aria-label="Day overview"]   { animation: eFade 0.6s var(--ease-out) backwards 1250ms; }
+
 [aria-label="Hourly forecast"] .block-head,
-[aria-label="Weekly forecast"] .block-head { animation: eFade 0.5s var(--ease-out) backwards 1250ms; }
+[aria-label="Weekly forecast"] .block-head { animation: eFade 0.5s var(--ease-out) backwards 1360ms; }
 
 .app.intro .rail .card { animation: ePop 0.5s var(--ease-spring) backwards; }
-.app.intro .rail .card:nth-child(1) { animation-delay: 1310ms; }
-.app.intro .rail .card:nth-child(2) { animation-delay: 1370ms; }
-.app.intro .rail .card:nth-child(3) { animation-delay: 1430ms; }
-.app.intro .rail .card:nth-child(4) { animation-delay: 1490ms; }
-.app.intro .rail .card:nth-child(5) { animation-delay: 1550ms; }
-.app.intro .rail .card:nth-child(6) { animation-delay: 1610ms; }
-.app.intro .rail .card:nth-child(7) { animation-delay: 1670ms; }
-.app.intro .rail .card:nth-child(n+8) { animation-delay: 1730ms; }
+.app.intro .rail .card:nth-child(1) { animation-delay: 1420ms; }
+.app.intro .rail .card:nth-child(2) { animation-delay: 1480ms; }
+.app.intro .rail .card:nth-child(3) { animation-delay: 1540ms; }
+.app.intro .rail .card:nth-child(4) { animation-delay: 1600ms; }
+.app.intro .rail .card:nth-child(5) { animation-delay: 1660ms; }
+.app.intro .rail .card:nth-child(6) { animation-delay: 1720ms; }
+.app.intro .rail .card:nth-child(7) { animation-delay: 1780ms; }
+.app.intro .rail .card:nth-child(n+8) { animation-delay: 1840ms; }
 
-[aria-label="Day overview"]   { animation: eFade 0.6s var(--ease-out) backwards 1450ms; }
-[aria-label="Radar"]          { animation: eFade 0.6s var(--ease-out) backwards 1550ms; }
-[aria-label="Today's details"]{ animation: eFade 0.6s var(--ease-out) backwards 1650ms; }
-.foot { animation: eFade 0.6s var(--ease-out) backwards 1800ms; }
+[aria-label="Radar"]          { animation: eFade 0.6s var(--ease-out) backwards 1660ms; }
+[aria-label="Today's details"]{ animation: eFade 0.6s var(--ease-out) backwards 1760ms; }
+.foot { animation: eFade 0.6s var(--ease-out) backwards 1900ms; }
 
 .temp-num { display: inline-block; position: relative; z-index: 2; }
 .temp-deg { display: inline-block; position: relative; z-index: 1; }

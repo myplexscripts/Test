@@ -42,7 +42,7 @@ const el = {
   hero: document.querySelector(".hero"),
   mWind: $("mWind"), mHumidity: $("mHumidity"), mFeels: $("mFeels"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
-  trendGraph: $("trendGraph"), trendCard: $("trendCard"), dayGraph: $("dayGraph"),
+  dayGraph: $("dayGraph"),
   sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
@@ -210,7 +210,6 @@ function wireEvents() {
 
   el.hourlyMore.onclick = () => openDetail("temp", "hourly");
   el.dailyMore.onclick = () => openDetail("temp", "daily");
-  if (el.trendCard) el.trendCard.onclick = () => openDetail("temp", "hourly");
   el.sheetBack.onclick = sheetBack;
   el.windCard.onclick = () => openDetail("wind");
   if (el.moonCard) el.moonCard.onclick = () => openDetail("moon");
@@ -269,7 +268,7 @@ function wireEvents() {
 
   window.addEventListener("resize", () => {
     if (radar.preview) radar.preview.invalidateSize();
-    if (state.data) { drawTrend(); renderDayView(); }
+    if (state.data) { renderDayView(); }
     if (!state.sheetOpen) return;
     if (state.detail.metric === "uv") drawUvChart(state.data?.air?.hourly);
     else if (state.detail.metric !== "aqi") drawDetailChart();
@@ -669,7 +668,6 @@ function render(data, opts) {
 
   renderHourly();
   renderDaily();
-  drawTrend();
   renderDayView();
   renderWind(current);
   renderSun(current);
@@ -1645,7 +1643,7 @@ function applyPalette(kind) {
   if (p.bloom) { syncBloomFade(); document.documentElement.removeAttribute("data-dyn"); }
   else r.removeProperty("--bloom-fade");
   updateMapTheme();
-  if (state.data) { drawTrend(); renderDayView(); }
+  if (state.data) { renderDayView(); }
 
   if (p.isDynamic) startDynamicTheme(); else stopDynamicTheme();
 }
@@ -1721,13 +1719,13 @@ const METRICS = {
     about: "Feels-like temperature adjusts the air temperature for wind and humidity, the two things that most change how hot or cold your skin actually senses. Wind speeds up heat loss, so it makes cold air feel colder, while high humidity slows the evaporation that normally cools your skin, so it makes warm air feel hotter."
   },
   humidity: {
-    label: "Humidity", unit: "%", decimals: 0,
+    label: "Humidity", unit: "%", decimals: 0, zero: true,
     get: (it) => it.main.humidity,
     desc: (c) => { const dp = dewPointDisplay(c.main?.temp, c.main?.humidity); return dp != null ? `The dew point is ${dp}° right now.` : "Relative humidity over the next hours."; },
     about: "Relative humidity is how much moisture the air is holding compared with the most it could hold at that temperature, shown as a percentage. Warm air can hold more moisture than cold air, so the same amount of water vapour reads as a higher percentage on a cool day than on a warm one."
   },
   wind: {
-    label: "Wind", unit: speedUnit(), decimals: 0,
+    label: "Wind", unit: speedUnit(), decimals: 0, zero: true,
     get: (it) => windParts(it.wind?.speed || 0).v,
     desc: (c) => { const w = c.wind || {}; const g = w.gust != null ? `, gusting ${windText(w.gust)}` : ""; return `${windText(w.speed || 0)} from the ${w.deg != null ? direction(w.deg) : "--"}${g}.`; },
     about: "Wind speed and direction are measured about ten metres above open ground, away from buildings and trees that would slow or redirect it. A gust is a brief spike above the sustained speed, usually lasting just a few seconds, caused by turbulence in the air."
@@ -1739,19 +1737,19 @@ const METRICS = {
     about: "Atmospheric pressure is the weight of the air above you, measured in hectopascals and adjusted to sea level so readings from different elevations can be compared fairly. Falling pressure usually means unsettled or stormy weather is moving in, while rising pressure usually means clearer, calmer conditions are on the way."
   },
   precip: {
-    label: "Precipitation", unit: "%", decimals: 0,
+    label: "Precipitation", unit: "%", decimals: 0, zero: true, bars: true,
     get: (it) => (it.pop || 0) * 100,
     desc: () => { const n = nextPrecip(state.data?.forecast, state.tz); const t = state.daily[0]; const pop = t ? Math.round((t.pop || 0) * 100) : 0; return n ? `Next precipitation around ${n.when}.` : pop > 0 ? `${pop}% chance today.` : "No precipitation expected soon."; },
     about: "The percentage is the forecast's confidence that measurable rain or snow will fall in that hour, and the millimetres are how much is expected to accumulate if it does. A high chance with a small amount usually means light, steady precipitation, while a lower chance with a larger amount usually means a heavier but less certain event, like an isolated shower."
   },
   clouds: {
-    label: "Cloud Cover", unit: "%", decimals: 0,
+    label: "Cloud Cover", unit: "%", decimals: 0, zero: true,
     get: (it) => it.clouds?.all ?? 0,
     desc: () => { const c = state.hourly?.[0]?.clouds?.all ?? state.data?.current?.clouds?.all; return cloudDescriptor(c) + " Cloud cover over the next hours."; },
     about: "Cloud cover is the share of the sky hidden by cloud, from clear at 0% to fully overcast at 100%. It shapes the temperature swing between day and night, since clouds block incoming sunlight from warming the ground by day and trap outgoing heat that would otherwise escape by night."
   },
   visibility: {
-    label: "Visibility", unit: visUnit(), decimals: 1,
+    label: "Visibility", unit: visUnit(), decimals: 1, zero: true,
     get: (it) => visVal(it.visibility),
     desc: () => { const v = state.hourly?.[0]?.visibility ?? state.data?.current?.visibility; return v != null ? `${visDescriptor(v)} Currently ${visibilityText(v)}.` : ""; },
     about: "Visibility is the greatest distance at which an object can still be told apart from the sky behind it, most often limited by fog, haze, or heavy rain or snow. Clear air typically allows visibility of 10 km or more, while anything below about 1 km is considered low."
@@ -2165,7 +2163,7 @@ function setDynamicPalette(dark) {
   document.documentElement.setAttribute("data-dyn", dark ? "dark" : "light");
   const changed = state.dark !== dark;
   state.dark = dark;
-  if (changed) { updateMapTheme(); if (state.data) { drawTrend(); renderDayView(); } }
+  if (changed) { updateMapTheme(); if (state.data) { renderDayView(); } }
 }
 function skyGradientAt(bands, nowH) {
   const anchors = bands.map((b) => ({ h: (b[0] + b[1]) / 2, key: b[2] }));
@@ -2666,74 +2664,26 @@ function renderCreditsSheet() {
   ).join("");
 }
 
+const UV_METRIC = { label: "UV Index", unit: "", decimals: 0, zero: true };
+
 function drawUvChart(hourly) {
-  const canvas = el.graph;
-  const ctx = canvas.getContext("2d");
-  const rect = canvas.getBoundingClientRect();
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(1, Math.round(rect.width * dpr));
-  canvas.height = Math.max(1, Math.round(rect.height * dpr));
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, rect.width, rect.height);
-  chartGeom = null; chartRedraw = null;
+  // UV shares the one renderer so its detail chart matches every other graph:
+  // same grid, scale, "Now" marker and tap-to-read scrubber.
   const pts = todayUv(hourly);
-  if (!pts.length) return;
-
-  const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
-  const yMax = Math.max(11, Math.ceil(Math.max(...pts.map((p) => p.uv))));
-  const padX = 28, padTop = 26, padB = 26;
-  const w = rect.width - padX * 2, h = rect.height - padTop - padB;
-  const X = (i) => padX + (w / Math.max(1, pts.length - 1)) * i;
-  const Y = (v) => padTop + h - (v / yMax) * h;
-
-  ctx.font = "700 10px Inter, system-ui"; ctx.textAlign = "left";
-  [["Low", 2], ["Moderate", 5], ["High", 7], ["Very high", 10]].forEach(([label, v]) => {
-    const gy = Y(v);
-    ctx.strokeStyle = ink; ctx.globalAlpha = 0.1; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(padX, gy); ctx.lineTo(rect.width - padX, gy); ctx.stroke();
-    ctx.globalAlpha = 0.4; ctx.fillStyle = ink; ctx.fillText(label, padX, gy - 4); ctx.globalAlpha = 1;
+  if (!pts.length) {
+    const ctx = el.graph.getContext("2d");
+    const rect = el.graph.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    chartGeom = null; chartRedraw = null;
+    return;
+  }
+  const tz = state.tz || 0;
+  const localMidnight = Math.floor((Math.floor(Date.now() / 1000) + tz) / 86400) * 86400;
+  const rows = pts.map((p) => {
+    const hh = Number(p.t.slice(11, 13));
+    return { label: `${(hh % 12) || 12}${hh < 12 ? "am" : "pm"}`, hi: p.uv, dt: localMidnight - tz + hh * 3600 };
   });
-
-  const grad = ctx.createLinearGradient(0, padTop, 0, padTop + h);
-  grad.addColorStop(0, hexA(ink, 0.26)); grad.addColorStop(1, hexA(ink, 0));
-
-  const curve = () => {
-    pts.forEach((p, i) => {
-      const px = X(i), py = Y(p.uv);
-      if (i === 0) ctx.moveTo(px, py);
-      else { const cx = (X(i - 1) + px) / 2; ctx.bezierCurveTo(cx, Y(pts[i - 1].uv), cx, py, px, py); }
-    });
-  };
-
-  ctx.beginPath(); curve();
-  ctx.lineTo(X(pts.length - 1), padTop + h); ctx.lineTo(X(0), padTop + h); ctx.closePath();
-  ctx.fillStyle = grad; ctx.fill();
-  ctx.beginPath(); curve(); ctx.strokeStyle = ink; ctx.lineWidth = 3.5; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
-
-  const nowH = new Date().getHours();
-  let nowI = pts.findIndex((p) => Number(p.t.slice(11, 13)) === nowH);
-  if (nowI < 0) nowI = pts.length - 1;
-  const nx = X(nowI), ny = Y(pts[nowI].uv);
-  ctx.setLineDash([3, 4]); ctx.strokeStyle = ink; ctx.globalAlpha = 0.35; ctx.lineWidth = 1;
-  ctx.beginPath(); ctx.moveTo(nx, padTop); ctx.lineTo(nx, padTop + h); ctx.stroke();
-  ctx.setLineDash([]); ctx.globalAlpha = 1;
-  ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(nx, ny, 5, 0, Math.PI * 2); ctx.fill();
-  ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue("--bg").trim() || "#fff";
-  ctx.beginPath(); ctx.arc(nx, ny, 2.5, 0, Math.PI * 2); ctx.fill();
-
-  ctx.fillStyle = ink; ctx.globalAlpha = 0.55; ctx.font = "700 11px Inter, system-ui"; ctx.textAlign = "center";
-  [6, 12, 18].forEach((hh) => {
-    const i = pts.findIndex((p) => Number(p.t.slice(11, 13)) === hh);
-    if (i >= 0) ctx.fillText(`${(hh % 12) || 12}${hh < 12 ? "am" : "pm"}`, X(i), rect.height - 8);
-  });
-  ctx.globalAlpha = 1;
-
-  chartGeom = {
-    xs: pts.map((_, i) => X(i)), ys: pts.map((p) => Y(p.uv)),
-    rows: pts.map((p) => { const hh = Number(p.t.slice(11, 13)); return { label: `${(hh % 12) || 12}${hh < 12 ? "am" : "pm"}`, hi: p.uv }; }),
-    padTop, h, rect, dual: false, fmt: (v) => `${Math.round(v)}`
-  };
-  chartRedraw = () => drawUvChart(hourly);
+  drawChart(rows, UV_METRIC, false, true, el.graph);
 }
 
 function openDay(index) {
@@ -2835,7 +2785,7 @@ function drawDetailChart() {
   if (state.detail.metric === "temp" && state.detail.range === "daily") {
     drawChart(state.daily.map((d) => ({ label: d.label, hi: d.max, lo: d.min, uv: d.uvMax, precip: (d.items || []).reduce((s, it) => s + (it.precip || 0), 0) })), m, true, false);
   } else {
-    drawChart(detailSeries(), m, false, true);
+    drawChart(detailSeries(), m, false, true, el.graph, true, !!m.bars);
   }
 }
 
@@ -2901,22 +2851,6 @@ function hexA(hex, a) {
 
 let chartGeom = null, chartRedraw = null;
 
-function drawTrend() {
-  // The trend card shares the one chart renderer: today's hourly temperature as
-  // a single line, in the same grid/scale style as every other graph.
-  if (!el.trendGraph) return;
-  const tz = state.tz || 0;
-  const nowSec = Math.floor(Date.now() / 1000);
-  const localDay = (s) => new Date((s + tz) * 1000).toISOString().slice(0, 10);
-  const today = localDay(nowSec);
-  const all = (state.data?.hourly || []).filter((p) => Number.isFinite(p.main?.temp));
-  let src = all.filter((p) => localDay(p.dt) === today);
-  if (src.length < 3) src = all.filter((p) => p.dt >= nowSec - 3600).slice(0, 24);
-  if (src.length < 2) return;
-  const rows = src.map((p) => ({ label: fmtHour(p.dt, tz), hi: p.main.temp, dt: p.dt, precip: p.precip || 0 }));
-  drawChart(rows, METRICS.temp, false, true, el.trendGraph);
-}
-
 // ---- Day overview: today's temperature band, same chart as the daily views --
 // Reuses drawChart so the home card, the day sheet and the daily forecast all
 // share one look: temperature (bold) over feels-like (soft), the range shaded
@@ -2967,7 +2901,7 @@ function niceScale(min, max, ticks = 4) {
   return { min: Math.floor(min / step) * step, max: Math.ceil(max / step) * step, step };
 }
 
-function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
+function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false) {
   // Shared band chart. Defaults to the detail-sheet canvas (with the scrubber
   // geometry); pass another canvas (e.g. the day-overview) to reuse the exact
   // same look without the interactive state. labelLo can be turned off when the
@@ -2992,8 +2926,10 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
   // Round the axis to a "nice" range and step so gridlines land on clean values
   // at equal intervals, rather than plotting against an arbitrary data-fit range.
   const pad = (dmax - dmin) * 0.06 || 1;
-  const sc = niceScale(dmin - pad, dmax + pad, 4);
-  const min = sc.min, max = sc.max, tickStep = sc.step;
+  // Metrics that can't go negative (humidity, wind, precip, UV…) anchor their
+  // axis at 0 so the baseline is meaningful and the scale reads consistently.
+  const sc = (m.zero && dmin >= 0) ? niceScale(0, dmax + pad, 4) : niceScale(dmin - pad, dmax + pad, 4);
+  const min = (m.zero && dmin >= 0) ? 0 : sc.min, max = sc.max, tickStep = sc.step;
   const anyPrecip = rows.some((r) => (r.precip || 0) > 0);
   const padL = 16, padR = 16, padTop = 34, padB = 30;
   const w = rect.width - padL - padR, h = rect.height - padTop - padB;
@@ -3042,7 +2978,15 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
     });
   };
 
-  if (!dual) {
+  if (bars) {
+    // Bar mode: draw the primary series as columns from the baseline (e.g.
+    // precipitation). Uses the same grid and scale as every other chart.
+    const slotW = w / Math.max(1, rows.length - 1);
+    const bw = Math.min(slotW * 0.6, 16);
+    const base = padTop + h;
+    ctx.fillStyle = hexA(ink, 0.7);
+    rows.forEach((r, i) => { if (Number.isFinite(r.hi) && r.hi > min) ctx.fillRect(X(i) - bw / 2, Y(r.hi), bw, base - Y(r.hi)); });
+  } else if (!dual) {
     ctx.beginPath(); curve("hi");
     ctx.lineTo(X(rows.length - 1), padTop + h); ctx.lineTo(X(0), padTop + h); ctx.closePath();
     const g = ctx.createLinearGradient(0, padTop, 0, padTop + h);
@@ -3059,8 +3003,10 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
   }
 
   const stroke = (key, alpha, width) => { ctx.beginPath(); curve(key); ctx.strokeStyle = ink; ctx.globalAlpha = alpha; ctx.lineWidth = width; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke(); ctx.globalAlpha = 1; };
-  if (dual) stroke("lo", 0.4, 3);
-  stroke("hi", 1, 3.5);
+  if (!bars) {
+    if (dual) stroke("lo", 0.4, 3);
+    stroke("hi", 1, 3.5);
+  }
 
   // Optional UV overlay: a dotted line on its own 0-11 scale (right axis), with
   // the day's peak labelled. Drawn when rows carry uv.
@@ -3143,11 +3089,20 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
   // the plot runs edge-to-edge to line up with the rows below.
   const labelX = (i) => i === 0 ? X(0) : i === end ? X(end) : X(i);
   const labelAlign = (i) => i === 0 ? "left" : i === end ? "right" : "center";
-  hiIdx.forEach((i) => {
-    ctx.beginPath(); ctx.arc(X(i), Y(rows[i].hi), 3.5, 0, Math.PI * 2); ctx.fill();
-    ctx.textAlign = labelAlign(i);
-    ctx.fillText(lab(rows[i].hi), labelX(i), Y(rows[i].hi) + hiSide(i));
-  });
+  if (bars) {
+    // Only the tallest bar carries a value, so the columns stay clean.
+    let pk = 0; rows.forEach((r, i) => { if ((r.hi || 0) > (rows[pk].hi || 0)) pk = i; });
+    if ((rows[pk].hi || 0) > min) {
+      ctx.textAlign = labelAlign(pk);
+      ctx.fillText(lab(rows[pk].hi), labelX(pk), Y(rows[pk].hi) - 8);
+    }
+  } else {
+    hiIdx.forEach((i) => {
+      ctx.beginPath(); ctx.arc(X(i), Y(rows[i].hi), 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.textAlign = labelAlign(i);
+      ctx.fillText(lab(rows[i].hi), labelX(i), Y(rows[i].hi) + hiSide(i));
+    });
+  }
   if (dual && labelLo) {
     ctx.globalAlpha = 0.7;
     loIdx.forEach((i) => {
@@ -3176,7 +3131,7 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
     xs: rows.map((_, i) => X(i)), ys: rows.map((r) => Y(r.hi)),
     rows, padTop, h, rect, dual, fmt: lab
   };
-  const redraw = () => drawChart(rows, m, dual, showNow, canvas, labelLo);
+  const redraw = () => drawChart(rows, m, dual, showNow, canvas, labelLo, bars);
   if (interactive) { chartGeom = geom; chartRedraw = redraw; }
   else if (canvas === el.dayGraph) { dayGeom = geom; dayRedraw = redraw; }
 }
