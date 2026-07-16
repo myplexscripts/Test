@@ -2902,140 +2902,19 @@ function hexA(hex, a) {
 let chartGeom = null, chartRedraw = null;
 
 function drawTrend() {
-  const canvas = el.trendGraph;
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const rect = canvas.getBoundingClientRect();
-  if (!rect.width || !rect.height) return;
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(1, Math.round(rect.width * dpr));
-  canvas.height = Math.max(1, Math.round(rect.height * dpr));
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, rect.width, rect.height);
-
+  // The trend card shares the one chart renderer: today's hourly temperature as
+  // a single line, in the same grid/scale style as every other graph.
+  if (!el.trendGraph) return;
   const tz = state.tz || 0;
   const nowSec = Math.floor(Date.now() / 1000);
-  const localDay = (sec) => { const d = new Date((sec + tz) * 1000); return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}`; };
+  const localDay = (s) => new Date((s + tz) * 1000).toISOString().slice(0, 10);
   const today = localDay(nowSec);
-
-  const fromHourly = (state.data?.hourly || [])
-    .map((it) => ({ t: it.dt, temp: it.main?.temp, precip: it.precip || 0 }))
-    .filter((p) => Number.isFinite(p.temp));
-  const fromForecast = (state.data?.forecast?.list || [])
-    .map((it) => ({ t: it.dt, temp: it.main?.temp, precip: (it.rain?.["3h"] || 0) + (it.snow?.["3h"] || 0) }))
-    .filter((p) => Number.isFinite(p.temp));
-
-  let pts = fromHourly.filter((p) => localDay(p.t) === today);
-  if (pts.length < 3) pts = fromForecast.filter((p) => localDay(p.t) === today);
-  if (pts.length < 3) {
-    const base = fromHourly.length ? fromHourly : fromForecast;
-    pts = base.filter((p) => p.t >= nowSec - 3600).slice(0, fromHourly.length ? 24 : 8);
-  }
-  if (pts.length < 2) return;
-
-  const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#050505";
-  const font = "Inter, system-ui, sans-serif";
-
-  const temps = pts.map((p) => p.temp);
-  let dtMin = Math.min(...temps), dtMax = Math.max(...temps);
-  if (dtMin === dtMax) { dtMin -= 1; dtMax += 1; }
-  const tPad = (dtMax - dtMin) * 0.12 || 1;
-  const tsc = niceScale(dtMin - tPad, dtMax + tPad, 4);
-  const tMin = tsc.min, tMax = tsc.max, tStep = tsc.step;
-  const maxPrecip = Math.max(0.1, ...pts.map((p) => p.precip));
-
-  const anyPrecip = pts.some((p) => p.precip > 0);
-  const padL = 36, padR = anyPrecip ? 48 : 14, padTop = 18, padB = 26;
-  const W = rect.width, H = rect.height;
-  const x0 = padL, x1 = W - padR;
-  const y0 = padTop, y1 = H - padB, plotH = y1 - y0;
-  const slotW = (x1 - x0) / (pts.length - 1);
-  const X = (i) => x0 + slotW * i;
-  const Y = (v) => y1 - ((v - tMin) / (tMax - tMin)) * plotH;
-  const barMaxH = plotH * 0.42;
-
-  ctx.textBaseline = "middle";
-  ctx.textAlign = "right";
-  ctx.font = `600 11px ${font}`;
-  for (let v = tMin; v <= tMax + 1e-6; v += tStep) {
-    const gy = Y(v);
-    ctx.strokeStyle = hexA(ink, 0.1); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(x0, gy); ctx.lineTo(x1, gy); ctx.stroke();
-    ctx.fillStyle = hexA(ink, 0.5);
-    ctx.fillText(`${Math.round(v)}°`, x0 - 8, gy);
-  }
-
-  const barW = Math.min(slotW * 0.6, 12);
-  pts.forEach((p, i) => {
-    if (p.precip <= 0) return;
-    const bh = (p.precip / maxPrecip) * barMaxH;
-    ctx.fillStyle = hexA(ink, 0.22);
-    ctx.fillRect(X(i) - barW / 2, y1 - bh, barW, bh);
-  });
-  if (anyPrecip) {
-    const mmMax = maxPrecip >= 10 ? Math.round(maxPrecip) : Math.round(maxPrecip * 10) / 10;
-    ctx.textAlign = "right";
-    ctx.textBaseline = "middle";
-    ctx.font = `600 11px ${font}`;
-    ctx.fillStyle = hexA(ink, 0.5);
-    ctx.fillText(`${mmMax} mm`, W - 4, y1 - barMaxH);
-    ctx.fillText("0", W - 4, y1);
-  }
-
-  const curve = () => {
-    pts.forEach((p, i) => {
-      const px = X(i), py = Y(p.temp);
-      if (i === 0) ctx.moveTo(px, py);
-      else { const cx = (X(i - 1) + px) / 2; ctx.bezierCurveTo(cx, Y(pts[i - 1].temp), cx, py, px, py); }
-    });
-  };
-  ctx.beginPath(); curve();
-  ctx.lineTo(X(pts.length - 1), y1); ctx.lineTo(X(0), y1); ctx.closePath();
-  const grad = ctx.createLinearGradient(0, y0, 0, y1);
-  grad.addColorStop(0, hexA(ink, 0.2)); grad.addColorStop(1, hexA(ink, 0));
-  ctx.fillStyle = grad; ctx.fill();
-
-  ctx.beginPath(); curve();
-  ctx.strokeStyle = ink; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round";
-  ctx.stroke();
-
-  if (nowSec >= pts[0].t && nowSec <= pts[pts.length - 1].t) {
-    let ni = 0;
-    for (let i = 0; i < pts.length - 1; i++) {
-      if (nowSec >= pts[i].t && nowSec <= pts[i + 1].t) {
-        ni = i + (nowSec - pts[i].t) / Math.max(1, pts[i + 1].t - pts[i].t);
-        break;
-      }
-    }
-    const nx = X(ni);
-    ctx.setLineDash([3, 4]); ctx.strokeStyle = hexA(ink, 0.45); ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(nx, y0); ctx.lineTo(nx, y1); ctx.stroke();
-    ctx.setLineDash([]);
-    ctx.fillStyle = hexA(ink, 0.55); ctx.font = `700 10px ${font}`;
-    ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
-    ctx.fillText("Now", Math.max(x0 + 12, Math.min(x1 - 12, nx)), y0 - 6);
-  }
-
-  let hiIdx = 0, loIdx = 0;
-  pts.forEach((p, i) => { if (p.temp > pts[hiIdx].temp) hiIdx = i; if (p.temp < pts[loIdx].temp) loIdx = i; });
-  ctx.fillStyle = ink;
-  ctx.textAlign = "center";
-  ctx.textBaseline = "alphabetic";
-  ctx.font = `700 11px ${font}`;
-  const marks = hiIdx === loIdx ? [[hiIdx, -9]] : [[hiIdx, -9], [loIdx, 16]];
-  marks.forEach(([idx, dy]) => {
-    const px = X(idx), py = Y(pts[idx].temp);
-    ctx.beginPath(); ctx.arc(px, py, 3, 0, Math.PI * 2); ctx.fill();
-    ctx.fillText(`${Math.round(pts[idx].temp)}°`, Math.max(x0 + 12, Math.min(x1 - 12, px)), py + dy);
-  });
-
-  ctx.fillStyle = hexA(ink, 0.55);
-  ctx.font = `700 11px ${font}`;
-  const labelStep = Math.max(1, Math.round(pts.length / 5));
-  pts.forEach((p, i) => {
-    if (i % labelStep !== 0) return;
-    ctx.fillText(fmtHour(p.t, tz), Math.max(x0 + 16, Math.min(x1 - 16, X(i))), H - 8);
-  });
+  const all = (state.data?.hourly || []).filter((p) => Number.isFinite(p.main?.temp));
+  let src = all.filter((p) => localDay(p.dt) === today);
+  if (src.length < 3) src = all.filter((p) => p.dt >= nowSec - 3600).slice(0, 24);
+  if (src.length < 2) return;
+  const rows = src.map((p) => ({ label: fmtHour(p.dt, tz), hi: p.main.temp, dt: p.dt, precip: p.precip || 0 }));
+  drawChart(rows, METRICS.temp, false, true, el.trendGraph);
 }
 
 // ---- Day overview: today's temperature band, same chart as the daily views --
@@ -3123,26 +3002,26 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
   const dec = m.decimals || 0;
   const lab = (v) => dec ? v.toFixed(dec) : (m.unit === "°" ? `${Math.round(v)}°` : `${Math.round(v)}`);
 
-  // Hourly series carry a per-point dt; we label + rule the 6-hour marks
-  // (12am, 6am, 12pm, 6pm). Daily series have no dt and keep every label.
+  // Which x positions get a label + vertical rule: hourly rules the 6-hour
+  // marks (12am, 6am, 12pm, 6pm); daily/other series rule every ~8th point.
   const tz = state.tz || 0;
   const isHourly = Number.isFinite(rows[0]?.dt);
   const hourAt = (i) => new Date((rows[i].dt + tz) * 1000).getUTCHours();
-  const majorTicks = isHourly ? rows.map((_, i) => i).filter((i) => hourAt(i) % 6 === 0) : null;
+  const labelTicks = isHourly
+    ? rows.map((_, i) => i).filter((i) => hourAt(i) % 6 === 0)
+    : rows.map((_, i) => i).filter((i) => i % Math.max(1, Math.ceil(rows.length / 8)) === 0);
 
-  ctx.strokeStyle = ink; ctx.globalAlpha = 0.12; ctx.lineWidth = 1;
+  // Full grid: horizontal lines at the nice value steps, vertical rules at the
+  // label ticks. Every chart gets the same grid so they read consistently.
+  ctx.strokeStyle = ink; ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.12;
   for (let v = min; v <= max + 1e-6; v += tickStep) {
     const gy = Y(v);
     ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(rect.width - padR, gy); ctx.stroke();
   }
+  ctx.globalAlpha = 0.08;
+  labelTicks.forEach((i) => { ctx.beginPath(); ctx.moveTo(X(i), padTop); ctx.lineTo(X(i), padTop + h); ctx.stroke(); });
   ctx.globalAlpha = 1;
-
-  // Faint vertical rules at the 6-hour marks.
-  if (majorTicks) {
-    ctx.strokeStyle = ink; ctx.globalAlpha = 0.08; ctx.lineWidth = 1;
-    majorTicks.forEach((i) => { ctx.beginPath(); ctx.moveTo(X(i), padTop); ctx.lineTo(X(i), padTop + h); ctx.stroke(); });
-    ctx.globalAlpha = 1;
-  }
 
   // Precipitation bars along the bottom, on their own mm scale (left axis).
   const maxP = anyPrecip ? Math.max(0.1, ...rows.map((r) => r.precip || 0)) : 0;
@@ -3282,23 +3161,14 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
 
   ctx.globalAlpha = 0.55; ctx.fillStyle = ink;
   ctx.textAlign = "center";
-  if (majorTicks) {
-    // Label the 6-hour marks; the first sits flush with the plot's left edge
-    // so it lines up with the rows below, the last flush right if it's the end.
-    const end = rows.length - 1;
-    majorTicks.forEach((i) => {
-      ctx.textAlign = i === 0 ? "left" : i === end ? "right" : "center";
-      ctx.fillText(rows[i].label, X(i), rect.height - 10);
-    });
-  } else {
-    const step = Math.max(1, Math.ceil(rows.length / 8));
-    rows.forEach((r, i) => {
-      if (i % step !== 0) return;
-      const hw = ctx.measureText(r.label).width / 2;
-      const x = Math.max(hw + 1, Math.min(rect.width - hw - 1, X(i)));
-      ctx.fillText(r.label, x, rect.height - 10);
-    });
-  }
+  // Labels sit under the vertical rules; the first flush with the plot's left
+  // edge and the last flush right so they line up with any rows below.
+  labelTicks.forEach((i) => {
+    ctx.textAlign = i === 0 ? "left" : i === end ? "right" : "center";
+    const hw = ctx.measureText(rows[i].label).width / 2;
+    const x = i === 0 || i === end ? X(i) : Math.max(hw + 1, Math.min(rect.width - hw - 1, X(i)));
+    ctx.fillText(rows[i].label, x, rect.height - 10);
+  });
   ctx.textAlign = "center";
   ctx.globalAlpha = 1;
 
