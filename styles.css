@@ -2223,10 +2223,18 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
    JS computes the colours, so there is no flash. Placed late so it wins
    equal-specificity ties over the base component rules. */
 :root[data-tint="on"] {
-  --card-bg: color-mix(in srgb, var(--tile, var(--ink)) 10%, transparent);
-  --card-bg-hi: color-mix(in srgb, var(--tile, var(--ink)) 15%, transparent);
-  --card-border: color-mix(in srgb, var(--tile, var(--ink)) 14%, transparent);
-  --hairline: color-mix(in srgb, var(--tile, var(--ink)) 18%, transparent);
+  --card-bg: color-mix(in srgb, var(--tile, var(--ink)) 14%, transparent);
+  --card-bg-hi: color-mix(in srgb, var(--tile, var(--ink)) 20%, transparent);
+  --card-border: color-mix(in srgb, var(--tile, var(--ink)) 18%, transparent);
+  --hairline: color-mix(in srgb, var(--tile, var(--ink)) 20%, transparent);
+}
+/* On the near-black page a faint wash disappears, so the dark theme leans into
+   the tint harder to keep the tiles visibly coloured. */
+:root[data-tint="on"][data-theme="bloomdark"] {
+  --card-bg: color-mix(in srgb, var(--tile, var(--ink)) 24%, transparent);
+  --card-bg-hi: color-mix(in srgb, var(--tile, var(--ink)) 32%, transparent);
+  --card-border: color-mix(in srgb, var(--tile, var(--ink)) 30%, transparent);
+  --hairline: color-mix(in srgb, var(--tile, var(--ink)) 28%, transparent);
 }
 
 /* Weather + condition icons carry the second sky colour (the pop). */

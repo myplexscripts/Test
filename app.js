@@ -2184,11 +2184,15 @@ function applyBloomAccents(sky, dark) {
   // The more saturated sky colour becomes the icon pop; the calmer one washes
   // the tiles. Both are real sky hues, so clear sky reads blue/gold, not pink.
   const [iconRaw, tileRaw] = sat(a) >= sat(b) ? [a, b] : [b, a];
-  // Tile wash: eased-back chroma so the fill stays a hint, not a slab.
+  // Tile wash: hold enough chroma that the fill reads as a hue rather than
+  // grey, and keep it bright on the dark page so a low-opacity wash still tints
+  // the near-black tiles instead of vanishing into them.
   let [th, ts, tl] = rgbToHsl(hexToRgb(tileRaw));
-  const tile = rgbToHex(hslToRgb(th, Math.min(0.7, ts), dark ? Math.max(0.5, tl) : Math.min(0.7, tl)));
+  ts = Math.min(0.8, ts * 1.2 + 0.16);
+  tl = dark ? Math.max(0.6, Math.min(0.82, tl)) : Math.min(0.72, tl);
+  const tile = rgbToHex(hslToRgb(th, ts, tl));
   // Icon colour: start from a legible band, then guarantee contrast against the
-  // effective tile background (the page tinted by the wash, a touch deeper to
+  // effective tile background (the page tinted by the wash, deep enough to
   // cover nested tiles) - graphical elements want at least 3:1, we aim higher.
   let [ih, is, il] = rgbToHsl(hexToRgb(iconRaw));
   is = Math.min(0.92, is * 1.1 + 0.14);
@@ -2197,7 +2201,7 @@ function applyBloomAccents(sky, dark) {
   // still popping on the darker tiles below. On the light page they go deeper.
   il = dark ? Math.max(0.74, Math.min(0.86, il)) : Math.max(0.4, Math.min(0.54, il));
   const iconStart = rgbToHex(hslToRgb(ih, is, il));
-  const tileBg = lerpHex(base.bg, tile, dark ? 0.16 : 0.14);
+  const tileBg = lerpHex(base.bg, tile, dark ? 0.3 : 0.16);
   const icon = ensureContrast(iconStart, tileBg, 4.5, dark);
   r.setProperty("--tile", tile);
   r.setProperty("--icon", icon);
