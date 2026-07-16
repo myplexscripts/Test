@@ -29,7 +29,7 @@ const $ = (id) => document.getElementById(id);
 const el = {
   ptr: $("ptr"), splash: $("splash"),
   locBtn: $("locBtn"), homeLocBtn: $("homeLocBtn"),
-  unitSeg: $("unitSeg"), animToggle: $("animToggle"), themeToggle: $("themeToggle"), tintToggle: $("tintToggle"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
+  unitSeg: $("unitSeg"), animToggle: $("animToggle"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
   radarFull: $("radarFull"), searchFull: $("searchFull"),
   locSearch: $("locSearch"), searchResults: $("searchResults"), searchClear: $("searchClear"),
   settingsPop: $("settingsPop"), bottomNav: $("bottomNav"),
@@ -62,8 +62,8 @@ const state = {
   hourly: [],
   daily: [],
   detail: { metric: "temp", range: "hourly" },
-  theme: "bloom",
-  tinted: false,
+  theme: "bloomdark",
+  tinted: true,
   center: { ...HOME },
   tz: 0,
   placeName: "",
@@ -197,11 +197,6 @@ function wireEvents() {
       refresh(true);
     };
   });
-
-  if (el.themeToggle) el.themeToggle.onclick = () =>
-    setTheme(PALETTES[state.theme] && PALETTES[state.theme].dark ? "bloom" : "bloomdark");
-
-  if (el.tintToggle) el.tintToggle.onclick = () => setTint(!state.tinted);
 
   window.addEventListener("scroll", onBloomScroll, { passive: true });
 
@@ -4264,8 +4259,9 @@ function loadState() {
     if (s) {
       state.units = s.units || "metric";
       state.loc = s.loc || { ...HOME };
-      state.theme = PALETTES[s.theme] ? s.theme : (THEME_REMAP[s.theme] || "bloom");
-      state.tinted = !!s.tinted;
+      // One theme now: the animated weather mesh, always on, always dark-based.
+      state.theme = "bloomdark";
+      state.tinted = true;
       state.clock24 = !!s.clock24;
       state.clockPattern = !!s.clockPattern;
       state.animate = s.animate !== false;
@@ -4281,8 +4277,6 @@ function loadCache() {
 function syncControls() {
   el.unitSeg.querySelectorAll("[data-units]").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.units === state.units));
-  if (el.themeToggle) el.themeToggle.setAttribute("aria-checked", PALETTES[state.theme] && PALETTES[state.theme].dark ? "true" : "false");
-  if (el.tintToggle) el.tintToggle.setAttribute("aria-checked", state.tinted ? "true" : "false");
   if (el.animToggle) el.animToggle.setAttribute("aria-checked", state.animate !== false ? "true" : "false");
   document.documentElement.setAttribute("data-anim", state.animate === false ? "off" : "on");
   syncSlide(el.unitSeg);

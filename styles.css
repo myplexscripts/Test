@@ -248,6 +248,15 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 :root[data-tint="on"] .bg::before,
 :root[data-tint="on"] .bg::after { opacity: 0; }
 
+/* Frosted-glass tiles: a slight backdrop blur so the mesh softens behind them. */
+.conditions-tile, .dayview-card, .nowcast-card, .graph-card,
+.hour-card, .day-card, .radar-preview, .detail,
+.sun-card, .moon-card, .wind-card, .alert, .map-link,
+.qh-tiles > * {
+  -webkit-backdrop-filter: blur(7px);
+  backdrop-filter: blur(7px);
+}
+
 /* Status-bar scrim: purely a masked backdrop blur, no tint. Strongest at the
    very top so the status bar stays legible over any bloom, then the mask
    dissolves the blur so scrolled content slides under a soft fade. */
