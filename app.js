@@ -405,7 +405,7 @@ async function fetchOpenMeteo(lat, lon, units) {
   const wu = units === "imperial" ? "mph" : "ms";
   const hourly = "temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation_probability,precipitation,rain,showers,snowfall,snow_depth,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,visibility,cape,freezing_level_height";
   const current = "temperature_2m,apparent_temperature,relative_humidity_2m,dew_point_2m,precipitation,rain,showers,snowfall,weather_code,is_day,wind_speed_10m,wind_gusts_10m,wind_direction_10m,pressure_msl,cloud_cover,cape,freezing_level_height";
-  const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&current=${current}&hourly=${hourly}&minutely_15=precipitation&daily=sunrise,sunset&temperature_unit=${tu}&wind_speed_unit=${wu}&timeformat=unixtime&timezone=auto&forecast_days=7`;
+  const url = `${WX_BASE}?latitude=${lat}&longitude=${lon}&current=${current}&hourly=${hourly}&minutely_15=precipitation&daily=sunrise,sunset,uv_index_max&temperature_unit=${tu}&wind_speed_unit=${wu}&timeformat=unixtime&timezone=auto&forecast_days=7`;
   return fetchJSON(url);
 }
 
@@ -511,7 +511,7 @@ function adaptOpenMeteo(j, place, lat, lon) {
   if (crain > 0) current.rain = { "1h": crain };
   if ((C.snowfall || 0) > 0) current.snow = { "1h": C.snowfall };
 
-  const forecast = { list: points, city: { timezone: j.utc_offset_seconds ?? 0 } };
+  const forecast = { list: points, city: { timezone: j.utc_offset_seconds ?? 0 }, dailyUV: { time: D.time, uv: D.uv_index_max } };
   return { current, forecast, points, minutely };
 }
 
@@ -1402,6 +1402,9 @@ function hourlyPoints() {
 }
 
 function buildDaily(forecast, tz) {
+  const uvByDate = {};
+  const du = forecast.dailyUV;
+  if (du?.time && du?.uv) du.time.forEach((t, i) => { uvByDate[new Date((t + tz) * 1000).toISOString().slice(0, 10)] = du.uv[i]; });
   const map = new Map();
   (forecast.list || []).forEach((it) => {
     const key = new Date((it.dt + tz) * 1000).toISOString().slice(0, 10);
@@ -1423,6 +1426,7 @@ function buildDaily(forecast, tz) {
       pop: Math.max(...g.items.map((it) => it.pop || 0)),
       main: rep.weather?.[0]?.main || "",
       icon: rep.weather?.[0]?.icon,
+      uvMax: uvByDate[new Date((g.dt + tz) * 1000).toISOString().slice(0, 10)] ?? null,
       items: g.items
     };
   });
@@ -2829,7 +2833,7 @@ function drawDetailChart() {
   }
   const m = METRICS[state.detail.metric];
   if (state.detail.metric === "temp" && state.detail.range === "daily") {
-    drawChart(state.daily.map((d) => ({ label: d.label, hi: d.max, lo: d.min, precip: (d.items || []).reduce((s, it) => s + (it.precip || 0), 0) })), m, true, false);
+    drawChart(state.daily.map((d) => ({ label: d.label, hi: d.max, lo: d.min, uv: d.uvMax, precip: (d.items || []).reduce((s, it) => s + (it.precip || 0), 0) })), m, true, false);
   } else {
     drawChart(detailSeries(), m, false, true);
   }
@@ -2933,10 +2937,11 @@ function drawTrend() {
   const font = "Inter, system-ui, sans-serif";
 
   const temps = pts.map((p) => p.temp);
-  let tMin = Math.min(...temps), tMax = Math.max(...temps);
-  if (tMin === tMax) { tMin -= 1; tMax += 1; }
-  const tPad = (tMax - tMin) * 0.28 || 1;
-  tMin -= tPad; tMax += tPad;
+  let dtMin = Math.min(...temps), dtMax = Math.max(...temps);
+  if (dtMin === dtMax) { dtMin -= 1; dtMax += 1; }
+  const tPad = (dtMax - dtMin) * 0.12 || 1;
+  const tsc = niceScale(dtMin - tPad, dtMax + tPad, 4);
+  const tMin = tsc.min, tMax = tsc.max, tStep = tsc.step;
   const maxPrecip = Math.max(0.1, ...pts.map((p) => p.precip));
 
   const anyPrecip = pts.some((p) => p.precip > 0);
@@ -2952,9 +2957,7 @@ function drawTrend() {
   ctx.textBaseline = "middle";
   ctx.textAlign = "right";
   ctx.font = `600 11px ${font}`;
-  const lines = 4;
-  for (let i = 0; i < lines; i++) {
-    const v = tMax - ((tMax - tMin) / (lines - 1)) * i;
+  for (let v = tMin; v <= tMax + 1e-6; v += tStep) {
     const gy = Y(v);
     ctx.strokeStyle = hexA(ink, 0.1); ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(x0, gy); ctx.lineTo(x1, gy); ctx.stroke();
@@ -3074,6 +3077,17 @@ function renderDayView() {
   drawChart(rows, METRICS.temp, true, true, el.dayGraph);
 }
 
+// Round a data range to a clean [min, max] and step (1/2/5 x 10^n) so an axis
+// reads on equal, sensible intervals.
+function niceScale(min, max, ticks = 4) {
+  if (!(max > min)) max = min + 1;
+  const rawStep = (max - min) / ticks;
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const n = rawStep / mag;
+  const step = (n <= 1 ? 1 : n <= 2 ? 2 : n <= 5 ? 5 : 10) * mag;
+  return { min: Math.floor(min / step) * step, max: Math.ceil(max / step) * step, step };
+}
+
 function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
   // Shared band chart. Defaults to the detail-sheet canvas (with the scrubber
   // geometry); pass another canvas (e.g. the day-overview) to reuse the exact
@@ -3094,8 +3108,13 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
 
   const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
   const vals = rows.flatMap((r) => dual ? [r.hi, r.lo] : [r.hi]).filter(Number.isFinite);
-  let min = Math.min(...vals), max = Math.max(...vals);
-  if (min === max) { min -= 1; max += 1; } else { const pad = (max - min) * 0.18; min -= pad; max += pad; }
+  let dmin = Math.min(...vals), dmax = Math.max(...vals);
+  if (dmin === dmax) { dmin -= 1; dmax += 1; }
+  // Round the axis to a "nice" range and step so gridlines land on clean values
+  // at equal intervals, rather than plotting against an arbitrary data-fit range.
+  const pad = (dmax - dmin) * 0.06 || 1;
+  const sc = niceScale(dmin - pad, dmax + pad, 4);
+  const min = sc.min, max = sc.max, tickStep = sc.step;
   const anyPrecip = rows.some((r) => (r.precip || 0) > 0);
   const padL = 16, padR = 16, padTop = 34, padB = 30;
   const w = rect.width - padL - padR, h = rect.height - padTop - padB;
@@ -3112,7 +3131,10 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true) {
   const majorTicks = isHourly ? rows.map((_, i) => i).filter((i) => hourAt(i) % 6 === 0) : null;
 
   ctx.strokeStyle = ink; ctx.globalAlpha = 0.12; ctx.lineWidth = 1;
-  for (let i = 0; i <= 3; i++) { const gy = padTop + (h / 3) * i; ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(rect.width - padR, gy); ctx.stroke(); }
+  for (let v = min; v <= max + 1e-6; v += tickStep) {
+    const gy = Y(v);
+    ctx.beginPath(); ctx.moveTo(padL, gy); ctx.lineTo(rect.width - padR, gy); ctx.stroke();
+  }
   ctx.globalAlpha = 1;
 
   // Faint vertical rules at the 6-hour marks.
