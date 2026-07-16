@@ -2210,8 +2210,11 @@ function skyFamily(hex) {
   return TINT_FAMILIES[best];
 }
 // Map a sky's two colours to their families' fg, for a palette-driven bloom.
-function paletteSky(sky, dark) {
-  const fg = (hex) => { const f = skyFamily(hex); return dark ? f.dfg : f.lfg; };
+// Theme-independent on purpose: the glow is the same in light and dark, only
+// the page behind it changes. Always the light fg (the truer, saturated hue),
+// which reads as a colour on both the off-white and near-black page.
+function paletteSky(sky) {
+  const fg = (hex) => skyFamily(hex).lfg;
   return { top: fg(sky.top), bottom: fg(sky.bottom) };
 }
 
@@ -2436,7 +2439,7 @@ function updateDynamicBackground() {
   if (p?.bloom) {
     // Bloom: same sky colours as the Dynamic theme, rendered as the top glow.
     // The page palette stays fixed off-white/off-black.
-    const skyBloom = state.tinted ? paletteSky(sky, !!p.dark) : sky;
+    const skyBloom = state.tinted ? paletteSky(sky) : sky;
     setDynamicGradient(bloomGradient(skyBloom, !!p.dark, state.tinted));
     applyBloomAccents(sky, !!p.dark);
     return;
