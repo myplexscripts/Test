@@ -2146,8 +2146,30 @@ function vivid(hex, dark) {
   return rgbToHex(hslToRgb(h, s2, Math.min(1, Math.max(0, l2))));
 }
 
-// WCAG relative luminance and contrast ratio, used to keep the icon colour
-// legible on the tinted tile it sits over.
+// A curated tint palette: named hue families, each a bg/fg pair tuned for
+// legible contrast in light and dark. The live sky is classified to the nearest
+// family; its bg paints the tiles, its fg the icons and the bloom. Because the
+// pair is designed to contrast, there is no runtime nudging to guess at.
+const TINT_FAMILIES = {
+  red:    { lbg: "#FCEAEC", lfg: "#E63946", dbg: "#3A0D12", dfg: "#FF6A77" },
+  orange: { lbg: "#FFF1E8", lfg: "#E6731C", dbg: "#3B1F00", dfg: "#FFB066" },
+  amber:  { lbg: "#FFF5E2", lfg: "#D88A00", dbg: "#3A2600", dfg: "#FFC94D" },
+  yellow: { lbg: "#FFF9E3", lfg: "#B38A00", dbg: "#3A3100", dfg: "#FFE35C" },
+  lime:   { lbg: "#F6FCE8", lfg: "#7BAA00", dbg: "#213000", dfg: "#BCEB4E" },
+  green:  { lbg: "#EBF9EF", lfg: "#1FA24A", dbg: "#0F2C17", dfg: "#54D87D" },
+  mint:   { lbg: "#EAFBF7", lfg: "#11A88B", dbg: "#0E2B26", dfg: "#66E3C8" },
+  cyan:   { lbg: "#EAF9FC", lfg: "#1596B8", dbg: "#0D2730", dfg: "#66D7F5" },
+  blue:   { lbg: "#EAF4FF", lfg: "#2B79E3", dbg: "#10233E", dfg: "#78B6FF" },
+  indigo: { lbg: "#EFEEFF", lfg: "#5C63D8", dbg: "#1A1D42", dfg: "#9DA7FF" },
+  purple: { lbg: "#F5EEFF", lfg: "#8E57D7", dbg: "#26143C", dfg: "#C998FF" },
+  pink:   { lbg: "#FFEAF3", lfg: "#D84F95", dbg: "#3B1328", dfg: "#FF92C5" }
+};
+// Grey fallback so overcast / desaturated skies stay neutral, not forced hues.
+const TINT_NEUTRAL = { lbg: "#ECECE8", lfg: "#3A3A37", dbg: "#2A2A27", dfg: "#ECECE8" };
+// Each family's hue angle (from its light fg), precomputed for classification.
+const TINT_HUES = Object.entries(TINT_FAMILIES).map(([name, f]) => [name, rgbToHsl(hexToRgb(f.lfg))[0] * 360]);
+
+// WCAG relative luminance + contrast ratio, for the icon-on-tile safety check.
 function wcagLum(hex) {
   const s = hexToRgb(hex).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
   return 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2];
@@ -2156,53 +2178,57 @@ function contrastRatio(a, b) {
   const la = wcagLum(a), lb = wcagLum(b);
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
-// Nudge a colour's lightness (down on a light page, up on a dark one) until it
-// clears a target contrast ratio against the given background, or runs out of
-// room. Keeps the hue and chroma, only shifts value.
+// Most palette pairs already clear it, but a few of the brightest light families
+// (orange/amber/lime) land near 2.8:1 fg-on-bg. Nudge just those, darkening the
+// icon on the light page / lightening it on the dark page, hue held, until it
+// reaches a comfortable floor for a large graphical mark.
 function ensureContrast(fg, bg, target, dark) {
   let [h, s, l] = rgbToHsl(hexToRgb(fg));
-  let c = rgbToHex(hslToRgb(h, s, l)), guard = 0;
+  let c = fg, guard = 0;
   while (contrastRatio(c, bg) < target && guard++ < 48) {
-    l = dark ? Math.min(0.97, l + 0.02) : Math.max(0.03, l - 0.02);
+    l = dark ? Math.min(0.98, l + 0.02) : Math.max(0.02, l - 0.02);
     c = rgbToHex(hslToRgb(h, s, l));
   }
   return c;
 }
 
-// Two accents, straight from the live sky (no pink hue-blend): a soft wash for
-// the tiles and a legible pop for the weather icons. Only active while the
-// Colour option is on; otherwise the vars are cleared and everything is ink.
+// Classify a sky colour to the nearest family by hue; low saturation -> neutral.
+function skyFamily(hex) {
+  const [h, s] = rgbToHsl(hexToRgb(hex));
+  if (s < 0.12) return TINT_NEUTRAL;
+  const deg = h * 360;
+  let best = TINT_HUES[0][0], bestD = 999;
+  for (const [name, fh] of TINT_HUES) {
+    let d = Math.abs(deg - fh); if (d > 180) d = 360 - d;
+    if (d < bestD) { bestD = d; best = name; }
+  }
+  return TINT_FAMILIES[best];
+}
+// Map a sky's two colours to their families' fg, for a palette-driven bloom.
+function paletteSky(sky, dark) {
+  const fg = (hex) => { const f = skyFamily(hex); return dark ? f.dfg : f.lfg; };
+  return { top: fg(sky.top), bottom: fg(sky.bottom) };
+}
+
+// Snap the live sky to one family and expose its pair: bg -> tiles, fg -> icons.
+// One family drives both, so the palette's tuned contrast holds for free.
 function applyBloomAccents(sky, dark) {
   const r = document.documentElement.style;
   if (!state.tinted || !sky) {
     ["--tile", "--icon"].forEach((v) => r.removeProperty(v));
     return;
   }
+  // The more colourful (higher chroma) of the two sky colours sets the family;
+  // a flat grey sky lands on neutral. Chroma, not HSL saturation, so a pale but
+  // "technically saturated" horizon does not outvote the sky's real hue.
+  const chroma = (hex) => { const [rr, gg, bb] = hexToRgb(hex); return Math.max(rr, gg, bb) - Math.min(rr, gg, bb); };
+  const f = skyFamily(chroma(sky.top) >= chroma(sky.bottom) ? sky.top : sky.bottom);
+  const tile = dark ? f.dbg : f.lbg;
+  // The tile is the family bg at ~88% over the page; check the icon against that
+  // effective surface and top up only the few weak light pairs.
   const base = PALETTES[themeKind()] || PALETTES.bloom;
-  const a = vivid(sky.top, dark), b = vivid(sky.bottom, dark);
-  const sat = (hex) => rgbToHsl(hexToRgb(hex))[1];
-  // The more saturated sky colour becomes the icon pop; the calmer one washes
-  // the tiles. Both are real sky hues, so clear sky reads blue/gold, not pink.
-  const [iconRaw, tileRaw] = sat(a) >= sat(b) ? [a, b] : [b, a];
-  // Tile wash: hold enough chroma that the fill reads as a hue rather than
-  // grey, and keep it bright on the dark page so a low-opacity wash still tints
-  // the near-black tiles instead of vanishing into them.
-  let [th, ts, tl] = rgbToHsl(hexToRgb(tileRaw));
-  ts = Math.min(0.8, ts * 1.2 + 0.16);
-  tl = dark ? Math.max(0.6, Math.min(0.82, tl)) : Math.min(0.72, tl);
-  const tile = rgbToHex(hslToRgb(th, ts, tl));
-  // Icon colour: start from a legible band, then guarantee contrast against the
-  // effective tile background (the page tinted by the wash, deep enough to
-  // cover nested tiles) - graphical elements want at least 3:1, we aim higher.
-  let [ih, is, il] = rgbToHsl(hexToRgb(iconRaw));
-  is = Math.min(0.92, is * 1.1 + 0.14);
-  // On the dark page the icons sit over the bright bloom near the top, so they
-  // must stay light (like the near-white ink they replace) to read there while
-  // still popping on the darker tiles below. On the light page they go deeper.
-  il = dark ? Math.max(0.74, Math.min(0.86, il)) : Math.max(0.4, Math.min(0.54, il));
-  const iconStart = rgbToHex(hslToRgb(ih, is, il));
-  const tileBg = lerpHex(base.bg, tile, dark ? 0.3 : 0.16);
-  const icon = ensureContrast(iconStart, tileBg, 4.5, dark);
+  const eff = lerpHex(base.bg, tile, 0.88);
+  const icon = ensureContrast(dark ? f.dfg : f.lfg, eff, 4, dark);
   r.setProperty("--tile", tile);
   r.setProperty("--icon", icon);
 }
@@ -2253,16 +2279,18 @@ let bloomCanvas = null;
 // and deepened enough that vivid() lands them legible on the light frosted tile.
 const TIER_BASE = { yellow: "#d99500", orange: "#e7601a", red: "#d8342a" };
 
-function bloomGradient(sky, dark) {
+function bloomGradient(sky, dark, curated) {
   // The bloom is rendered theme-independently so the colours read identically
   // in light and dark mode - only the page behind it changes, not the glow.
-  // (dark is accepted for call-site compatibility but no longer tints colours.)
+  // When curated (Colour mode), the sky colours are already palette fg values,
+  // so they skip the vibrancy/legibility pass and are used as given.
   const legible = (c) => {
     const l = luminance(c);
     if (l < 0.4) return lerpHex(c, "#ffffff", (0.4 - l) * 1.5);
     return c;
   };
-  const c1 = hexToRgb(legible(vivid(sky.top, false))), c2 = hexToRgb(legible(vivid(sky.bottom, false)));
+  const prep = (c) => curated ? c : legible(vivid(c, false));
+  const c1 = hexToRgb(prep(sky.top)), c2 = hexToRgb(prep(sky.bottom));
   const mid = [0, 1, 2].map((i) => Math.sqrt((c1[i] * c1[i] + c2[i] * c2[i]) / 2));
   // Two plumes: c2 pools on the left, c1 upper-right, blends where they meet.
   // Lower plumes carry colour down so the glow keeps its hue as it descends.
@@ -2380,7 +2408,8 @@ function updateDynamicBackground() {
   if (p?.bloom) {
     // Bloom: same sky colours as the Dynamic theme, rendered as the top glow.
     // The page palette stays fixed off-white/off-black.
-    setDynamicGradient(bloomGradient(sky, !!p.dark));
+    const skyBloom = state.tinted ? paletteSky(sky, !!p.dark) : sky;
+    setDynamicGradient(bloomGradient(skyBloom, !!p.dark, state.tinted));
     applyBloomAccents(sky, !!p.dark);
     return;
   }

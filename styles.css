@@ -2223,23 +2223,19 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
    JS computes the colours, so there is no flash. Placed late so it wins
    equal-specificity ties over the base component rules. */
 :root[data-tint="on"] {
-  --card-bg: color-mix(in srgb, var(--tile, var(--ink)) 14%, transparent);
-  --card-bg-hi: color-mix(in srgb, var(--tile, var(--ink)) 20%, transparent);
-  --card-border: color-mix(in srgb, var(--tile, var(--ink)) 18%, transparent);
-  --hairline: color-mix(in srgb, var(--tile, var(--ink)) 20%, transparent);
-}
-/* On the near-black page a faint wash disappears, so the dark theme leans into
-   the tint harder to keep the tiles visibly coloured. */
-:root[data-tint="on"][data-theme="bloomdark"] {
-  --card-bg: color-mix(in srgb, var(--tile, var(--ink)) 24%, transparent);
-  --card-bg-hi: color-mix(in srgb, var(--tile, var(--ink)) 32%, transparent);
-  --card-border: color-mix(in srgb, var(--tile, var(--ink)) 30%, transparent);
-  --hairline: color-mix(in srgb, var(--tile, var(--ink)) 28%, transparent);
+  /* Tiles are the family bg, near-solid so they block the bloom behind them and
+     the tuned bg/fg contrast holds. A hair of translucency lets nested tiles
+     deepen and keeps them from feeling flat. */
+  --card-bg: color-mix(in srgb, var(--tile, var(--ink)) 88%, transparent);
+  --card-bg-hi: color-mix(in srgb, var(--tile, var(--ink)) 96%, transparent);
+  --card-border: color-mix(in srgb, var(--icon, var(--ink)) 20%, transparent);
+  --hairline: color-mix(in srgb, var(--icon, var(--ink)) 22%, transparent);
 }
 
-/* Weather + condition icons carry the second sky colour (the pop). */
-[data-tint="on"] .hero-icon,
-[data-tint="on"] .wx-icon,
+/* Weather + condition icons carry the icon colour. The hero icon is excluded:
+   it floats on the bloom (same hue) rather than on a tile, so it stays ink to
+   keep its contrast, like it is in the plain theme. */
+[data-tint="on"] .wx-icon:not(.hero-icon),
 [data-tint="on"] .metric .cond-ic,
 [data-tint="on"] .nowcast-ic { color: var(--icon, var(--ink)); }
 
