@@ -43,7 +43,7 @@ const el = {
   mWind: $("mWind"), mHumidity: $("mHumidity"), mFeels: $("mFeels"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   dayGraph: $("dayGraph"),
-  nowcast: $("nowcast"), nowcastLine: $("nowcastLine"), nowcastGraph: $("nowcastGraph"),
+  nowcast: $("nowcast"), nowcastLine: $("nowcastLine"), nowcastIc: document.querySelector(".nowcast-ic"),
   sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
@@ -2893,16 +2893,16 @@ function renderDayView() {
 }
 
 // ---- Precipitation nowcast ------------------------------------------------
-// A short-range read on rain in the next two hours, built from Open-Meteo's
-// 15-minute precipitation. Returns null when nothing is falling and nothing
-// is due, so the strip only appears when it actually has something to say.
-const NOWCAST_TR = 0.05; // mm per 15 min counted as meaningful precipitation
+// A single short-range message about rain right now or imminently, built from
+// Open-Meteo's 15-minute precipitation. Deliberately narrow: it only speaks
+// when rain is falling or about to, so it never just restates the day summary.
+const NOWCAST_TR = 0.05;        // mm per 15 min counted as meaningful precipitation
+const NOWCAST_SOON = 75;        // only announce a dry-now start within this many minutes
 
 function precipWord(cap) {
   const t = state.data?.current?.main?.temp;
   const c = t == null ? 20 : (state.units === "imperial" ? (t - 32) * 5 / 9 : t);
-  const snow = c <= 1;
-  const w = snow ? "snow" : "rain";
+  const w = c <= 1 ? "snow" : "rain";
   return cap ? w.charAt(0).toUpperCase() + w.slice(1) : w;
 }
 
@@ -2910,12 +2910,7 @@ function nowcastModel() {
   const mins = state.data?.minutely;
   if (!mins || mins.length < 2) return null;
   const now = Date.now() / 1000;
-  const horizon = now + 120 * 60;
-  // Current bucket is the last one that has already started; window runs from
-  // there through the next two hours.
-  let cur = 0;
-  for (let i = 0; i < mins.length; i++) { if (mins[i].dt <= now) cur = i; else break; }
-  const win = mins.slice(cur).filter((b) => b.dt <= horizon);
+  const win = mins.filter((b) => b.dt >= now - 900 && b.dt <= now + 120 * 60);
   if (win.length < 2) return null;
 
   const vals = win.map((b) => Math.max(0, b.precip || 0));
@@ -2924,38 +2919,25 @@ function nowcastModel() {
   const round5 = (m) => Math.max(5, Math.round(m / 5) * 5);
   const word = maxV > 2 ? `Heavy ${precipWord(false)}` : maxV > 0.6 ? precipWord(true) : `Light ${precipWord(false)}`;
 
-  let headline;
   if (rainingNow) {
     let stop = -1;
     for (let i = 1; i < vals.length; i++) { if (vals[i] <= NOWCAST_TR) { stop = i; break; } }
-    if (stop === -1) {
-      headline = `${word} for at least the next two hours.`;
-    } else {
-      const m = round5((win[stop].dt - now) / 60);
-      headline = m <= 5 ? `${word} easing off within minutes.` : `${word} easing off in about ${m} min.`;
-    }
-  } else {
-    let start = -1;
-    for (let i = 0; i < vals.length; i++) { if (vals[i] > NOWCAST_TR) { start = i; break; } }
-    if (start === -1) return null;
-    let end = start;
-    while (end < vals.length && vals[end] > NOWCAST_TR) end++;
-    const dur = (end - start) * 15;
-    const m = round5((win[start].dt - now) / 60);
-    const lead = m <= 5 ? `${word} starting within minutes` : `${word} starting in about ${m} min`;
-    const tail = end >= vals.length ? ", lasting a while" : dur <= 15 ? ", a brief burst" : `, about ${dur} min of it`;
-    headline = `${lead}${tail}.`;
+    if (stop === -1) return { headline: `${word} for at least the next two hours.` };
+    const m = round5((win[stop].dt - now) / 60);
+    return { headline: m <= 5 ? `${word} easing off within minutes.` : `${word} easing off in about ${m} min.` };
   }
 
-  // Densify to a smooth minute-scale curve by linearly walking the 15-minute
-  // steps, so the strip reads as a live trace rather than eight coarse blocks.
-  const pts = [];
-  const stepMin = win.length > 1 ? (win[1].dt - win[0].dt) / 60 : 15;
-  for (let i = 0; i < win.length; i++) {
-    const t0 = Math.max(0, (win[i].dt - now) / 60);
-    pts.push({ t: t0, v: vals[i] });
-  }
-  return { pts, headline, maxV, span: 120 };
+  let start = -1;
+  for (let i = 0; i < vals.length; i++) { if (vals[i] > NOWCAST_TR) { start = i; break; } }
+  if (start === -1) return null;
+  const m = round5((win[start].dt - now) / 60);
+  if (m > NOWCAST_SOON) return null;   // still hours off; the day summary already covers it
+  let end = start;
+  while (end < vals.length && vals[end] > NOWCAST_TR) end++;
+  const dur = (end - start) * 15;
+  const lead = m <= 5 ? `${word} starting within minutes` : `${word} starting in about ${m} min`;
+  const tail = end >= vals.length ? ", lasting a while" : dur <= 15 ? ", a brief burst" : `, about ${dur} min of it`;
+  return { headline: `${lead}${tail}.` };
 }
 
 function renderNowcast() {
@@ -2965,63 +2947,7 @@ function renderNowcast() {
   if (!model) { host.hidden = true; return; }
   host.hidden = false;
   if (el.nowcastLine) el.nowcastLine.textContent = model.headline;
-  drawNowcast(model);
-}
-
-function drawNowcast(model) {
-  const canvas = el.nowcastGraph;
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const rect = canvas.getBoundingClientRect();
-  if (!rect.width || !rect.height) return;
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width = Math.max(1, Math.round(rect.width * dpr));
-  canvas.height = Math.max(1, Math.round(rect.height * dpr));
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, rect.width, rect.height);
-
-  const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
-  const padL = 4, padR = 4, padTop = 8, padB = 20;
-  const w = rect.width - padL - padR, h = rect.height - padTop - padB;
-  const span = model.span;
-  const yMax = Math.max(model.maxV * 1.2, 0.5);
-  const X = (t) => padL + (t / span) * w;
-  const Y = (v) => padTop + h - (Math.min(v, yMax) / yMax) * h;
-  const base = padTop + h;
-
-  // Faint baseline and the same vertical tick rules the other charts use.
-  const ticks = [0, 30, 60, 90, 120];
-  ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.globalAlpha = 0.08;
-  ticks.forEach((t) => { ctx.beginPath(); ctx.moveTo(X(t), padTop); ctx.lineTo(X(t), base); ctx.stroke(); });
-  ctx.globalAlpha = 0.12;
-  ctx.beginPath(); ctx.moveTo(padL, base); ctx.lineTo(rect.width - padR, base); ctx.stroke();
-  ctx.globalAlpha = 1;
-
-  const pts = model.pts;
-  const curve = () => {
-    pts.forEach((p, i) => {
-      const px = X(p.t), py = Y(p.v);
-      if (i === 0) ctx.moveTo(px, py);
-      else { const cx = (X(pts[i - 1].t) + px) / 2; ctx.bezierCurveTo(cx, Y(pts[i - 1].v), cx, py, px, py); }
-    });
-  };
-  ctx.beginPath(); curve();
-  ctx.lineTo(X(pts[pts.length - 1].t), base); ctx.lineTo(X(pts[0].t), base); ctx.closePath();
-  const g = ctx.createLinearGradient(0, padTop, 0, base);
-  g.addColorStop(0, hexA(ink, 0.28)); g.addColorStop(1, hexA(ink, 0.02));
-  ctx.fillStyle = g; ctx.fill();
-  ctx.beginPath(); curve(); ctx.strokeStyle = ink; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
-
-  // "Now" anchor at the left edge.
-  ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(X(0), Y(pts[0].v), 3.5, 0, Math.PI * 2); ctx.fill();
-
-  ctx.fillStyle = hexA(ink, 0.55); ctx.font = "700 11px Inter, system-ui"; ctx.textBaseline = "alphabetic";
-  const labels = { 0: "Now", 30: "30 min", 60: "1 hr", 90: "90 min", 120: "2 hr" };
-  ticks.forEach((t) => {
-    ctx.textAlign = t === 0 ? "left" : t === 120 ? "right" : "center";
-    const x = t === 0 ? padL : t === 120 ? rect.width - padR : X(t);
-    ctx.fillText(labels[t], x, rect.height - 6);
-  });
+  if (el.nowcastIc) el.nowcastIc.className = `ph-fill ${precipWord(false) === "snow" ? "ph-snowflake" : "ph-drop"} nowcast-ic`;
 }
 
 // Round a data range to a clean [min, max] and step (1/2/5 x 10^n) so an axis

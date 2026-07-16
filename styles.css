@@ -1200,30 +1200,32 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 .radar-preview:active { transform: scale(0.98); }
 .radar-map { position: absolute; inset: 0; }
 
-/* Precipitation nowcast strip. Only shown when rain is falling or due within
-   the next two hours, so it reads as a live, meaningful heads-up. */
+/* Precipitation nowcast. A single short-range message, shown only when rain
+   is falling or imminent, so it never just restates the daily summary. */
+.b-nowcast[hidden] { display: none; }   /* .block sets display:flex, which would otherwise defeat `hidden` */
 .nowcast-card {
-  display: block;
+  display: flex;
+  align-items: center;
+  gap: var(--s-4);
   width: 100%;
-  padding: var(--s-4) 0 var(--s-3);
+  padding: var(--s-4) var(--s-5);
   border: 2px solid var(--card-border);
   border-radius: var(--r-lg);
   background: var(--card-bg);
   color: var(--ink);
 }
+.nowcast-ic {
+  flex: none;
+  font-size: 1.6rem;
+  color: var(--ink);
+}
 .nowcast-line {
   margin: 0;
-  padding: 0 var(--s-5) var(--s-2);
   font-family: Rubik, Inter, system-ui, sans-serif;
   font-size: var(--t-body);
   font-weight: 700;
-  line-height: 1.25;
+  line-height: 1.3;
   color: var(--ink);
-}
-.nowcast-card #nowcastGraph {
-  display: block;
-  width: 100%;
-  height: 92px;
 }
 
 /* Day overview - the meteogram card leading the details column. */
