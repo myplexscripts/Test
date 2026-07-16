@@ -2251,17 +2251,9 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 [data-tint="on"] .wx-snow    { color: var(--icon-wx-snow, var(--icon)); }
 [data-tint="on"] .wx-mist    { color: var(--icon-wx-mist, var(--icon)); }
 
-/* The hero glyph floats on the bloom (a saturated mid-tone), where no single
-   hue can hit contrast by recolouring alone. Give it a soft halo in the page
-   colour so it keeps its condition hue but reads on any bloom - a light
-   clearing on the light page, a dark one on the dark page. Card glyphs sit on
-   near-solid tiles and need no halo. */
-[data-tint="on"] .hero-icon {
-  filter:
-    drop-shadow(0 0 3px color-mix(in srgb, var(--bg) 92%, transparent))
-    drop-shadow(0 0 8px color-mix(in srgb, var(--bg) 78%, transparent))
-    drop-shadow(0 0 16px color-mix(in srgb, var(--bg) 55%, transparent));
-}
+/* The hero glyph floats on the bloom, so its colour is contrast-checked against
+   the bloom (not the tile) in JS and exposed here. */
+[data-tint="on"] .hero-icon { color: var(--hero-icon, var(--icon)); }
 
 @keyframes eFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes ePop  { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }

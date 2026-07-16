@@ -2183,15 +2183,16 @@ function contrastRatio(a, b) {
   const la = wcagLum(a), lb = wcagLum(b);
   return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
 }
-// Most palette pairs already clear it, but a few of the brightest light families
-// (orange/amber/lime) land near 2.8:1 fg-on-bg. Nudge just those, darkening the
-// icon on the light page / lightening it on the dark page, hue held, until it
-// reaches a comfortable floor for a large graphical mark.
-function ensureContrast(fg, bg, target, dark) {
+// Nudge a colour's lightness until it clears a contrast target against a given
+// background, hue and chroma held. Direction is set by the background: darken
+// the mark on a light background, lighten it on a dark one, whichever way the
+// ratio actually climbs.
+function ensureContrast(fg, bg, target) {
+  const darken = wcagLum(bg) > 0.16;
   let [h, s, l] = rgbToHsl(hexToRgb(fg));
   let c = fg, guard = 0;
-  while (contrastRatio(c, bg) < target && guard++ < 48) {
-    l = dark ? Math.min(0.98, l + 0.02) : Math.max(0.02, l - 0.02);
+  while (contrastRatio(c, bg) < target && guard++ < 60) {
+    l = darken ? Math.max(0, l - 0.02) : Math.min(1, l + 0.02);
     c = rgbToHex(hslToRgb(h, s, l));
   }
   return c;
@@ -2244,13 +2245,26 @@ function applyBloomAccents(sky, dark) {
   // effective surface and top up only the few weak light pairs.
   const base = PALETTES[themeKind()] || PALETTES.bloom;
   const eff = lerpHex(base.bg, tile, 0.88);
-  const icon = ensureContrast(dark ? f.dfg : f.lfg, eff, 4, dark);
+  const icon = ensureContrast(dark ? f.dfg : f.lfg, eff, 4);
   r.setProperty("--tile", tile);
   r.setProperty("--icon", icon);
   // Per-condition weather-glyph colours, each contrast-checked on this tile.
   for (const cat in WX_ICON_FAMILY) {
     const fam = WX_ICON_FAMILY[cat] ? TINT_FAMILIES[WX_ICON_FAMILY[cat]] : TINT_NEUTRAL;
-    r.setProperty(`--icon-${cat}`, ensureContrast(dark ? fam.dfg : fam.lfg, eff, 4, dark));
+    r.setProperty(`--icon-${cat}`, ensureContrast(dark ? fam.dfg : fam.lfg, eff, 4));
+  }
+  // The hero glyph sits on the bloom, not a tile. Contrast its condition colour
+  // against the bloom colour behind it (upper area = the dominant sky plume),
+  // so it stays readable there without any halo.
+  const cur = state.data?.current;
+  if (cur) {
+    const w = cur.weather?.[0] || {};
+    const sys = cur.sys || {};
+    const isNight = sys.sunrise && sys.sunset ? (cur.dt < sys.sunrise || cur.dt >= sys.sunset) : false;
+    const heroFam = WX_ICON_FAMILY[wxCategory(wxResolve(w, isNight))];
+    const fam = heroFam ? TINT_FAMILIES[heroFam] : TINT_NEUTRAL;
+    const bloomEff = lerpHex(base.bg, paletteSky(sky).top, 0.85);
+    r.setProperty("--hero-icon", ensureContrast(dark ? fam.dfg : fam.lfg, bloomEff, 4));
   }
 }
 function setDynamicPalette(dark) {
