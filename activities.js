@@ -59,7 +59,7 @@ window.WEATHER_ACTIVITIES = [
     suits: (p) => p.precip < 0.1 && p.tempC >= 23 && p.cloud < 70,
     comfort: (p, c) => c.band(p.tempC, 23, 28, 34, 40) * c.band(100 - p.cloud, 25, 55, 100, 100),
     bad: "Not today",
-    explain: "It really wants a genuinely hot, bright afternoon — not just a warm one."
+    explain: "It really wants a genuinely hot, bright afternoon - not just a warm one."
   },
   {
     id: "bbq",
@@ -93,7 +93,7 @@ window.WEATHER_ACTIVITIES = [
     suits: (p) => p.precip < 0.05 && p.wind < 18 && p.tempC <= 20,
     comfort: (p, c) => c.band(p.tempC, -2, 4, 15, 20) * (1 - 0.4 * (p.wind / 18)),
     bad: "Not tonight",
-    explain: "A calm, dry, cool evening — crisp enough to want a fire. Check for local fire bans first."
+    explain: "A calm, dry, cool evening - crisp enough to want a fire. Check for local fire bans first."
   },
   {
     id: "garden",
@@ -220,7 +220,7 @@ window.WEATHER_ACTIVITIES = [
     suits: (p) => p.precip < 0.2 && p.tempC > -12 && p.tempC < 26,
     comfort: (p, c) => c.band(p.tempC, -8, 4, 19, 24),
     bad: "Keep it short today",
-    explain: "Kind temperatures for paws and pup — sun-baked pavement above ~25° and hard frost are both rough on their feet."
+    explain: "Kind temperatures for paws and pup - sun-baked pavement above ~25° and hard frost are both rough on their feet."
   },
   {
     id: "playground",
@@ -268,7 +268,7 @@ window.WEATHER_ACTIVITIES = [
     suits: (p) => p.precip < 0.1 && p.wind < 20,
     comfort: (p) => 1 - 0.5 * (p.wind / 20),
     bad: "Not this morning",
-    explain: "Birds are busiest in the calm hour after sunrise — the dawn chorus — and still air carries their calls further."
+    explain: "Birds are busiest in the calm hour after sunrise - the dawn chorus - and still air carries their calls further."
   },
   {
     id: "butterfly",
@@ -304,7 +304,7 @@ window.WEATHER_ACTIVITIES = [
     suits: (p) => p.cloud < 65 && p.precip < 0.1,
     comfort: (p, c) => c.band(100 - p.cloud, 25, 45, 95, 100),
     bad: "Clouded out",
-    explain: "Low sun sends light through more atmosphere, scattering out the blue and leaving warm tones — as long as cloud isn't blocking the horizon."
+    explain: "Low sun sends light through more atmosphere, scattering out the blue and leaving warm tones - as long as cloud isn't blocking the horizon."
   },
   {
     id: "bluehour",
@@ -325,7 +325,7 @@ window.WEATHER_ACTIVITIES = [
     relevance: () => 0.8,
     suits: (p) => p.visibility != null && p.visibility < 1000,
     bad: "No fog expected",
-    explain: "Radiation fog settles on clear, calm nights as the ground cools, dropping visibility below 1 km — the WMO threshold for fog."
+    explain: "Radiation fog settles on clear, calm nights as the ground cools, dropping visibility below 1 km - the WMO threshold for fog."
   },
 
   // Winter

@@ -43,6 +43,7 @@ const el = {
   mWind: $("mWind"), mHumidity: $("mHumidity"), mFeels: $("mFeels"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   dayGraph: $("dayGraph"),
+  nowcast: $("nowcast"), nowcastLine: $("nowcastLine"), nowcastGraph: $("nowcastGraph"),
   sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
@@ -103,13 +104,13 @@ function ecccLayer() {
 }
 
 // Dismiss the splash and let the entrance animations play. Idempotent, so the
-// first of {content rendered, safety timeout} wins — no lingering splash.
+// first of {content rendered, safety timeout} wins - no lingering splash.
 let appRevealed = false;
 function revealApp() {
   if (appRevealed) return;
   appRevealed = true;
   // Wait two frames so the freshly built content is actually painted before the
-  // splash lifts — otherwise you'd watch the page populate through the fade.
+  // splash lifts - otherwise you'd watch the page populate through the fade.
   requestAnimationFrame(() => requestAnimationFrame(() => {
     document.body.classList.remove("booting");
     if (el.splash) {
@@ -222,9 +223,9 @@ function wireEvents() {
   el.radarMore.onclick = () => openRadar();
   el.radarBack.onclick = closeRadar;
   el.layerSeg.querySelectorAll("[data-layer]").forEach((b) => b.onclick = () => {
-    // A tap means the user found the picker — cancel the one-time reveal timer.
+    // A tap means the user found the picker - cancel the one-time reveal timer.
     if (radarHintTimer) { clearTimeout(radarHintTimer); radarHintTimer = null; }
-    // Collapsed: only the active icon is tappable — the tap opens the picker.
+    // Collapsed: only the active icon is tappable - the tap opens the picker.
     // Expanded: the tap chooses a layer, then the picker folds back up.
     if (!layerExpanded) { setLayerExpanded(true); return; }
     if (b.dataset.layer !== radar.mode) applyMode(b.dataset.layer);
@@ -268,7 +269,7 @@ function wireEvents() {
 
   window.addEventListener("resize", () => {
     if (radar.preview) radar.preview.invalidateSize();
-    if (state.data) { renderDayView(); }
+    if (state.data) { renderDayView(); renderNowcast(); }
     if (!state.sheetOpen) return;
     if (state.detail.metric === "uv") drawUvChart(state.data?.air?.hourly);
     else if (state.detail.metric !== "aqi") drawDetailChart();
@@ -530,7 +531,7 @@ const POLLUTANTS = {
   ozone: {
     name: "Ozone (O₃)",
     desc: "A harmful gas that forms when sunlight reacts with pollution from vehicles, industry and wildfire smoke. It can build up far from where the pollution started because wind can carry it long distances. It can irritate your lungs and make it harder to breathe.",
-    sources: "Vehicle exhaust, industrial emissions, gasoline vapours, wildfire smoke. Ozone itself isn't emitted directly — it forms in the air from these pollutants.",
+    sources: "Vehicle exhaust, industrial emissions, gasoline vapours, wildfire smoke. Ozone itself isn't emitted directly - it forms in the air from these pollutants.",
     bounds: [33, 66, 100, 120, 140, 160, 187, 213, 240]
   },
   nitrogen_dioxide: {
@@ -574,7 +575,7 @@ function airIndex(air) {
 
 function aqiBand(index) {
   if (index == null) return { label: "--", advice: "" };
-  if (index <= 3) return { label: "Low", advice: "Air quality is good — enjoy your usual activities outdoors." };
+  if (index <= 3) return { label: "Low", advice: "Air quality is good - enjoy your usual activities outdoors." };
   if (index <= 6) return { label: "Moderate", advice: "Unusually sensitive people should consider easing back on strenuous activity outdoors." };
   if (index <= 9) return { label: "High", advice: "Anyone with heart or lung problems should cut down on strenuous activity outdoors." };
   return { label: "Very high", advice: "Reduce strenuous activity outdoors, especially if you have heart or lung problems." };
@@ -668,6 +669,7 @@ function render(data, opts) {
 
   renderHourly();
   renderDaily();
+  renderNowcast();
   renderDayView();
   renderWind(current);
   renderSun(current);
@@ -682,7 +684,7 @@ function render(data, opts) {
 
   // Drop the splash once real content is painted. Hold it through the initial
   // cached render (stale) so the splash lifts on the live data instead of
-  // letting you watch values swap in behind it — the fetch render or the
+  // letting you watch values swap in behind it - the fetch render or the
   // safety timeout in init() takes over.
   if (!opts?.cached) revealApp();
 }
@@ -1057,7 +1059,7 @@ function selectActivities(force) {
     capeMax: pts.length ? Math.max(...pts.map((p) => p.cape || 0)) : 0,
     gustMax: pts.length ? Math.max(...pts.map((p) => p.gust || 0)) : 0,
     // band(v, lo, idealLo, idealHi, hi): 1 inside the ideal range, ramping to 0
-    // at the outer edges — lets an activity say how *pleasant* a value is, not
+    // at the outer edges - lets an activity say how *pleasant* a value is, not
     // just whether it passes a threshold.
     band: bandScore,
     fmtH
@@ -1117,7 +1119,7 @@ function clamp01(x) { return x < 0 ? 0 : x > 1 ? 1 : x; }
 // suggestion smoothly instead of flipping a switch.
 
 // Chance of rain: a bone-dry hour is still a gamble if it's likely to rain.
-// pop is 0..1 — full confidence to ~15%, sliding to a fifth by ~70%.
+// pop is 0..1 - full confidence to ~15%, sliding to a fifth by ~70%.
 function rainConfidence(pop) {
   if (pop == null) return 1;
   return 1 - 0.85 * clamp01((pop - 0.15) / 0.55);
@@ -1156,7 +1158,7 @@ function hourFit(a, p, ctx) {
 // Best contiguous stretch where the hourly fit clears a usable bar (bridging a
 // single dip). Returns a label plus a graded quality blended from how much of
 // the day works (coverage), how good it is on average (mean) and at its best
-// (peak) — a smooth read rather than a yes/no.
+// (peak) - a smooth read rather than a yes/no.
 function fitWindow(pool, fitFn, fullLabel, fmtH) {
   if (!pool.length) return null;
   const f = pool.map(fitFn);
@@ -1311,9 +1313,9 @@ function renderDetails(current, forecast) {
   items.push(["clouds", "ph-cloud", "Cloud cover", cloudPct != null ? `${cloudPct}%` : "--", cloudDescriptor(cloudPct), null, cloudPct != null ? rangeMeter(cloudPct, 0, 100) : ""]);
 
   // A single "scale" tile grows to double width when its reading is high enough
-  // to be worth surfacing. If several qualify, the highest-priority one wins —
+  // to be worth surfacing. If several qualify, the highest-priority one wins -
   // only ever one large tile at a time.
-  // Thresholds are deliberately low — this is a stylistic highlight, not an
+  // Thresholds are deliberately low - this is a stylistic highlight, not an
   // alert, so a tile gets featured whenever a reading is merely elevated.
   const promo = [];
   if (aq.index != null && aq.index >= 4) promo.push(["aqi", 5]);
@@ -1643,7 +1645,7 @@ function applyPalette(kind) {
   if (p.bloom) { syncBloomFade(); document.documentElement.removeAttribute("data-dyn"); }
   else r.removeProperty("--bloom-fade");
   updateMapTheme();
-  if (state.data) { renderDayView(); }
+  if (state.data) { renderDayView(); renderNowcast(); }
 
   if (p.isDynamic) startDynamicTheme(); else stopDynamicTheme();
 }
@@ -1871,7 +1873,7 @@ function renderAqiSheet(air) {
   const { index, pollutant } = airIndex(air);
   if (index == null) { el.sheetNote.textContent = "Air quality data is unavailable right now."; el.sheetList.innerHTML = ""; return; }
   const b = aqiBand(index);
-  el.sheetNote.textContent = `The air quality index is ${index} out of 10 — ${b.label.toLowerCase()}.`;
+  el.sheetNote.textContent = `The air quality index is ${index} out of 10 - ${b.label.toLowerCase()}.`;
 
   const scale = scaleBar((index / 10) * 100, ["1", "Low", "High", "10"]);
 
@@ -1893,7 +1895,7 @@ function renderAqiSheet(air) {
     scale +
     section("What this means", `<p class="info-text">${b.advice}</p>`) +
     primary +
-    section("About the 1–10 scale", `<p class="info-text">This is the Daily Air Quality Index. 1–3 is low, 4–6 moderate, 7–9 high and 10 very high. The overall number reflects whichever pollutant is worst right now.</p>`) +
+    section("About the 1-10 scale", `<p class="info-text">This is the Daily Air Quality Index. 1-3 is low, 4-6 moderate, 7-9 high and 10 very high. The overall number reflects whichever pollutant is worst right now.</p>`) +
     section("Pollutants right now", breakdown, true);
 }
 
@@ -2022,7 +2024,7 @@ function bandsFromSunTimes(t, tz) {
   const bands = []; let cur = 0;
   for (const b of raw) { if (b[0] > cur + 0.001) bands.push([cur, b[0], deep]); bands.push(b); cur = Math.max(cur, b[1]); }
   if (cur < 24) bands.push([cur, 24, deep]);
-  // Night wraps through midnight — merge the evening + morning night segments
+  // Night wraps through midnight - merge the evening + morning night segments
   // into one continuous band (end > 24) so there's no split at 12a.
   if (bands.length > 1) {
     const first = bands[0], last = bands[bands.length - 1];
@@ -2124,7 +2126,7 @@ function hslToRgb(h, s, l) {
 // The colour halfway between two RGB colours along the hue wheel. When the two
 // hues are near-complementary there are two candidate midpoints (e.g. orange to
 // blue can meet in violet or in green); we take the one farther from green,
-// which is how skies actually blend — warm + cool meets in pink/violet.
+// which is how skies actually blend - warm + cool meets in pink/violet.
 function hueMidColor(a, b) {
   const A = rgbToHsl(a), B = rgbToHsl(b);
   let d = B[0] - A[0];
@@ -2135,7 +2137,7 @@ function hueMidColor(a, b) {
     const distGreen = (x) => { const dd = Math.abs(x - 1 / 3); return Math.min(dd, 1 - dd); };
     if (distGreen(alt) > distGreen(h)) h = alt;
   }
-  // Average saturation (both inputs are already vivid) — full max-sat made the
+  // Average saturation (both inputs are already vivid) - full max-sat made the
   // seam louder than the skies it bridges.
   return hslToRgb(h, (A[1] + B[1]) / 2, (A[2] + B[2]) / 2);
 }
@@ -2163,7 +2165,7 @@ function setDynamicPalette(dark) {
   document.documentElement.setAttribute("data-dyn", dark ? "dark" : "light");
   const changed = state.dark !== dark;
   state.dark = dark;
-  if (changed) { updateMapTheme(); if (state.data) { renderDayView(); } }
+  if (changed) { updateMapTheme(); if (state.data) { renderDayView(); renderNowcast(); } }
 }
 function skyGradientAt(bands, nowH) {
   const anchors = bands.map((b) => ({ h: (b[0] + b[1]) / 2, key: b[2] }));
@@ -2185,7 +2187,7 @@ function skyGradientAt(bands, nowH) {
 
 // Bloom rendered as a gradient mesh: colour is pooled around a handful of
 // control points via inverse-distance weighting, giving soft organic plumes
-// instead of hard radial rings — the "ink in water" look of the reference mock.
+// instead of hard radial rings - the "ink in water" look of the reference mock.
 // The two Dynamic sky colours (time-of-day sky with the weather veil already
 // applied) seed the plumes; a per-pixel vertical alpha fade dissolves the bloom
 // into the flat page. Returned as a data-URL so it drops straight into the
@@ -2199,7 +2201,7 @@ const TIER_BASE = { yellow: "#d99500", orange: "#e7601a", red: "#d8342a" };
 
 function bloomGradient(sky, dark) {
   // The bloom is rendered theme-independently so the colours read identically
-  // in light and dark mode — only the page behind it changes, not the glow.
+  // in light and dark mode - only the page behind it changes, not the glow.
   // (dark is accepted for call-site compatibility but no longer tints colours.)
   const legible = (c) => {
     const l = luminance(c);
@@ -2230,7 +2232,7 @@ function bloomGradient(sky, dark) {
     for (let x = 0; x < W; x++) {
       const nx = x / W;
       // Blend in linear-light (squared) space: gamma-naive RGB averaging is
-      // what dips the meeting zone into dark grey mud — mixing the squares
+      // what dips the meeting zone into dark grey mud - mixing the squares
       // and square-rooting back keeps the crossover bright and airy.
       let r = 0, g = 0, b = 0, wsum = 0;
       for (const p of grid) {
@@ -2433,7 +2435,7 @@ function renderSunSheet(keepHead) {
   const sunHand = `<line x1="${CX}" y1="${CY}" x2="${sx}" y2="${sy}" class="sc-hand" data-cap="Now · ${fmtClock(nowUnix, tz)}"/><circle cx="${sx}" cy="${sy}" r="8" class="sc-sun"/>`;
   const noonCap = t.noon != null ? `Solar noon · ${fmtClock(t.noon, tz)}` : "";
 
-  // No badges/markers — a tight viewBox so the dial fills the width. Patterns are
+  // No badges/markers - a tight viewBox so the dial fills the width. Patterns are
   // always drawn and shown/hidden with a class, so the toggle can animate in place.
   const svg = `<svg viewBox="-6 -6 312 312" class="sunclock" role="img" aria-label="24-hour sun clock">
     <defs>${SUN_PATTERN_DEFS}</defs>
@@ -2518,7 +2520,7 @@ function renderSunSheet(keepHead) {
     });
   });
   // Band patterns: the overlays are always drawn, so just slide the switch and
-  // show/hide them with a class — no re-render, so the thumb animates.
+  // show/hide them with a class - no re-render, so the thumb animates.
   const patBtn = el.sheetList.querySelector("#scPattern");
   if (patBtn) patBtn.addEventListener("click", () => {
     state.clockPattern = !state.clockPattern;
@@ -2855,7 +2857,7 @@ let chartGeom = null, chartRedraw = null;
 // Reuses drawChart so the home card, the day sheet and the daily forecast all
 // share one look: temperature (bold) over feels-like (soft), the range shaded
 // between them, with precipitation bars. Just fed today's 24 hours.
-// UV for a given hour from the air feed (today only — that feed is one day of
+// UV for a given hour from the air feed (today only - that feed is one day of
 // local hours). Returns null when unavailable so the UV line simply drops out.
 function uvForHour(dt) {
   const air = state.data?.air?.hourly;
@@ -2888,6 +2890,138 @@ function renderDayView() {
     uv: uvForHour(p.dt)
   }));
   drawChart(rows, METRICS.temp, true, true, el.dayGraph);
+}
+
+// ---- Precipitation nowcast ------------------------------------------------
+// A short-range read on rain in the next two hours, built from Open-Meteo's
+// 15-minute precipitation. Returns null when nothing is falling and nothing
+// is due, so the strip only appears when it actually has something to say.
+const NOWCAST_TR = 0.05; // mm per 15 min counted as meaningful precipitation
+
+function precipWord(cap) {
+  const t = state.data?.current?.main?.temp;
+  const c = t == null ? 20 : (state.units === "imperial" ? (t - 32) * 5 / 9 : t);
+  const snow = c <= 1;
+  const w = snow ? "snow" : "rain";
+  return cap ? w.charAt(0).toUpperCase() + w.slice(1) : w;
+}
+
+function nowcastModel() {
+  const mins = state.data?.minutely;
+  if (!mins || mins.length < 2) return null;
+  const now = Date.now() / 1000;
+  const horizon = now + 120 * 60;
+  // Current bucket is the last one that has already started; window runs from
+  // there through the next two hours.
+  let cur = 0;
+  for (let i = 0; i < mins.length; i++) { if (mins[i].dt <= now) cur = i; else break; }
+  const win = mins.slice(cur).filter((b) => b.dt <= horizon);
+  if (win.length < 2) return null;
+
+  const vals = win.map((b) => Math.max(0, b.precip || 0));
+  const maxV = Math.max(...vals);
+  const rainingNow = vals[0] > NOWCAST_TR;
+  const round5 = (m) => Math.max(5, Math.round(m / 5) * 5);
+  const word = maxV > 2 ? `Heavy ${precipWord(false)}` : maxV > 0.6 ? precipWord(true) : `Light ${precipWord(false)}`;
+
+  let headline;
+  if (rainingNow) {
+    let stop = -1;
+    for (let i = 1; i < vals.length; i++) { if (vals[i] <= NOWCAST_TR) { stop = i; break; } }
+    if (stop === -1) {
+      headline = `${word} for at least the next two hours.`;
+    } else {
+      const m = round5((win[stop].dt - now) / 60);
+      headline = m <= 5 ? `${word} easing off within minutes.` : `${word} easing off in about ${m} min.`;
+    }
+  } else {
+    let start = -1;
+    for (let i = 0; i < vals.length; i++) { if (vals[i] > NOWCAST_TR) { start = i; break; } }
+    if (start === -1) return null;
+    let end = start;
+    while (end < vals.length && vals[end] > NOWCAST_TR) end++;
+    const dur = (end - start) * 15;
+    const m = round5((win[start].dt - now) / 60);
+    const lead = m <= 5 ? `${word} starting within minutes` : `${word} starting in about ${m} min`;
+    const tail = end >= vals.length ? ", lasting a while" : dur <= 15 ? ", a brief burst" : `, about ${dur} min of it`;
+    headline = `${lead}${tail}.`;
+  }
+
+  // Densify to a smooth minute-scale curve by linearly walking the 15-minute
+  // steps, so the strip reads as a live trace rather than eight coarse blocks.
+  const pts = [];
+  const stepMin = win.length > 1 ? (win[1].dt - win[0].dt) / 60 : 15;
+  for (let i = 0; i < win.length; i++) {
+    const t0 = Math.max(0, (win[i].dt - now) / 60);
+    pts.push({ t: t0, v: vals[i] });
+  }
+  return { pts, headline, maxV, span: 120 };
+}
+
+function renderNowcast() {
+  const host = el.nowcast;
+  if (!host) return;
+  const model = nowcastModel();
+  if (!model) { host.hidden = true; return; }
+  host.hidden = false;
+  if (el.nowcastLine) el.nowcastLine.textContent = model.headline;
+  drawNowcast(model);
+}
+
+function drawNowcast(model) {
+  const canvas = el.nowcastGraph;
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const rect = canvas.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width = Math.max(1, Math.round(rect.width * dpr));
+  canvas.height = Math.max(1, Math.round(rect.height * dpr));
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, rect.width, rect.height);
+
+  const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
+  const padL = 4, padR = 4, padTop = 8, padB = 20;
+  const w = rect.width - padL - padR, h = rect.height - padTop - padB;
+  const span = model.span;
+  const yMax = Math.max(model.maxV * 1.2, 0.5);
+  const X = (t) => padL + (t / span) * w;
+  const Y = (v) => padTop + h - (Math.min(v, yMax) / yMax) * h;
+  const base = padTop + h;
+
+  // Faint baseline and the same vertical tick rules the other charts use.
+  const ticks = [0, 30, 60, 90, 120];
+  ctx.strokeStyle = ink; ctx.lineWidth = 1; ctx.globalAlpha = 0.08;
+  ticks.forEach((t) => { ctx.beginPath(); ctx.moveTo(X(t), padTop); ctx.lineTo(X(t), base); ctx.stroke(); });
+  ctx.globalAlpha = 0.12;
+  ctx.beginPath(); ctx.moveTo(padL, base); ctx.lineTo(rect.width - padR, base); ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  const pts = model.pts;
+  const curve = () => {
+    pts.forEach((p, i) => {
+      const px = X(p.t), py = Y(p.v);
+      if (i === 0) ctx.moveTo(px, py);
+      else { const cx = (X(pts[i - 1].t) + px) / 2; ctx.bezierCurveTo(cx, Y(pts[i - 1].v), cx, py, px, py); }
+    });
+  };
+  ctx.beginPath(); curve();
+  ctx.lineTo(X(pts[pts.length - 1].t), base); ctx.lineTo(X(pts[0].t), base); ctx.closePath();
+  const g = ctx.createLinearGradient(0, padTop, 0, base);
+  g.addColorStop(0, hexA(ink, 0.28)); g.addColorStop(1, hexA(ink, 0.02));
+  ctx.fillStyle = g; ctx.fill();
+  ctx.beginPath(); curve(); ctx.strokeStyle = ink; ctx.lineWidth = 3; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke();
+
+  // "Now" anchor at the left edge.
+  ctx.fillStyle = ink; ctx.beginPath(); ctx.arc(X(0), Y(pts[0].v), 3.5, 0, Math.PI * 2); ctx.fill();
+
+  ctx.fillStyle = hexA(ink, 0.55); ctx.font = "700 11px Inter, system-ui"; ctx.textBaseline = "alphabetic";
+  const labels = { 0: "Now", 30: "30 min", 60: "1 hr", 90: "90 min", 120: "2 hr" };
+  ticks.forEach((t) => {
+    ctx.textAlign = t === 0 ? "left" : t === 120 ? "right" : "center";
+    const x = t === 0 ? padL : t === 120 ? rect.width - padR : X(t);
+    ctx.fillText(labels[t], x, rect.height - 6);
+  });
 }
 
 // Round a data range to a clean [min, max] and step (1/2/5 x 10^n) so an axis
@@ -3215,7 +3349,7 @@ function navTo(tab) {
     return;
   }
   if (tab === "settings") {
-    // The drop-up floats over whatever screen is showing — no screen change,
+    // The drop-up floats over whatever screen is showing - no screen change,
     // and tapping the gear again folds it away.
     if (state.popOpen) closeSettingsPop(); else openSettingsPop();
   }
@@ -3300,7 +3434,7 @@ async function initRadarPreview() {
     });
     setPinMarker(map, "previewMarker");
     // The preview lives below the fold, so it's often created/measured before
-    // it has a real size and never fetches tiles — the card then looks like the
+    // it has a real size and never fetches tiles - the card then looks like the
     // black fallback. Re-measure and, while still blank, force the base layer to
     // redraw; as a last resort swap CARTO for OSM. This runs on a short timer
     // ramp, on resize, AND when the card actually scrolls into view.
@@ -3745,7 +3879,7 @@ function relTime(f) {
   const diffMin = Math.round((f.t - Date.now() / 1000) / 60);
   let rel;
   if (Math.abs(diffMin) <= 3) rel = "Now";
-  else if (diffMin < 0) rel = Math.abs(diffMin) >= 60 ? `−${Math.round(Math.abs(diffMin) / 60)}h` : `−${Math.abs(diffMin)}m`;
+  else if (diffMin < 0) rel = Math.abs(diffMin) >= 60 ? `-${Math.round(Math.abs(diffMin) / 60)}h` : `-${Math.abs(diffMin)}m`;
   else rel = `+${diffMin}m`;
   const clock = fmtClock(f.t, state.tz || 0);
   return f.kind === "forecast" ? `${rel} · ${clock} forecast` : `${rel} · ${clock}`;
@@ -3916,7 +4050,7 @@ async function runGeocode(q) {
   }
 }
 
-// "London, Ontario, Canada" style — region and country when they add signal.
+// "London, Ontario, Canada" style - region and country when they add signal.
 function geoLabel(r) {
   const parts = [r.name];
   if (r.admin1 && r.admin1 !== r.name) parts.push(r.admin1);

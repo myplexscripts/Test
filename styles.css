@@ -2,8 +2,8 @@
 :root {
   color-scheme: light;
 
-  /* Defaults match the Bloom (light) palette so the first paint — before JS
-     applies the theme — never flashes the old solid colour. Dark-preferring
+  /* Defaults match the Bloom (light) palette so the first paint - before JS
+     applies the theme - never flashes the old solid colour. Dark-preferring
      devices get the Bloom-dark values below. */
   --bg: #f7f5f0;
   --ink: #121212;
@@ -29,9 +29,9 @@
   --r-xl: 36px;
   --r-pill: 999px;
   /* Concentric radii (the "Apple" rule): a rounded element nested inside a
-     rounded, padded parent gets  inner = outer − padding , so the corners stay
-     parallel. Never give a nested box the same radius as its container — use
-     calc(<parent radius> − <parent padding>). Pills (--r-pill) and circles are
+     rounded, padded parent gets  inner = outer - padding , so the corners stay
+     parallel. Never give a nested box the same radius as its container - use
+     calc(<parent radius> - <parent padding>). Pills (--r-pill) and circles are
      exempt. Cards that sit directly on the page background are top-level and
      keep their full outer radius. */
 
@@ -69,7 +69,7 @@
   --nav-clear: 88px;   /* floating bottom nav (60px) + offset + breathing room */
 }
 
-/* Pre-JS default for dark-preferring devices — matches the Bloom-dark palette
+/* Pre-JS default for dark-preferring devices - matches the Bloom-dark palette
    so the splash and first paint are dark, not a light flash. */
 @media (prefers-color-scheme: dark) {
   :root {
@@ -159,7 +159,7 @@ i.ph, i[class*="ph-"] { line-height: 1; display: inline-block; }
 
 /* Splash: covers the first paint (theme flash + "--" loading placeholders) on
    the page background, then fades out the moment the app is ready. It is only
-   as long as it needs to be — revealApp() dismisses it as soon as content
+   as long as it needs to be - revealApp() dismisses it as soon as content
    renders (or a short safety timeout), and the entrance animations are held
    paused until then so they play in view rather than behind the splash. */
 .splash {
@@ -309,7 +309,6 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   .app-cols {
     display: grid;
     grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(0, 1fr);
-    grid-template-rows: auto auto auto auto;
     grid-template-areas:
       "now     dayview dayview"
       "now     hourly  hourly"
@@ -318,6 +317,17 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
     gap: var(--s-8);
     column-gap: var(--s-8);
   }
+  /* The nowcast is usually hidden; only claim a row for it when it is shown,
+     so there is no dead space at the top on dry days. */
+  .app-cols:has(.b-nowcast:not([hidden])) {
+    grid-template-areas:
+      "now     nowcast nowcast"
+      "now     dayview dayview"
+      "now     hourly  hourly"
+      "now     daily   radar"
+      "today   today   today";
+  }
+  .b-nowcast { grid-area: nowcast; }
   .b-dayview { grid-area: dayview; }
   .col-details { display: contents; }
   .col-now {
@@ -346,7 +356,6 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 @media (min-width: 1240px) {
   .app-cols {
     grid-template-columns: minmax(280px, 340px) minmax(0, 1fr) minmax(260px, 340px);
-    grid-template-rows: auto auto auto auto;
     /* Reading order: current conditions anchor top-left; today's overview
        graph leads the right area, then the next hours and radar stack under
        it while the week runs as a tall column; today details close out. */
@@ -356,6 +365,14 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
       "now     radar   daily"
       "today   today   today";
     column-gap: var(--s-8);
+  }
+  .app-cols:has(.b-nowcast:not([hidden])) {
+    grid-template-areas:
+      "now     nowcast nowcast"
+      "now     dayview dayview"
+      "now     hourly  daily"
+      "now     radar   daily"
+      "today   today   today";
   }
   .b-daily {
     align-self: start;
@@ -446,7 +463,7 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   text-overflow: ellipsis;
   cursor: pointer;
 }
-/* "Use my location" — the old crosshair locate control, sitting just left of
+/* "Use my location" - the old crosshair locate control, sitting just left of
    the place name. Tapping it (or the name) jumps to the device location. */
 .loc-btn {
   flex: none;
@@ -1183,7 +1200,33 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 .radar-preview:active { transform: scale(0.98); }
 .radar-map { position: absolute; inset: 0; }
 
-/* Day overview — the meteogram card leading the details column. */
+/* Precipitation nowcast strip. Only shown when rain is falling or due within
+   the next two hours, so it reads as a live, meaningful heads-up. */
+.nowcast-card {
+  display: block;
+  width: 100%;
+  padding: var(--s-4) 0 var(--s-3);
+  border: 2px solid var(--card-border);
+  border-radius: var(--r-lg);
+  background: var(--card-bg);
+  color: var(--ink);
+}
+.nowcast-line {
+  margin: 0;
+  padding: 0 var(--s-5) var(--s-2);
+  font-family: Rubik, Inter, system-ui, sans-serif;
+  font-size: var(--t-body);
+  font-weight: 700;
+  line-height: 1.25;
+  color: var(--ink);
+}
+.nowcast-card #nowcastGraph {
+  display: block;
+  width: 100%;
+  height: 92px;
+}
+
+/* Day overview - the meteogram card leading the details column. */
 .dayview-card {
   display: block;
   width: 100%;
@@ -2188,8 +2231,9 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .metrics .metric:nth-child(2) { animation: eFade 0.45s var(--ease-out) backwards 1085ms; }
 .metrics .metric:nth-child(3) { animation: eFade 0.45s var(--ease-out) backwards 1160ms; }
 
-/* Day overview leads the details column now, so it enters first. */
-[aria-label="Day overview"]   { animation: eFade 0.6s var(--ease-out) backwards 1250ms; }
+/* Nowcast (when shown) and the day overview lead the details column. */
+[aria-label="Precipitation nowcast"] { animation: eFade 0.6s var(--ease-out) backwards 1200ms; }
+[aria-label="Day overview"]   { animation: eFade 0.6s var(--ease-out) backwards 1280ms; }
 
 [aria-label="Hourly forecast"] .block-head,
 [aria-label="Weekly forecast"] .block-head { animation: eFade 0.5s var(--ease-out) backwards 1360ms; }
