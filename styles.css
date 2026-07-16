@@ -2234,12 +2234,22 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
   --hairline: color-mix(in srgb, var(--icon, var(--ink)) 22%, transparent);
 }
 
-/* Weather + condition icons carry the icon colour. The hero icon is excluded:
-   it floats on the bloom (same hue) rather than on a tile, so it stays ink to
-   keep its contrast, like it is in the plain theme. */
-[data-tint="on"] .wx-icon:not(.hero-icon),
+/* Metric + nowcast icons carry the sky accent; weather glyphs default to it. */
+[data-tint="on"] .wx-icon,
 [data-tint="on"] .metric .cond-ic,
 [data-tint="on"] .nowcast-ic { color: var(--icon, var(--ink)); }
+
+/* Weather glyphs, hero included, are coloured by what they depict rather than
+   the sky tint: a clear day is an amber sun, rain blue, snow icy, storm purple,
+   cloud/fog neutral. A condition colour differs in hue from the bloom, so the
+   hero reads well on it (unlike a same-hue sky accent). Contrast-checked in JS. */
+[data-tint="on"] .wx-clear-d { color: var(--icon-wx-clear-d, var(--icon)); }
+[data-tint="on"] .wx-clear-n { color: var(--icon-wx-clear-n, var(--icon)); }
+[data-tint="on"] .wx-clouds  { color: var(--icon-wx-clouds, var(--icon)); }
+[data-tint="on"] .wx-rain    { color: var(--icon-wx-rain, var(--icon)); }
+[data-tint="on"] .wx-storm   { color: var(--icon-wx-storm, var(--icon)); }
+[data-tint="on"] .wx-snow    { color: var(--icon-wx-snow, var(--icon)); }
+[data-tint="on"] .wx-mist    { color: var(--icon-wx-mist, var(--icon)); }
 
 @keyframes eFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes ePop  { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }

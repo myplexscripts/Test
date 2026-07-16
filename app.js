@@ -2215,6 +2215,14 @@ function paletteSky(sky, dark) {
   return { top: fg(sky.top), bottom: fg(sky.bottom) };
 }
 
+// Weather glyphs are coloured by what they depict, not the sky: a sun is amber,
+// rain blue, snow icy, storm purple, cloud/fog neutral. Keyed by the category
+// class wxCategory() already puts on every weather icon.
+const WX_ICON_FAMILY = {
+  "wx-clear-d": "amber", "wx-clear-n": "indigo", "wx-rain": "blue",
+  "wx-storm": "purple", "wx-snow": "cyan", "wx-clouds": null, "wx-mist": null
+};
+
 // Snap the live sky to one family and expose its pair: bg -> tiles, fg -> icons.
 // One family drives both, so the palette's tuned contrast holds for free.
 function applyBloomAccents(sky, dark) {
@@ -2236,6 +2244,11 @@ function applyBloomAccents(sky, dark) {
   const icon = ensureContrast(dark ? f.dfg : f.lfg, eff, 4, dark);
   r.setProperty("--tile", tile);
   r.setProperty("--icon", icon);
+  // Per-condition weather-glyph colours, each contrast-checked on this tile.
+  for (const cat in WX_ICON_FAMILY) {
+    const fam = WX_ICON_FAMILY[cat] ? TINT_FAMILIES[WX_ICON_FAMILY[cat]] : TINT_NEUTRAL;
+    r.setProperty(`--icon-${cat}`, ensureContrast(dark ? fam.dfg : fam.lfg, eff, 4, dark));
+  }
 }
 function setDynamicPalette(dark) {
   const r = document.documentElement.style;
