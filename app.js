@@ -2134,24 +2134,6 @@ function hslToRgb(h, s, l) {
   };
   return [hue(h + 1 / 3) * 255, hue(h) * 255, hue(h - 1 / 3) * 255];
 }
-// The colour halfway between two RGB colours along the hue wheel. When the two
-// hues are near-complementary there are two candidate midpoints (e.g. orange to
-// blue can meet in violet or in green); we take the one farther from green,
-// which is how skies actually blend - warm + cool meets in pink/violet.
-function hueMidColor(a, b) {
-  const A = rgbToHsl(a), B = rgbToHsl(b);
-  let d = B[0] - A[0];
-  if (d > 0.5) d -= 1; else if (d < -0.5) d += 1;
-  let h = (A[0] + d / 2 + 1) % 1;
-  if (Math.abs(d) > 0.28) {
-    const alt = (h + 0.5) % 1;
-    const distGreen = (x) => { const dd = Math.abs(x - 1 / 3); return Math.min(dd, 1 - dd); };
-    if (distGreen(alt) > distGreen(h)) h = alt;
-  }
-  // Average saturation (both inputs are already vivid) - full max-sat made the
-  // seam louder than the skies it bridges.
-  return hslToRgb(h, (A[1] + B[1]) / 2, (A[2] + B[2]) / 2);
-}
 // Take a sky colour straight from the weather-background logic and make it more
 // vibrant: boost saturation, and pull washed-out pastels a little off the white/
 // black extremes so the extra saturation actually reads. Same hue, no new palette.
@@ -2164,54 +2146,61 @@ function vivid(hex, dark) {
   return rgbToHex(hslToRgb(h, s2, Math.min(1, Math.max(0, l2))));
 }
 
-// Turn a raw sky colour into a legible UI accent: keep its hue, make sure it
-// carries enough chroma to read as colour, and pin its lightness into a band
-// that stays legible on the active page (deeper on the light page, brighter on
-// the dark one). This is what lets any sky - pale noon blue or deep midnight -
-// become a usable accent rather than washing out or going invisible.
-function accentize(hex, dark) {
-  let [h, s, l] = rgbToHsl(hexToRgb(hex));
-  // Enough chroma to read as colour, but eased back from full crayon so the
-  // accents feel considered rather than loud.
-  s = Math.min(0.9, s * 1.12 + 0.16);
-  // Legible lightness band per page: a friendly mid-tone on light, bright on
-  // dark. The light floor is lifted off navy so clear-sky blue stays soft.
-  l = dark ? Math.max(0.6, Math.min(0.74, l)) : Math.max(0.44, Math.min(0.56, l));
-  return rgbToHex(hslToRgb(h, s, l));
+// WCAG relative luminance and contrast ratio, used to keep the icon colour
+// legible on the tinted tile it sits over.
+function wcagLum(hex) {
+  const s = hexToRgb(hex).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
+  return 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2];
+}
+function contrastRatio(a, b) {
+  const la = wcagLum(a), lb = wcagLum(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+// Nudge a colour's lightness (down on a light page, up on a dark one) until it
+// clears a target contrast ratio against the given background, or runs out of
+// room. Keeps the hue and chroma, only shifts value.
+function ensureContrast(fg, bg, target, dark) {
+  let [h, s, l] = rgbToHsl(hexToRgb(fg));
+  let c = rgbToHex(hslToRgb(h, s, l)), guard = 0;
+  while (contrastRatio(c, bg) < target && guard++ < 48) {
+    l = dark ? Math.min(0.97, l + 0.02) : Math.max(0.03, l - 0.02);
+    c = rgbToHex(hslToRgb(h, s, l));
+  }
+  return c;
 }
 
-// Derive the three carry-through accents from the live sky and wire them into
-// CSS custom properties. Only active while the Colour (tinted) option is on;
-// otherwise the accent vars are cleared so everything falls back to ink.
+// Two accents, straight from the live sky (no pink hue-blend): a soft wash for
+// the tiles and a legible pop for the weather icons. Only active while the
+// Colour option is on; otherwise the vars are cleared and everything is ink.
 function applyBloomAccents(sky, dark) {
   const r = document.documentElement.style;
-  const base = PALETTES[themeKind()];
   if (!state.tinted || !sky) {
-    ["--accent-1", "--accent-2", "--accent-3"].forEach((v) => r.removeProperty(v));
-    if (base) r.setProperty("--ink", base.ink);
+    ["--tile", "--icon"].forEach((v) => r.removeProperty(v));
     return;
   }
+  const base = PALETTES[themeKind()] || PALETTES.bloom;
   const a = vivid(sky.top, dark), b = vivid(sky.bottom, dark);
-  const mid = rgbToHex(hueMidColor(hexToRgb(a), hexToRgb(b)));
-  // Smart role pick: the more saturated sky colour leads as the primary accent.
   const sat = (hex) => rgbToHsl(hexToRgb(hex))[1];
-  const [A, B] = sat(b) > sat(a) ? [b, a] : [a, b];
-  const acc1 = accentize(A, dark), acc2 = accentize(B, dark), acc3 = accentize(mid, dark);
-  r.setProperty("--accent-1", acc1);
-  r.setProperty("--accent-2", acc2);
-  r.setProperty("--accent-3", acc3);
-  // A whisper of the primary hue in the ink carries the palette into every
-  // derived token (soft text, hairlines) without denting readability.
-  if (base) r.setProperty("--ink", lerpHex(base.ink, acc1, 0.06));
-}
-
-// Colours the charts should draw with: accents when tinted, ink otherwise.
-function chartInk() {
-  const cs = getComputedStyle(document.documentElement);
-  const ink = cs.getPropertyValue("--ink").trim() || "#0a0a0a";
-  const tinted = document.documentElement.getAttribute("data-tint") === "on";
-  const pick = (v) => { const c = cs.getPropertyValue(v).trim(); return tinted && c ? c : ink; };
-  return { ink, line1: pick("--accent-1"), line2: pick("--accent-2"), acc: pick("--accent-3") };
+  // The more saturated sky colour becomes the icon pop; the calmer one washes
+  // the tiles. Both are real sky hues, so clear sky reads blue/gold, not pink.
+  const [iconRaw, tileRaw] = sat(a) >= sat(b) ? [a, b] : [b, a];
+  // Tile wash: eased-back chroma so the fill stays a hint, not a slab.
+  let [th, ts, tl] = rgbToHsl(hexToRgb(tileRaw));
+  const tile = rgbToHex(hslToRgb(th, Math.min(0.7, ts), dark ? Math.max(0.5, tl) : Math.min(0.7, tl)));
+  // Icon colour: start from a legible band, then guarantee contrast against the
+  // effective tile background (the page tinted by the wash, a touch deeper to
+  // cover nested tiles) - graphical elements want at least 3:1, we aim higher.
+  let [ih, is, il] = rgbToHsl(hexToRgb(iconRaw));
+  is = Math.min(0.92, is * 1.1 + 0.14);
+  // On the dark page the icons sit over the bright bloom near the top, so they
+  // must stay light (like the near-white ink they replace) to read there while
+  // still popping on the darker tiles below. On the light page they go deeper.
+  il = dark ? Math.max(0.74, Math.min(0.86, il)) : Math.max(0.4, Math.min(0.54, il));
+  const iconStart = rgbToHex(hslToRgb(ih, is, il));
+  const tileBg = lerpHex(base.bg, tile, dark ? 0.16 : 0.14);
+  const icon = ensureContrast(iconStart, tileBg, 4.5, dark);
+  r.setProperty("--tile", tile);
+  r.setProperty("--icon", icon);
 }
 function setDynamicPalette(dark) {
   const r = document.documentElement.style;
@@ -3041,8 +3030,7 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false)
   if (interactive) { chartGeom = null; chartRedraw = null; }
   if (!rows.length) return;
 
-  const C = chartInk();
-  const ink = C.ink, line1 = C.line1, line2 = C.line2, acc = C.acc;
+  const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
   const vals = rows.flatMap((r) => dual ? [r.hi, r.lo] : [r.hi]).filter(Number.isFinite);
   let dmin = Math.min(...vals), dmax = Math.max(...vals);
   if (dmin === dmax) { dmin -= 1; dmax += 1; }
@@ -3088,7 +3076,7 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false)
   if (anyPrecip) {
     const slotW = w / Math.max(1, rows.length - 1);
     const barW = Math.min(slotW * 0.55, 12);
-    ctx.fillStyle = hexA(acc, 0.26);
+    ctx.fillStyle = hexA(ink, 0.2);
     rows.forEach((r, i) => { const p = r.precip || 0; if (p > 0) { const bh = (p / maxP) * barMaxH; ctx.fillRect(X(i) - barW / 2, padTop + h - bh, barW, bh); } });
   }
   const hasUV = rows.some((r) => Number.isFinite(r.uv));
@@ -3107,13 +3095,13 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false)
     const slotW = w / Math.max(1, rows.length - 1);
     const bw = Math.min(slotW * 0.6, 16);
     const base = padTop + h;
-    ctx.fillStyle = hexA(acc, 0.72);
+    ctx.fillStyle = hexA(ink, 0.7);
     rows.forEach((r, i) => { if (Number.isFinite(r.hi) && r.hi > min) ctx.fillRect(X(i) - bw / 2, Y(r.hi), bw, base - Y(r.hi)); });
   } else if (!dual) {
     ctx.beginPath(); curve("hi");
     ctx.lineTo(X(rows.length - 1), padTop + h); ctx.lineTo(X(0), padTop + h); ctx.closePath();
     const g = ctx.createLinearGradient(0, padTop, 0, padTop + h);
-    g.addColorStop(0, hexA(line1, 0.26)); g.addColorStop(1, hexA(line1, 0));
+    g.addColorStop(0, hexA(ink, 0.26)); g.addColorStop(1, hexA(ink, 0));
     ctx.fillStyle = g; ctx.fill();
   } else {
     ctx.beginPath(); curve("hi");
@@ -3122,13 +3110,13 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false)
       if (i === rows.length - 1) ctx.lineTo(px, py);
       else { const cx = (X(i + 1) + px) / 2; ctx.bezierCurveTo(cx, Y(rows[i + 1].lo), cx, py, px, py); }
     }
-    ctx.closePath(); ctx.fillStyle = hexA(line1, 0.14); ctx.fill();
+    ctx.closePath(); ctx.fillStyle = hexA(ink, 0.14); ctx.fill();
   }
 
-  const stroke = (key, alpha, width, color) => { ctx.beginPath(); curve(key); ctx.strokeStyle = color || ink; ctx.globalAlpha = alpha; ctx.lineWidth = width; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke(); ctx.globalAlpha = 1; };
+  const stroke = (key, alpha, width) => { ctx.beginPath(); curve(key); ctx.strokeStyle = ink; ctx.globalAlpha = alpha; ctx.lineWidth = width; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke(); ctx.globalAlpha = 1; };
   if (!bars) {
-    if (dual) stroke("lo", 0.4, 3, line2);
-    stroke("hi", 1, 3.5, line1);
+    if (dual) stroke("lo", 0.4, 3);
+    stroke("hi", 1, 3.5);
   }
 
   // Optional UV overlay: a dotted line on its own 0-11 scale (right axis), with
@@ -3136,7 +3124,7 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false)
   if (hasUV) {
     const UY = (u) => padTop + h - Math.min(1, Math.max(0, u / 11)) * h * 0.92;
     const uvAt = (i) => Number.isFinite(rows[i].uv) ? rows[i].uv : 0;
-    ctx.setLineDash([1.5, 4]); ctx.strokeStyle = hexA(line2, 0.62); ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.setLineDash([1.5, 4]); ctx.strokeStyle = hexA(ink, 0.5); ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
     ctx.beginPath();
     rows.forEach((r, i) => {
       const px = X(i), py = UY(uvAt(i));
@@ -3221,15 +3209,16 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false)
     }
   } else {
     hiIdx.forEach((i) => {
-      ctx.fillStyle = line1; ctx.beginPath(); ctx.arc(X(i), Y(rows[i].hi), 3.5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = ink; ctx.textAlign = labelAlign(i);
+      ctx.beginPath(); ctx.arc(X(i), Y(rows[i].hi), 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.textAlign = labelAlign(i);
       ctx.fillText(lab(rows[i].hi), labelX(i), Y(rows[i].hi) + hiSide(i));
     });
   }
   if (dual && labelLo) {
+    ctx.globalAlpha = 0.7;
     loIdx.forEach((i) => {
-      ctx.globalAlpha = 1; ctx.fillStyle = line2; ctx.beginPath(); ctx.arc(X(i), Y(rows[i].lo), 3.5, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.7; ctx.fillStyle = ink; ctx.textAlign = labelAlign(i);
+      ctx.beginPath(); ctx.arc(X(i), Y(rows[i].lo), 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.textAlign = labelAlign(i);
       ctx.fillText(lab(rows[i].lo), labelX(i), Y(rows[i].lo) + loSide(i));
     });
     ctx.globalAlpha = 1;
