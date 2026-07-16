@@ -228,6 +228,35 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 :root[data-theme="bloomdark"] body:has(.sheet.is-open) .bg::before,
 :root[data-theme="bloomdark"] body:has(.sheet.is-open) .bg::after { opacity: 0; }
 
+/* ===== Weather gradient (Colour mode) ==================================
+   A slow flowing mesh of the day's weather colours as the whole background:
+   four blurred blobs drifting over a base fill. JS sets --g1..--g4 and the
+   base from the live sky/weather palette, and flips --ink for contrast. Shown
+   only in Colour mode; the plain theme keeps its flat page + top bloom. */
+.wxmesh {
+  position: absolute; inset: 0; overflow: hidden; pointer-events: none;
+  opacity: 0; transition: opacity 0.6s var(--ease-out);
+  background: var(--g-base, transparent);
+}
+:root[data-tint="on"] .wxmesh { opacity: 1; }
+.wxmesh span {
+  position: absolute; width: 95vmax; height: 95vmax; border-radius: 50%;
+  filter: blur(60px); will-change: transform;
+}
+.wxmesh span:nth-child(1) { background: radial-gradient(closest-side, var(--g1), transparent 72%); top: -28%; left: -18%; animation: wxDrift1 26s ease-in-out infinite; }
+.wxmesh span:nth-child(2) { background: radial-gradient(closest-side, var(--g2), transparent 72%); top: -18%; right: -22%; animation: wxDrift2 32s ease-in-out infinite; }
+.wxmesh span:nth-child(3) { background: radial-gradient(closest-side, var(--g3), transparent 72%); bottom: -30%; left: -12%; animation: wxDrift3 30s ease-in-out infinite; }
+.wxmesh span:nth-child(4) { background: radial-gradient(closest-side, var(--g4), transparent 72%); bottom: -24%; right: -16%; animation: wxDrift4 36s ease-in-out infinite; }
+@keyframes wxDrift1 { 0%,100%{transform:translate(0,0) scale(1);} 33%{transform:translate(30%,20%) scale(1.15);} 66%{transform:translate(12%,36%) scale(0.92);} }
+@keyframes wxDrift2 { 0%,100%{transform:translate(0,0) scale(1);} 33%{transform:translate(-24%,28%) scale(1.2);} 66%{transform:translate(-8%,10%) scale(0.95);} }
+@keyframes wxDrift3 { 0%,100%{transform:translate(0,0) scale(1);} 33%{transform:translate(26%,-22%) scale(1.1);} 66%{transform:translate(8%,-8%) scale(1.22);} }
+@keyframes wxDrift4 { 0%,100%{transform:translate(0,0) scale(1);} 33%{transform:translate(-28%,-18%) scale(0.95);} 66%{transform:translate(-10%,-30%) scale(1.15);} }
+:root[data-anim="off"] .wxmesh span { animation: none; }
+@media (prefers-reduced-motion: reduce) { .wxmesh span { animation: none; } }
+/* In Colour mode the mesh is the background; hide the plain top-bloom layers. */
+:root[data-tint="on"] .bg::before,
+:root[data-tint="on"] .bg::after { opacity: 0; }
+
 /* Status-bar scrim: purely a masked backdrop blur, no tint. Strongest at the
    very top so the status bar stays legible over any bloom, then the mask
    dissolves the blur so scrolled content slides under a soft fade. */

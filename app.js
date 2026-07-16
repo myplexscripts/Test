@@ -2227,45 +2227,47 @@ const WX_ICON_FAMILY = {
   "wx-storm": "purple", "wx-snow": "cyan", "wx-clouds": null, "wx-mist": null
 };
 
-// Snap the live sky to one family and expose its pair: bg -> tiles, fg -> icons.
-// One family drives both, so the palette's tuned contrast holds for free.
+// Colour mode paints the whole background as a slow animated mesh of the day's
+// weather colours; content sits on it as auto-contrasting ink. This derives the
+// four gradient colours from the live sky (both sky families, shaded to the
+// mode), sets the ink black/white against the gradient's luminance, and makes
+// the tiles frosted glass so the colour reads through them.
+const WXGRAD_VARS = ["--g1", "--g2", "--g3", "--g4", "--g-base", "--icon",
+  "--card-bg", "--card-bg-hi", "--card-border", "--hairline"];
+
 function applyBloomAccents(sky, dark) {
   const r = document.documentElement.style;
   if (!state.tinted || !sky) {
-    ["--tile", "--icon"].forEach((v) => r.removeProperty(v));
+    WXGRAD_VARS.forEach((v) => r.removeProperty(v));
+    const base = PALETTES[themeKind()]; if (base) r.setProperty("--ink", base.ink);
     return;
   }
-  // The more colourful (higher chroma) of the two sky colours sets the family;
-  // a flat grey sky lands on neutral. Chroma, not HSL saturation, so a pale but
-  // "technically saturated" horizon does not outvote the sky's real hue.
-  const chroma = (hex) => { const [rr, gg, bb] = hexToRgb(hex); return Math.max(rr, gg, bb) - Math.min(rr, gg, bb); };
-  const f = skyFamily(chroma(sky.top) >= chroma(sky.bottom) ? sky.top : sky.bottom);
-  const tile = dark ? f.dbg : f.lbg;
-  // The tile is the family bg at ~88% over the page; check the icon against that
-  // effective surface and top up only the few weak light pairs.
-  const base = PALETTES[themeKind()] || PALETTES.bloom;
-  const eff = lerpHex(base.bg, tile, 0.88);
-  const icon = ensureContrast(dark ? f.dfg : f.lfg, eff, 4);
-  r.setProperty("--tile", tile);
-  r.setProperty("--icon", icon);
-  // Per-condition weather-glyph colours, each contrast-checked on this tile.
-  for (const cat in WX_ICON_FAMILY) {
-    const fam = WX_ICON_FAMILY[cat] ? TINT_FAMILIES[WX_ICON_FAMILY[cat]] : TINT_NEUTRAL;
-    r.setProperty(`--icon-${cat}`, ensureContrast(dark ? fam.dfg : fam.lfg, eff, 4));
-  }
-  // The hero glyph sits on the bloom, not a tile. Contrast its condition colour
-  // against the bloom colour behind it (upper area = the dominant sky plume),
-  // so it stays readable there without any halo.
-  const cur = state.data?.current;
-  if (cur) {
-    const w = cur.weather?.[0] || {};
-    const sys = cur.sys || {};
-    const isNight = sys.sunrise && sys.sunset ? (cur.dt < sys.sunrise || cur.dt >= sys.sunset) : false;
-    const heroFam = WX_ICON_FAMILY[wxCategory(wxResolve(w, isNight))];
-    const fam = heroFam ? TINT_FAMILIES[heroFam] : TINT_NEUTRAL;
-    const bloomEff = lerpHex(base.bg, paletteSky(sky).top, 0.85);
-    r.setProperty("--hero-icon", ensureContrast(dark ? fam.dfg : fam.lfg, bloomEff, 4));
-  }
+  const fa = skyFamily(sky.top), fb = skyFamily(sky.bottom);
+  // Four colours spanning both sky families with tonal depth. Dark mode pairs
+  // the bright fg with the deep bg. Light mode uses the mid fg plus a lightened
+  // fg (not the near-white palette bg, which washes the mesh out).
+  const lite = (hex, amt) => lerpHex(hex, "#ffffff", amt);
+  // Light mode stays a pale pastel wash (uniformly light, so dark ink reads
+  // everywhere); dark mode is the deep vivid one (white ink).
+  const cols = dark
+    ? [fa.dfg, fb.dbg, fb.dfg, fa.dbg]
+    : [lite(fa.lfg, 0.36), lite(fb.lfg, 0.5), lite(fb.lfg, 0.28), lite(fa.lfg, 0.44)];
+  r.setProperty("--g1", cols[0]); r.setProperty("--g2", cols[1]);
+  r.setProperty("--g3", cols[2]); r.setProperty("--g4", cols[3]);
+  r.setProperty("--g-base", lerpHex(cols[1], cols[3], 0.5));
+  // Ink flips to whichever reads on the gradient's average luminance.
+  const avg = cols.reduce((s, c) => s + wcagLum(c), 0) / cols.length;
+  const lightBg = avg >= 0.4;
+  const ink = lightBg ? "#151513" : "#ffffff";
+  r.setProperty("--ink", ink);
+  r.setProperty("--icon", ink);
+  // Frosted tiles: a faint veil in the ink-opposite, so the gradient shows
+  // through and the colour is carried throughout.
+  const frost = lightBg ? "18,18,17" : "255,255,255";
+  r.setProperty("--card-bg", `rgba(${frost},0.10)`);
+  r.setProperty("--card-bg-hi", `rgba(${frost},0.16)`);
+  r.setProperty("--card-border", `rgba(${frost},0.14)`);
+  r.setProperty("--hairline", `rgba(${frost},0.18)`);
 }
 function setDynamicPalette(dark) {
   const r = document.documentElement.style;
@@ -2451,11 +2453,14 @@ function updateDynamicBackground() {
 
   const p = PALETTES[themeKind()];
   if (p?.bloom) {
-    // Bloom: same sky colours as the Dynamic theme, rendered as the top glow.
-    // The page palette stays fixed off-white/off-black.
-    const skyBloom = state.tinted ? paletteSky(sky) : sky;
-    setDynamicGradient(bloomGradient(skyBloom, !!p.dark, state.tinted));
-    applyBloomAccents(sky, !!p.dark);
+    // Colour mode paints the full-screen weather mesh (the CSS layer reads the
+    // vars applyBloomAccents sets); the plain theme keeps its top glow.
+    if (state.tinted) {
+      applyBloomAccents(sky, !!p.dark);
+    } else {
+      setDynamicGradient(bloomGradient(sky, !!p.dark, false));
+      applyBloomAccents(sky, !!p.dark);
+    }
     return;
   }
 
