@@ -2227,47 +2227,62 @@ const WX_ICON_FAMILY = {
   "wx-storm": "purple", "wx-snow": "cyan", "wx-clouds": null, "wx-mist": null
 };
 
-// Colour mode paints the whole background as a slow animated mesh of the day's
-// weather colours; content sits on it as auto-contrasting ink. This derives the
-// four gradient colours from the live sky (both sky families, shaded to the
-// mode), sets the ink black/white against the gradient's luminance, and makes
-// the tiles frosted glass so the colour reads through them.
-const WXGRAD_VARS = ["--g1", "--g2", "--g3", "--g4", "--g-base", "--icon",
-  "--card-bg", "--card-bg-hi", "--card-border", "--hairline"];
+// ---- Colour mode: the Stripe WebGL mesh, coloured from the weather ----------
+// One theme (no light/dark): a deep, rich weather-hued mesh in the first
+// viewport, dissolving into a solid base colour below, white ink throughout.
+const WXGRAD_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--hairline"];
+let wxGrad = null;
+
+// Feed four hex colours to the running mesh: set the CSS vars (read on first
+// init) and poke the live shader uniforms so a recolour needs no re-init.
+function recolorWxGradient(hexes) {
+  const cv = document.getElementById("gradient-canvas");
+  if (cv) hexes.forEach((h, i) => cv.style.setProperty(`--gradient-color-${i + 1}`, h));
+  if (!wxGrad || !wxGrad.uniforms) return;
+  const norm = (h) => { const c = parseInt(h.replace("#", ""), 16); return [(c >> 16 & 255) / 255, (c >> 8 & 255) / 255, (c & 255) / 255]; };
+  const sc = hexes.map(norm);
+  wxGrad.sectionColors = sc;
+  wxGrad.uniforms.u_baseColor.value = sc[0];
+  for (let i = 1; i < sc.length; i++) wxGrad.uniforms.u_waveLayers.value[i - 1].value.color.value = sc[i];
+}
+
+function initWxGradient() {
+  const cv = document.getElementById("gradient-canvas");
+  if (wxGrad || !cv || typeof window.Gradient !== "function") return;
+  try {
+    wxGrad = new window.Gradient();
+    wxGrad.height = Math.round(window.innerHeight);
+    wxGrad.initGradient("#gradient-canvas");
+    window.addEventListener("resize", () => { if (wxGrad) { wxGrad.height = Math.round(window.innerHeight); wxGrad.resize(); } });
+  } catch (e) { wxGrad = null; }
+}
 
 function applyBloomAccents(sky, dark) {
   const r = document.documentElement.style;
   if (!state.tinted || !sky) {
     WXGRAD_VARS.forEach((v) => r.removeProperty(v));
-    const base = PALETTES[themeKind()]; if (base) r.setProperty("--ink", base.ink);
+    const base = PALETTES[themeKind()];
+    if (base) { r.setProperty("--ink", base.ink); r.setProperty("--bg", base.bg); }
+    if (wxGrad) wxGrad.pause();
     return;
   }
+  // One theme: a deep, rich mesh from the two sky families (two deep bases +
+  // two brighter accents), hue tracking the weather, tone always deep.
   const fa = skyFamily(sky.top), fb = skyFamily(sky.bottom);
-  // Four colours spanning both sky families with tonal depth. Dark mode pairs
-  // the bright fg with the deep bg. Light mode uses the mid fg plus a lightened
-  // fg (not the near-white palette bg, which washes the mesh out).
-  const lite = (hex, amt) => lerpHex(hex, "#ffffff", amt);
-  // Light mode stays a pale pastel wash (uniformly light, so dark ink reads
-  // everywhere); dark mode is the deep vivid one (white ink).
-  const cols = dark
-    ? [fa.dfg, fb.dbg, fb.dfg, fa.dbg]
-    : [lite(fa.lfg, 0.36), lite(fb.lfg, 0.5), lite(fb.lfg, 0.28), lite(fa.lfg, 0.44)];
-  r.setProperty("--g1", cols[0]); r.setProperty("--g2", cols[1]);
-  r.setProperty("--g3", cols[2]); r.setProperty("--g4", cols[3]);
-  r.setProperty("--g-base", lerpHex(cols[1], cols[3], 0.5));
-  // Ink flips to whichever reads on the gradient's average luminance.
-  const avg = cols.reduce((s, c) => s + wcagLum(c), 0) / cols.length;
-  const lightBg = avg >= 0.4;
-  const ink = lightBg ? "#151513" : "#ffffff";
-  r.setProperty("--ink", ink);
-  r.setProperty("--icon", ink);
-  // Frosted tiles: a faint veil in the ink-opposite, so the gradient shows
-  // through and the colour is carried throughout.
-  const frost = lightBg ? "18,18,17" : "255,255,255";
-  r.setProperty("--card-bg", `rgba(${frost},0.10)`);
-  r.setProperty("--card-bg-hi", `rgba(${frost},0.16)`);
-  r.setProperty("--card-border", `rgba(${frost},0.14)`);
-  r.setProperty("--hairline", `rgba(${frost},0.18)`);
+  const cols = [fa.dbg, fb.dbg, fb.dfg, fa.dfg];
+  recolorWxGradient(cols);
+  // Solid page colour below the first viewport = the mesh's base blend, so the
+  // masked canvas dissolves into it seamlessly.
+  r.setProperty("--bg", lerpHex(cols[0], cols[1], 0.5));
+  r.setProperty("--ink", "#ffffff");
+  r.setProperty("--icon", "#ffffff");
+  // Frosted glass tiles over the deep mesh.
+  r.setProperty("--card-bg", "rgba(255,255,255,0.10)");
+  r.setProperty("--card-bg-hi", "rgba(255,255,255,0.16)");
+  r.setProperty("--card-border", "rgba(255,255,255,0.16)");
+  r.setProperty("--hairline", "rgba(255,255,255,0.20)");
+  initWxGradient();
+  if (wxGrad) { wxGrad.amp = state.animate === false ? 0 : 320; wxGrad.play(); }
 }
 function setDynamicPalette(dark) {
   const r = document.documentElement.style;
