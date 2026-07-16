@@ -1642,10 +1642,15 @@ function applyPalette(kind) {
   document.documentElement.setAttribute("data-tint", state.tinted ? "on" : "off");
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;
-  // Alert tier colours run through the same vivid() engine as the bloom so the
-  // palette stays cohesive. All three warm tiers are light enough that the
-  // severity chip uses dark text (set in CSS) for legibility on the fill.
-  for (const k in TIER_BASE) r.setProperty(`--tier-${k}`, vivid(TIER_BASE[k], false));
+  // Alert tiers and the neutral alert surface come from the curated palette,
+  // switching bg/fg by mode so severity reads cleanly in light and dark.
+  for (const k in ALERT_TOKENS) {
+    const t = ALERT_TOKENS[k];
+    r.setProperty(`--tier-${k}-bg`, p.dark ? t.dbg : t.lbg);
+    r.setProperty(`--tier-${k}-fg`, p.dark ? t.dfg : t.lfg);
+  }
+  r.setProperty("--neutral-card", p.dark ? NEUTRAL_SURFACE.card.dark : NEUTRAL_SURFACE.card.light);
+  r.setProperty("--neutral-card-hi", p.dark ? NEUTRAL_SURFACE.cardHi.dark : NEUTRAL_SURFACE.cardHi.light);
   if (p.bloom) { syncBloomFade(); document.documentElement.removeAttribute("data-dyn"); }
   else r.removeProperty("--bloom-fade");
   updateMapTheme();
@@ -2275,9 +2280,19 @@ function skyGradientAt(bands, nowH) {
 // ink readable: near-black night skies are lifted toward the light page
 // (keeping their hue), pale skies deepened slightly on the dark page.
 let bloomCanvas = null;
-// Warm bases for the three alert tiers, chosen from the app's warm bloom range
-// and deepened enough that vivid() lands them legible on the light frosted tile.
-const TIER_BASE = { yellow: "#d99500", orange: "#e7601a", red: "#d8342a" };
+// Alert severity tiers, from the curated palette (bg = chip fill, fg = chip
+// text / warning icon / tier dot). Tuned for legibility in both modes.
+const ALERT_TOKENS = {
+  yellow: { lbg: "#FFF8BF", lfg: "#8A6800", dbg: "#3A2C00", dfg: "#FFE44D" },
+  orange: { lbg: "#FFF0E3", lfg: "#B84A00", dbg: "#3D1700", dfg: "#FF9638" },
+  red:    { lbg: "#FFE7EA", lfg: "#C90024", dbg: "#43000C", dfg: "#FF5A72" }
+};
+// Neutral card surface from the grey ramp. Alerts sit on this rather than the
+// sky-tinted tile, so severity colour is never muddied by the bloom's hue.
+const NEUTRAL_SURFACE = {
+  card:   { light: "#ECECE8", dark: "#2A2A27" },
+  cardHi: { light: "#D8D8D3", dark: "#343431" }
+};
 
 function bloomGradient(sky, dark, curated) {
   // The bloom is rendered theme-independently so the colours read identically

@@ -617,15 +617,17 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   text-align: left;
   cursor: pointer;
   border: 0;
-  background: var(--card-bg);
+  /* Neutral grey surface (from the palette's grey ramp), so the severity
+     colour on the chip and icon is never muddied by the sky tint. */
+  background: var(--neutral-card, var(--card-bg));
   border-radius: var(--r-md);
   padding: var(--s-4);
   transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
 }
-.alert:active { transform: scale(0.98); background: var(--card-bg-hi); }
-/* The tier colour drives the "colour warning" label; the icon stays ink so it
-   reads as a neutral white/black mark that adapts to the theme. */
-.alert-ic { font-size: 2.2rem; color: var(--ink); flex: 0 0 auto; line-height: 1; }
+.alert:active { transform: scale(0.98); background: var(--neutral-card-hi, var(--card-bg-hi)); }
+/* The warning icon takes the severity colour on tiered alerts, and falls back
+   to ink on untiered ones. */
+.alert-ic { font-size: 2.2rem; color: var(--alert-fg, var(--ink)); flex: 0 0 auto; line-height: 1; }
 .alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 /* Severity chip: the tier colour as a filled tag with dark text, so the
    "colour warning" reads clearly even where the colour itself (yellow) is too
@@ -633,8 +635,8 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 .alert-tier {
   padding: 2px 8px;
   border-radius: var(--r-sm);
-  background: var(--alert-c, var(--ink));
-  color: #241400;
+  background: var(--alert-bg, var(--ink));
+  color: var(--alert-fg, var(--bg));
   font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.05em;
@@ -644,9 +646,9 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 .alert-title { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.05rem; line-height: 1.2; }
 .alert-meta { font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 .alert-go { font-size: 1.8rem; color: var(--ink); flex: 0 0 auto; }
-.alert--yellow { --alert-c: var(--tier-yellow, #cf9a00); }
-.alert--orange { --alert-c: var(--tier-orange, #e0701a); }
-.alert--red    { --alert-c: var(--tier-red, #d63a2f); }
+.alert--yellow { --alert-bg: var(--tier-yellow-bg, #FFF8BF); --alert-fg: var(--tier-yellow-fg, #8A6800); }
+.alert--orange { --alert-bg: var(--tier-orange-bg, #FFF0E3); --alert-fg: var(--tier-orange-fg, #B84A00); }
+.alert--red    { --alert-bg: var(--tier-red-bg, #FFE7EA); --alert-fg: var(--tier-red-fg, #C90024); }
 .alert-help {
   display: inline-flex;
   align-items: center;
@@ -693,9 +695,9 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 .tier-row { display: flex; gap: var(--s-3); align-items: flex-start; }
 .tier-row + .tier-row { margin-top: var(--s-4); }
 .tier-dot { width: 18px; height: 18px; border-radius: 50%; margin-top: 3px; flex: 0 0 auto; }
-.tier-yellow .tier-dot { background: var(--tier-yellow, #f2c200); }
-.tier-orange .tier-dot { background: var(--tier-orange, #ef7d1a); }
-.tier-red .tier-dot { background: var(--tier-red, #e23b30); }
+.tier-yellow .tier-dot { background: var(--tier-yellow-fg, #8A6800); }
+.tier-orange .tier-dot { background: var(--tier-orange-fg, #B84A00); }
+.tier-red .tier-dot { background: var(--tier-red-fg, #C90024); }
 .tier-body { min-width: 0; }
 .tier-name { font-weight: 700; margin-bottom: 2px; }
 
