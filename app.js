@@ -29,7 +29,7 @@ const $ = (id) => document.getElementById(id);
 const el = {
   ptr: $("ptr"), splash: $("splash"),
   locBtn: $("locBtn"), homeLocBtn: $("homeLocBtn"),
-  unitSeg: $("unitSeg"), animToggle: $("animToggle"), themeToggle: $("themeToggle"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
+  unitSeg: $("unitSeg"), animToggle: $("animToggle"), themeToggle: $("themeToggle"), tintToggle: $("tintToggle"), refreshBtn: $("refreshBtn"), creditsBtn: $("creditsBtn"),
   radarFull: $("radarFull"), searchFull: $("searchFull"),
   locSearch: $("locSearch"), searchResults: $("searchResults"), searchClear: $("searchClear"),
   settingsPop: $("settingsPop"), bottomNav: $("bottomNav"),
@@ -63,6 +63,7 @@ const state = {
   daily: [],
   detail: { metric: "temp", range: "hourly" },
   theme: "bloom",
+  tinted: false,
   center: { ...HOME },
   tz: 0,
   placeName: "",
@@ -199,6 +200,8 @@ function wireEvents() {
 
   if (el.themeToggle) el.themeToggle.onclick = () =>
     setTheme(PALETTES[state.theme] && PALETTES[state.theme].dark ? "bloom" : "bloomdark");
+
+  if (el.tintToggle) el.tintToggle.onclick = () => setTint(!state.tinted);
 
   window.addEventListener("scroll", onBloomScroll, { passive: true });
 
@@ -1636,6 +1639,7 @@ function applyPalette(kind) {
   r.setProperty("--theme", sb);
   document.querySelector('meta[name="theme-color"]').setAttribute("content", sb);
   document.documentElement.setAttribute("data-theme", kind);
+  document.documentElement.setAttribute("data-tint", state.tinted ? "on" : "off");
   document.documentElement.style.colorScheme = p.dark ? "dark" : "light";
   state.dark = !!p.dark;
   // Alert tier colours run through the same vivid() engine as the bloom so the
@@ -1658,6 +1662,13 @@ function setTheme(theme) {
   state.theme = PALETTES[theme] ? theme : "bloom";
   saveState();
   if (el.themeToggle) el.themeToggle.setAttribute("aria-checked", PALETTES[state.theme] && PALETTES[state.theme].dark ? "true" : "false");
+  applyPalette(themeKind());
+}
+
+function setTint(on) {
+  state.tinted = !!on;
+  saveState();
+  if (el.tintToggle) el.tintToggle.setAttribute("aria-checked", state.tinted ? "true" : "false");
   applyPalette(themeKind());
 }
 
@@ -2152,6 +2163,56 @@ function vivid(hex, dark) {
   if (dark && l < 0.42) l2 = l + (0.42 - l) * 0.4;
   return rgbToHex(hslToRgb(h, s2, Math.min(1, Math.max(0, l2))));
 }
+
+// Turn a raw sky colour into a legible UI accent: keep its hue, make sure it
+// carries enough chroma to read as colour, and pin its lightness into a band
+// that stays legible on the active page (deeper on the light page, brighter on
+// the dark one). This is what lets any sky - pale noon blue or deep midnight -
+// become a usable accent rather than washing out or going invisible.
+function accentize(hex, dark) {
+  let [h, s, l] = rgbToHsl(hexToRgb(hex));
+  // Enough chroma to read as colour, but eased back from full crayon so the
+  // accents feel considered rather than loud.
+  s = Math.min(0.9, s * 1.12 + 0.16);
+  // Legible lightness band per page: a friendly mid-tone on light, bright on
+  // dark. The light floor is lifted off navy so clear-sky blue stays soft.
+  l = dark ? Math.max(0.6, Math.min(0.74, l)) : Math.max(0.44, Math.min(0.56, l));
+  return rgbToHex(hslToRgb(h, s, l));
+}
+
+// Derive the three carry-through accents from the live sky and wire them into
+// CSS custom properties. Only active while the Colour (tinted) option is on;
+// otherwise the accent vars are cleared so everything falls back to ink.
+function applyBloomAccents(sky, dark) {
+  const r = document.documentElement.style;
+  const base = PALETTES[themeKind()];
+  if (!state.tinted || !sky) {
+    ["--accent-1", "--accent-2", "--accent-3"].forEach((v) => r.removeProperty(v));
+    if (base) r.setProperty("--ink", base.ink);
+    return;
+  }
+  const a = vivid(sky.top, dark), b = vivid(sky.bottom, dark);
+  const mid = rgbToHex(hueMidColor(hexToRgb(a), hexToRgb(b)));
+  // Smart role pick: the more saturated sky colour leads as the primary accent.
+  const sat = (hex) => rgbToHsl(hexToRgb(hex))[1];
+  const [A, B] = sat(b) > sat(a) ? [b, a] : [a, b];
+  const acc1 = accentize(A, dark), acc2 = accentize(B, dark), acc3 = accentize(mid, dark);
+  r.setProperty("--accent-1", acc1);
+  r.setProperty("--accent-2", acc2);
+  r.setProperty("--accent-3", acc3);
+  // A whisper of the primary hue in the ink carries the palette into every
+  // derived token (soft text, hairlines) without denting readability.
+  if (base) r.setProperty("--ink", lerpHex(base.ink, acc1, 0.06));
+}
+
+// Colours the charts should draw with: accents when tinted, ink otherwise.
+function chartInk() {
+  const cs = getComputedStyle(document.documentElement);
+  const ink = cs.getPropertyValue("--ink").trim() || "#0a0a0a";
+  const tinted = document.documentElement.getAttribute("data-tint") === "on";
+  const pick = (v) => { const c = cs.getPropertyValue(v).trim(); return tinted && c ? c : ink; };
+  return { ink, line1: pick("--accent-1"), line2: pick("--accent-2"), acc: pick("--accent-3") };
+}
 function setDynamicPalette(dark) {
   const r = document.documentElement.style;
   const vars = dark
@@ -2327,6 +2388,7 @@ function updateDynamicBackground() {
     // Bloom: same sky colours as the Dynamic theme, rendered as the top glow.
     // The page palette stays fixed off-white/off-black.
     setDynamicGradient(bloomGradient(sky, !!p.dark));
+    applyBloomAccents(sky, !!p.dark);
     return;
   }
 
@@ -2979,7 +3041,8 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false)
   if (interactive) { chartGeom = null; chartRedraw = null; }
   if (!rows.length) return;
 
-  const ink = getComputedStyle(document.documentElement).getPropertyValue("--ink").trim() || "#0a0a0a";
+  const C = chartInk();
+  const ink = C.ink, line1 = C.line1, line2 = C.line2, acc = C.acc;
   const vals = rows.flatMap((r) => dual ? [r.hi, r.lo] : [r.hi]).filter(Number.isFinite);
   let dmin = Math.min(...vals), dmax = Math.max(...vals);
   if (dmin === dmax) { dmin -= 1; dmax += 1; }
@@ -3025,7 +3088,7 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false)
   if (anyPrecip) {
     const slotW = w / Math.max(1, rows.length - 1);
     const barW = Math.min(slotW * 0.55, 12);
-    ctx.fillStyle = hexA(ink, 0.2);
+    ctx.fillStyle = hexA(acc, 0.26);
     rows.forEach((r, i) => { const p = r.precip || 0; if (p > 0) { const bh = (p / maxP) * barMaxH; ctx.fillRect(X(i) - barW / 2, padTop + h - bh, barW, bh); } });
   }
   const hasUV = rows.some((r) => Number.isFinite(r.uv));
@@ -3044,13 +3107,13 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false)
     const slotW = w / Math.max(1, rows.length - 1);
     const bw = Math.min(slotW * 0.6, 16);
     const base = padTop + h;
-    ctx.fillStyle = hexA(ink, 0.7);
+    ctx.fillStyle = hexA(acc, 0.72);
     rows.forEach((r, i) => { if (Number.isFinite(r.hi) && r.hi > min) ctx.fillRect(X(i) - bw / 2, Y(r.hi), bw, base - Y(r.hi)); });
   } else if (!dual) {
     ctx.beginPath(); curve("hi");
     ctx.lineTo(X(rows.length - 1), padTop + h); ctx.lineTo(X(0), padTop + h); ctx.closePath();
     const g = ctx.createLinearGradient(0, padTop, 0, padTop + h);
-    g.addColorStop(0, hexA(ink, 0.26)); g.addColorStop(1, hexA(ink, 0));
+    g.addColorStop(0, hexA(line1, 0.26)); g.addColorStop(1, hexA(line1, 0));
     ctx.fillStyle = g; ctx.fill();
   } else {
     ctx.beginPath(); curve("hi");
@@ -3059,13 +3122,13 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false)
       if (i === rows.length - 1) ctx.lineTo(px, py);
       else { const cx = (X(i + 1) + px) / 2; ctx.bezierCurveTo(cx, Y(rows[i + 1].lo), cx, py, px, py); }
     }
-    ctx.closePath(); ctx.fillStyle = hexA(ink, 0.14); ctx.fill();
+    ctx.closePath(); ctx.fillStyle = hexA(line1, 0.14); ctx.fill();
   }
 
-  const stroke = (key, alpha, width) => { ctx.beginPath(); curve(key); ctx.strokeStyle = ink; ctx.globalAlpha = alpha; ctx.lineWidth = width; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke(); ctx.globalAlpha = 1; };
+  const stroke = (key, alpha, width, color) => { ctx.beginPath(); curve(key); ctx.strokeStyle = color || ink; ctx.globalAlpha = alpha; ctx.lineWidth = width; ctx.lineJoin = "round"; ctx.lineCap = "round"; ctx.stroke(); ctx.globalAlpha = 1; };
   if (!bars) {
-    if (dual) stroke("lo", 0.4, 3);
-    stroke("hi", 1, 3.5);
+    if (dual) stroke("lo", 0.4, 3, line2);
+    stroke("hi", 1, 3.5, line1);
   }
 
   // Optional UV overlay: a dotted line on its own 0-11 scale (right axis), with
@@ -3073,7 +3136,7 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false)
   if (hasUV) {
     const UY = (u) => padTop + h - Math.min(1, Math.max(0, u / 11)) * h * 0.92;
     const uvAt = (i) => Number.isFinite(rows[i].uv) ? rows[i].uv : 0;
-    ctx.setLineDash([1.5, 4]); ctx.strokeStyle = hexA(ink, 0.5); ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
+    ctx.setLineDash([1.5, 4]); ctx.strokeStyle = hexA(line2, 0.62); ctx.lineWidth = 2; ctx.lineJoin = "round"; ctx.lineCap = "round";
     ctx.beginPath();
     rows.forEach((r, i) => {
       const px = X(i), py = UY(uvAt(i));
@@ -3158,16 +3221,15 @@ function drawChart(rows, m, dual, showNow, canvas, labelLo = true, bars = false)
     }
   } else {
     hiIdx.forEach((i) => {
-      ctx.beginPath(); ctx.arc(X(i), Y(rows[i].hi), 3.5, 0, Math.PI * 2); ctx.fill();
-      ctx.textAlign = labelAlign(i);
+      ctx.fillStyle = line1; ctx.beginPath(); ctx.arc(X(i), Y(rows[i].hi), 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = ink; ctx.textAlign = labelAlign(i);
       ctx.fillText(lab(rows[i].hi), labelX(i), Y(rows[i].hi) + hiSide(i));
     });
   }
   if (dual && labelLo) {
-    ctx.globalAlpha = 0.7;
     loIdx.forEach((i) => {
-      ctx.beginPath(); ctx.arc(X(i), Y(rows[i].lo), 3.5, 0, Math.PI * 2); ctx.fill();
-      ctx.textAlign = labelAlign(i);
+      ctx.globalAlpha = 1; ctx.fillStyle = line2; ctx.beginPath(); ctx.arc(X(i), Y(rows[i].lo), 3.5, 0, Math.PI * 2); ctx.fill();
+      ctx.globalAlpha = 0.7; ctx.fillStyle = ink; ctx.textAlign = labelAlign(i);
       ctx.fillText(lab(rows[i].lo), labelX(i), Y(rows[i].lo) + loSide(i));
     });
     ctx.globalAlpha = 1;
@@ -4105,7 +4167,7 @@ function fmtClock(dt, tz) {
 }
 
 function saveState() {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, clock24: state.clock24, clockPattern: state.clockPattern, animate: state.animate })); } catch {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, tinted: state.tinted, clock24: state.clock24, clockPattern: state.clockPattern, animate: state.animate })); } catch {}
 }
 function loadActivityPlan() { try { return JSON.parse(localStorage.getItem(ACTIVITY_KEY) || "null"); } catch { return null; } }
 function saveActivityPlan(p) { try { localStorage.setItem(ACTIVITY_KEY, JSON.stringify(p)); } catch {} }
@@ -4116,6 +4178,7 @@ function loadState() {
       state.units = s.units || "metric";
       state.loc = s.loc || { ...HOME };
       state.theme = PALETTES[s.theme] ? s.theme : (THEME_REMAP[s.theme] || "bloom");
+      state.tinted = !!s.tinted;
       state.clock24 = !!s.clock24;
       state.clockPattern = !!s.clockPattern;
       state.animate = s.animate !== false;
@@ -4132,6 +4195,7 @@ function syncControls() {
   el.unitSeg.querySelectorAll("[data-units]").forEach((b) =>
     b.classList.toggle("is-active", b.dataset.units === state.units));
   if (el.themeToggle) el.themeToggle.setAttribute("aria-checked", PALETTES[state.theme] && PALETTES[state.theme].dark ? "true" : "false");
+  if (el.tintToggle) el.tintToggle.setAttribute("aria-checked", state.tinted ? "true" : "false");
   if (el.animToggle) el.animToggle.setAttribute("aria-checked", state.animate !== false ? "true" : "false");
   document.documentElement.setAttribute("data-anim", state.animate === false ? "off" : "on");
   syncSlide(el.unitSeg);

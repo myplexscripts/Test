@@ -2214,6 +2214,42 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .uv-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--ink); }
 .uv-range { font-size: var(--t-sm); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
+/* ===== Bloom Colour (tinted) option =====================================
+   Carries the three live bloom accents onto a curated set of elements. Every
+   value falls back to --ink until JS computes the accents from the sky, so
+   there is no flash before the first render. Deliberately restrained: icons,
+   data lines, active states and a faint wash on structure, never body text.
+   Placed late so it wins equal-specificity ties over the base component rules. */
+:root[data-tint="on"] {
+  --hairline: color-mix(in srgb, var(--accent-3, var(--ink)) 24%, transparent);
+  --card-border: color-mix(in srgb, var(--accent-3, var(--ink)) 15%, transparent);
+  --card-bg: color-mix(in srgb, var(--accent-3, var(--ink)) 7%, transparent);
+  --card-bg-hi: color-mix(in srgb, var(--accent-3, var(--ink)) 11%, transparent);
+}
+
+/* Icons are the main colour carrier: the primary accent. */
+[data-tint="on"] .hero-icon,
+[data-tint="on"] .metric .cond-ic,
+[data-tint="on"] .nowcast-ic,
+[data-tint="on"] .loc-btn i,
+[data-tint="on"] .arrow-btn .arrow-ic,
+[data-tint="on"] .qh-ic,
+[data-tint="on"] .detail > .ph,
+[data-tint="on"] .detail > .ph-duotone,
+[data-tint="on"] .drawer-action .ph-duotone { color: var(--accent-1, var(--ink)); }
+
+/* A restrained wash on the hero temperature: still deep and legible, but
+   clearly of the palette rather than flat ink. */
+[data-tint="on"] .display {
+  color: color-mix(in srgb, var(--ink) 68%, var(--accent-1, var(--ink)));
+}
+
+/* Active navigation tab picks up the primary accent over its light thumb. */
+[data-tint="on"] .bn-item.is-active { color: var(--accent-1, var(--ink)); }
+
+/* The segmented control's sliding thumb carries a soft accent fill. */
+[data-tint="on"] .seg-slide .seg-item.is-active { color: var(--accent-1, var(--ink)); }
+
 @keyframes eFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes ePop  { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
 @keyframes eDeg  { from { opacity: 0; transform: translateX(-0.5em); } to { opacity: 1; transform: none; } }
