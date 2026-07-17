@@ -453,6 +453,13 @@ function newsPickSource(it) {
   return (cand && String(cand).trim()) || newsSourceFromTitle(it.title || "");
 }
 
+// The feed is a broad "weather" search, so non-weather stories slip in. Keep
+// only headlines that mention a weather topic. A leading word boundary avoids
+// mid-word false hits (rain vs training), while open ends allow suffixes
+// (rain/rains/rainfall, freez/freezing).
+const NEWS_WEATHER_RE = /\b(?:weather|forecast|temperature|celsius|fahrenheit|rain|drizzle|downpour|shower|snow|flurr|squall|blizzard|sleet|ice|icy|freez|frost|slush|storm|thunder|lightning|hail|tornado|wind|gust|breez|heat|humid|muggy|sunny|sunshine|sunset|cloud|overcast|fog|smog|smoke|wildfire|uv index|air quality|aqhi|flood|drought|warning|watch|advisory|meteorolog|environment canada|climate|chill|vortex|precipitat|hurricane|cyclone|warm|cold)/i;
+function newsIsWeather(title) { return NEWS_WEATHER_RE.test(String(title || "")); }
+
 function parseNews(text) {
   let items = null;
   try {
@@ -467,7 +474,7 @@ function parseNews(text) {
   } catch { /* not JSON, try XML below */ }
   if (!items) items = parseRssXml(text);
   return (items || [])
-    .filter((a) => a.title && a.link)
+    .filter((a) => a.title && a.link && newsIsWeather(a.title))
     .map((a) => ({ ...a, source: (typeof a.source === "string" && a.source.trim()) ? a.source.trim() : NEWS_SOURCE }))
     .slice(0, 8);
 }
