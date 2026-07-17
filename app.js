@@ -564,12 +564,16 @@ function airIndex(air) {
   return { index, pollutant };
 }
 
-function aqiBand(index) {
-  if (index == null) return { label: "--", advice: "" };
-  if (index <= 3) return { label: "Low", advice: "Air quality is good - enjoy your usual activities outdoors." };
-  if (index <= 6) return { label: "Moderate", advice: "Unusually sensitive people should consider easing back on strenuous activity outdoors." };
-  if (index <= 9) return { label: "High", advice: "Anyone with heart or lung problems should cut down on strenuous activity outdoors." };
-  return { label: "Very high", advice: "Reduce strenuous activity outdoors, especially if you have heart or lung problems." };
+// US Air Quality Index bands (US EPA 0-500 scale), the scale most weather apps
+// show. Open-Meteo returns the overall us_aqi (worst pollutant) directly.
+function usAqiBand(aqi) {
+  if (aqi == null) return { label: "--", advice: "" };
+  if (aqi <= 50)  return { label: "Good", advice: "Air quality is good - enjoy your usual activities outdoors." };
+  if (aqi <= 100) return { label: "Moderate", advice: "Unusually sensitive people should consider easing back on strenuous activity outdoors." };
+  if (aqi <= 150) return { label: "Unhealthy for sensitive groups", advice: "People with heart or lung conditions, older adults and children should limit prolonged exertion outdoors." };
+  if (aqi <= 200) return { label: "Unhealthy", advice: "Everyone may start to feel effects; sensitive groups should avoid prolonged exertion outdoors." };
+  if (aqi <= 300) return { label: "Very unhealthy", advice: "Health alert - everyone should avoid strenuous activity outdoors." };
+  return { label: "Hazardous", advice: "Health warning of emergency conditions - stay indoors if you can." };
 }
 
 function uvBand(uv) {
@@ -1276,10 +1280,10 @@ function renderDetails(current, forecast) {
   items.push(pd);
 
   const air = state.data?.air;
-  const aq = airIndex(air);
-  if (aq.index != null) {
-    const b = aqiBand(aq.index);
-    items.push(["aqi", "ph-waves", "Air quality", `${aq.index}`, b.label, null, rangeMeter(aq.index, 0, 10, "Good", "Poor")]);
+  const aqi = air?.us_aqi != null ? Math.round(air.us_aqi) : null;
+  if (aqi != null) {
+    const b = usAqiBand(aqi);
+    items.push(["aqi", "ph-waves", "Air quality", `${aqi}`, b.label, null, rangeMeter(aqi, 0, 300, "Good", "Poor")]);
   }
   if (air && air.uv_index != null) {
     const u = uvBand(air.uv_index);
@@ -1309,7 +1313,7 @@ function renderDetails(current, forecast) {
   // Thresholds are deliberately low - this is a stylistic highlight, not an
   // alert, so a tile gets featured whenever a reading is merely elevated.
   const promo = [];
-  if (aq.index != null && aq.index >= 4) promo.push(["aqi", 5]);
+  if (aqi != null && aqi > 50) promo.push(["aqi", 5]);
   if (air && air.uv_index != null && air.uv_index >= 5) promo.push(["uv", 4]);
   if (popNow != null && popNow * 100 >= 40) promo.push(["precip", 3]);
   if (m.humidity != null && m.humidity >= 65) promo.push(["humidity", 2]);
@@ -1515,8 +1519,8 @@ function summaryNotes(current, hrs) {
   const uvMax = uvArr && uvArr.length ? Math.max(...uvArr.filter(Number.isFinite)) : (state.data?.air?.uv_index ?? 0);
   if (uvMax >= 8) out.push("UV climbs to very high near midday, so sun protection matters.");
   else if (uvMax >= 6) out.push("UV is high near midday, so wear sunscreen.");
-  const aqIdx = airIndex(state.data?.air).index;
-  if (aqIdx != null && aqIdx >= 7) out.push("Air quality is poor today.");
+  const aqiNow = state.data?.air?.us_aqi;
+  if (aqiNow != null && aqiNow > 150) out.push("Air quality is poor today.");
   return out.slice(0, 2);
 }
 
@@ -1858,12 +1862,13 @@ function scaleBar(pos, ends) {
 
 function renderAqiSheet(air) {
   el.sheetTitle.textContent = "Air Quality";
-  const { index, pollutant } = airIndex(air);
-  if (index == null) { el.sheetNote.textContent = "Air quality data is unavailable right now."; el.sheetList.innerHTML = ""; return; }
-  const b = aqiBand(index);
-  el.sheetNote.textContent = `The air quality index is ${index} out of 10 - ${b.label.toLowerCase()}.`;
+  const aqi = air?.us_aqi != null ? Math.round(air.us_aqi) : null;
+  const { pollutant } = airIndex(air);
+  if (aqi == null) { el.sheetNote.textContent = "Air quality data is unavailable right now."; el.sheetList.innerHTML = ""; return; }
+  const b = usAqiBand(aqi);
+  el.sheetNote.textContent = `The US Air Quality Index is ${aqi} - ${b.label.toLowerCase()}.`;
 
-  const scale = scaleBar((index / 10) * 100, ["1", "Low", "High", "10"]);
+  const scale = scaleBar(Math.min(aqi / 300, 1) * 100, ["0", "Moderate", "Unhealthy", "300+"]);
 
   const primary = pollutant
     ? section(`Main pollutant · ${POLLUTANTS[pollutant].name}`,
@@ -1879,11 +1884,11 @@ function renderAqiSheet(air) {
     </div>`).join("");
 
   el.sheetList.innerHTML =
-    `<div class="aqi-hero"><span class="aqi-big">${index}</span><span class="aqi-band">${b.label}</span></div>` +
+    `<div class="aqi-hero"><span class="aqi-big">${aqi}</span><span class="aqi-band">${b.label}</span></div>` +
     scale +
     section("What this means", `<p class="info-text">${b.advice}</p>`) +
     primary +
-    section("About the 1-10 scale", `<p class="info-text">This is the Daily Air Quality Index. 1-3 is low, 4-6 moderate, 7-9 high and 10 very high. The overall number reflects whichever pollutant is worst right now.</p>`) +
+    section("About the scale", `<p class="info-text">This is the US Air Quality Index (AQI). 0-50 is good, 51-100 moderate, 101-150 unhealthy for sensitive groups, 151-200 unhealthy, 201-300 very unhealthy and 301-500 hazardous. The number reflects whichever pollutant is worst right now.</p>`) +
     section("Pollutants right now", breakdown, true);
 }
 
