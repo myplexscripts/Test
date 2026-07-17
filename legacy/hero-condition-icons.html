@@ -1,0 +1,60 @@
+<!--
+  BACKUP: the original three static hero condition icons and their animations,
+  saved before the hero condition bar was made dynamic (rotating metrics).
+  To revert, drop these three <div class="metric"> blocks back into
+  <div class="metrics" id="metrics"> in index.html and remove the
+  renderHeroMetrics() call in app.js (restore the mWind / mHumidity / mFeels
+  textContent assignments).
+
+  Animation sources:
+    - Wind lines: CSS keyframes "windgust" on .cond-wind .wind-line (styles.css)
+    - Humidity drop shine: inline SMIL <animateTransform> (rotate)
+    - Feels-like thermometer fill: inline SMIL <animate> (y2)
+    - Visibility eye blink: CSS keyframes "blink2" on .cond-eye (styles.css)
+-->
+
+<!-- Wind -->
+<div class="metric">
+  <svg class="cond-ic cond-wind" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+    <circle cx="120" cy="72" r="24" opacity="0.2"/><circle cx="208" cy="104" r="24" opacity="0.2"/><circle cx="152" cy="184" r="24" opacity="0.2"/>
+    <path class="wind-line wl1" d="M128,192c3.39,9.15,13.67,16,24,16a24,24,0,0,0,0-48H40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+    <path class="wind-line wl2" d="M96,64c3.39-9.15,13.67-16,24-16a24,24,0,0,1,0,48H24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+    <path class="wind-line wl3" d="M184,96c3.39-9.15,13.67-16,24-16a24,24,0,0,1,0,48H32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+  </svg>
+  <strong id="mWind">--</strong><span>Wind</span>
+</div>
+
+<!-- Humidity -->
+<div class="metric">
+  <svg class="cond-ic cond-drop" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+    <path d="M208,144c0-72-80-128-80-128S48,72,48,144a80,80,0,0,0,160,0Z" opacity="0.2"/>
+    <path d="M208,144c0-72-80-128-80-128S48,72,48,144a80,80,0,0,0,160,0Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+    <path class="drop-shine" d="M136,192c20-3.37,36.61-20,40-40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16">
+      <animateTransform attributeName="transform" attributeType="XML" type="rotate" values="-26 128 144;26 128 144;-26 128 144" keyTimes="0;0.5;1" dur="3.6s" calcMode="spline" keySplines="0.42 0 0.58 1;0.42 0 0.58 1" repeatCount="indefinite"/>
+    </path>
+  </svg>
+  <strong id="mHumidity">--</strong><span>Humidity</span>
+</div>
+
+<!-- Feels like -->
+<div class="metric">
+  <svg class="cond-ic cond-therm" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+    <path d="M160,138V48a32,32,0,0,0-64,0v90a56,56,0,1,0,64,0Z" opacity="0.2"/>
+    <path d="M96,48a32,32,0,0,1,64,0v90a56,56,0,1,1-64,0Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+    <circle cx="128" cy="184" r="24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+    <line class="therm-fill" x1="128" y1="160" x2="128" y2="88" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16">
+      <animate attributeName="y2" values="104;88;104" keyTimes="0;0.5;1" dur="3.4s" calcMode="spline" keySplines="0.42 0 0.58 1;0.42 0 0.58 1" repeatCount="indefinite"/>
+    </line>
+  </svg>
+  <strong id="mFeels">--</strong><span>Feels like</span>
+</div>
+
+<!-- Visibility (was an unused template, kept here for reference) -->
+<div class="metric">
+  <svg class="cond-ic cond-eye" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+    <path d="M128,56C48,56,16,128,16,128s32,72,112,72,112-72,112-72S208,56,128,56Zm0,112a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z" opacity="0.2"/>
+    <path class="eye-outline" d="M128,56C48,56,16,128,16,128s32,72,112,72,112-72,112-72S208,56,128,56Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+    <circle class="eye-iris" cx="128" cy="128" r="40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+  </svg>
+  <strong id="mVisibility">--</strong><span>Visibility</span>
+</div>

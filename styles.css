@@ -331,7 +331,7 @@ body:has(.sheet.is-open) #gradient-canvas { opacity: 0; }
 
   .col-now .hero { padding-top: var(--s-2); }
   .col-now .hero-readout .display { font-size: 6.5rem; }
-  .col-now .hero-icon { font-size: 7.25rem; }
+  .col-now .hero-icon { font-size: 8.25rem; }
 
   .app-cols .rail {
     margin-left: 0;
@@ -423,6 +423,15 @@ body:has(.sheet.is-open) #gradient-canvas { opacity: 0; }
    date/time's right edge, then let the (mostly circular) art bleed a little
    past the top-right corner. */
 .hero-icon { margin: -0.16em -0.16em 0 0; }
+/* Normalise apparent icon size: the clear-sky sun fills its box with rays, so
+   the line-drawn cloud / rain / snow / mist glyphs (which sit smaller in the
+   viewBox) are scaled up to carry the same visual weight as the sun. */
+.hero-icon svg { transform-origin: center; }
+.hero-icon.wx-clouds svg { transform: scale(1.18); }
+.hero-icon.wx-rain svg   { transform: scale(1.16); }
+.hero-icon.wx-storm svg  { transform: scale(1.14); }
+.hero-icon.wx-snow svg   { transform: scale(1.16); }
+.hero-icon.wx-mist svg   { transform: scale(1.22); }
 .hero-readout {
   grid-area: readout;
   display: flex;
@@ -470,7 +479,7 @@ body:has(.sheet.is-open) #gradient-canvas { opacity: 0; }
   -webkit-tap-highlight-color: transparent;
   transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-spring);
 }
-.loc-btn i { font-size: 1.15rem; }
+.loc-btn i { font-size: 1.15rem; transform: scaleX(-1); }
 .loc-btn:active { transform: scale(0.88); background: var(--card-bg-hi); }
 /* Weight pulled back from 800 so the huge number reads lighter next to the
    line-drawn condition icon; the small negative margin nudges the numerals'
@@ -517,7 +526,7 @@ body:has(.sheet.is-open) #gradient-canvas { opacity: 0; }
 }
 
 .hero-icon {
-  font-size: clamp(6.75rem, 35vw, 10.5rem);
+  font-size: clamp(7.5rem, 38vw, 11rem);
   color: var(--ink);
   flex: 0 0 auto;
   line-height: 1;

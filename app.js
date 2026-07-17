@@ -34,7 +34,7 @@ const el = {
   heroLo: $("heroLo"), heroHi: $("heroHi"), heroWhen: $("heroWhen"),
   alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
   hero: document.querySelector(".hero"),
-  mWind: $("mWind"), mHumidity: $("mHumidity"), mFeels: $("mFeels"),
+  metrics: $("metrics"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   dayGraph: $("dayGraph"),
   nowcast: $("nowcast"), nowcastLine: $("nowcastLine"), nowcastIc: document.querySelector(".nowcast-ic"),
@@ -730,9 +730,7 @@ function render(data, opts) {
   renderAlerts(data.alerts, tz);
 
 
-  el.mWind.textContent = windText(current.wind?.speed || 0);
-  el.mHumidity.textContent = m.humidity != null ? `${m.humidity}%` : "--";
-  el.mFeels.textContent = `${Math.round(m.feels_like ?? m.temp ?? 0)}°`;
+  renderHeroMetrics(current);
 
   renderHourly();
   renderDaily();
@@ -1322,6 +1320,109 @@ function compassSVG(rot, value, unit) {
     <text x="60" y="58" class="compass-value">${value}</text>
     <text x="60" y="72" class="compass-unit">${unit}</text>
   </svg>`;
+}
+
+// Inline metric icons for the hero condition bar, in the same line-drawn style
+// as the originals (256 viewBox, 16 stroke, a 0.2 fill layer). Wind and eye
+// animate from CSS (windgust / blink2); drop, therm, sun, waves and rain carry
+// inline SMIL. heroMetricIcon() strips the SMIL when motion is turned off.
+const HERO_METRIC_ICONS = {
+  wind: `<svg class="cond-ic cond-wind" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+    <circle cx="120" cy="72" r="24" opacity="0.2"/><circle cx="208" cy="104" r="24" opacity="0.2"/><circle cx="152" cy="184" r="24" opacity="0.2"/>
+    <path class="wind-line wl1" d="M128,192c3.39,9.15,13.67,16,24,16a24,24,0,0,0,0-48H40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+    <path class="wind-line wl2" d="M96,64c3.39-9.15,13.67-16,24-16a24,24,0,0,1,0,48H24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+    <path class="wind-line wl3" d="M184,96c3.39-9.15,13.67-16,24-16a24,24,0,0,1,0,48H32" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+  </svg>`,
+  drop: `<svg class="cond-ic cond-drop" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+    <path d="M208,144c0-72-80-128-80-128S48,72,48,144a80,80,0,0,0,160,0Z" opacity="0.2"/>
+    <path d="M208,144c0-72-80-128-80-128S48,72,48,144a80,80,0,0,0,160,0Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+    <path class="drop-shine" d="M136,192c20-3.37,36.61-20,40-40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16">
+      <animateTransform attributeName="transform" attributeType="XML" type="rotate" values="-26 128 144;26 128 144;-26 128 144" keyTimes="0;0.5;1" dur="3.6s" calcMode="spline" keySplines="0.42 0 0.58 1;0.42 0 0.58 1" repeatCount="indefinite"/>
+    </path>
+  </svg>`,
+  therm: `<svg class="cond-ic cond-therm" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+    <path d="M160,138V48a32,32,0,0,0-64,0v90a56,56,0,1,0,64,0Z" opacity="0.2"/>
+    <path d="M96,48a32,32,0,0,1,64,0v90a56,56,0,1,1-64,0Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+    <circle cx="128" cy="184" r="24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+    <line class="therm-fill" x1="128" y1="160" x2="128" y2="88" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16">
+      <animate attributeName="y2" values="104;88;104" keyTimes="0;0.5;1" dur="3.4s" calcMode="spline" keySplines="0.42 0 0.58 1;0.42 0 0.58 1" repeatCount="indefinite"/>
+    </line>
+  </svg>`,
+  eye: `<svg class="cond-ic cond-eye" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+    <path d="M128,56C48,56,16,128,16,128s32,72,112,72,112-72,112-72S208,56,128,56Zm0,112a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z" opacity="0.2"/>
+    <path class="eye-outline" d="M128,56C48,56,16,128,16,128s32,72,112,72,112-72,112-72S208,56,128,56Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+    <circle class="eye-iris" cx="128" cy="128" r="40" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16"/>
+  </svg>`,
+  sun: `<svg class="cond-ic cond-sun" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+    <circle cx="128" cy="128" r="46" opacity="0.2"/>
+    <circle cx="128" cy="128" r="46" fill="none" stroke="currentColor" stroke-width="16"/>
+    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-width="16">
+      <line x1="128" y1="26" x2="128" y2="8"/><line x1="128" y1="248" x2="128" y2="230"/>
+      <line x1="26" y1="128" x2="8" y2="128"/><line x1="248" y1="128" x2="230" y2="128"/>
+      <line x1="55" y1="55" x2="42" y2="42"/><line x1="214" y1="214" x2="201" y2="201"/>
+      <line x1="55" y1="201" x2="42" y2="214"/><line x1="214" y1="42" x2="201" y2="55"/>
+      <animateTransform attributeName="transform" attributeType="XML" type="rotate" from="0 128 128" to="360 128 128" dur="20s" repeatCount="indefinite"/>
+    </g>
+  </svg>`,
+  waves: `<svg class="cond-ic cond-waves" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+    <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16">
+      <path opacity="0.2" d="M20,84 q22,-24 44,0 t44,0 t44,0 t44,0"/>
+      <path d="M20,172 q22,-24 44,0 t44,0 t44,0 t44,0"/>
+      <g>
+        <path d="M20,128 q22,-24 44,0 t44,0 t44,0 t44,0"/>
+        <animateTransform attributeName="transform" attributeType="XML" type="translate" values="0 0;0 -8;0 0" dur="3.6s" calcMode="spline" keySplines="0.42 0 0.58 1;0.42 0 0.58 1" keyTimes="0;0.5;1" repeatCount="indefinite"/>
+      </g>
+    </g>
+  </svg>`,
+  rain: `<svg class="cond-ic cond-rain" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
+    <path d="M160,120a40,40,0,0,1,0,80H72a56,56,0,1,1,13.85-110.28A64,64,0,0,1,160,120Z" opacity="0.2" transform="translate(0,-22)"/>
+    <path d="M160,120a40,40,0,0,1,0,80H72a56,56,0,1,1,13.85-110.28A64,64,0,0,1,160,120Z" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" transform="translate(0,-22)"/>
+    <g stroke="currentColor" stroke-width="16" stroke-linecap="round">
+      <line x1="96" y1="190" x2="88" y2="214"><animate attributeName="opacity" values="0;1;0" dur="1.5s" repeatCount="indefinite"/></line>
+      <line x1="132" y1="190" x2="124" y2="214"><animate attributeName="opacity" values="0;1;0" dur="1.5s" begin="0.5s" repeatCount="indefinite"/></line>
+      <line x1="168" y1="190" x2="160" y2="214"><animate attributeName="opacity" values="0;1;0" dur="1.5s" begin="1s" repeatCount="indefinite"/></line>
+    </g>
+  </svg>`
+};
+
+function heroMetricIcon(key) {
+  let svg = HERO_METRIC_ICONS[key] || "";
+  if (state.animate === false) svg = svg.replace(/<animate[^>]*\/>/g, "");
+  return svg;
+}
+
+// The hero condition bar always shows Feels like, plus the two most prominent
+// readings right now (windy, humid/dry, high UV, poor air, rain, fog). Each
+// candidate gets a prominence score on a shared scale; the top two win, so on a
+// calm day it naturally falls back to wind and humidity.
+function renderHeroMetrics(current) {
+  const m = current.main || {};
+  const air = state.data?.air;
+  const spd = current.wind?.speed || 0;
+  const kmh = state.units === "imperial" ? spd * 1.609 : spd * 3.6;
+  const h = m.humidity;
+  const uv = air?.uv_index;
+  const aq = airHealthIndex(air);
+  const popNow = state.hourly?.[0]?.pop ?? state.data?.forecast?.list?.[0]?.pop ?? 0;
+  const vis = state.hourly?.[0]?.visibility ?? current.visibility;
+
+  const cands = [];
+  cands.push({ key: "wind", label: "Wind", value: windText(spd), icon: "wind", order: 0, score: Math.max(0, kmh - 8) * 0.07 });
+  if (h != null) cands.push({ key: "humidity", label: "Humidity", value: `${h}%`, icon: "drop", order: 1, score: Math.abs(h - 50) / 12 });
+  if (uv != null) cands.push({ key: "uv", label: "UV", value: `${Math.round(uv)}`, icon: "sun", order: 2, score: Math.max(0, uv - 2) * 0.7 });
+  if (aq.index != null) cands.push({ key: "aqi", label: "Air quality", value: aqhiLabel(aq.index), icon: "waves", order: 3, score: Math.max(0, aq.index - 2) * 0.9 });
+  cands.push({ key: "precip", label: "Precip", value: `${Math.round(popNow * 100)}%`, icon: "rain", order: 4, score: (popNow * 100) / 22 });
+  if (vis != null) cands.push({ key: "visibility", label: "Visibility", value: visibilityText(vis), icon: "eye", order: 5, score: (vis / 1000) < 8 ? (8 - vis / 1000) * 0.9 : 0 });
+
+  cands.sort((a, b) => (b.score - a.score) || (a.order - b.order));
+  const feels = Math.round(m.feels_like ?? m.temp ?? 0);
+  const tiles = [...cands.slice(0, 2), { key: "feels", label: "Feels like", value: `${feels}°`, icon: "therm" }];
+
+  el.metrics.innerHTML = tiles.map((t) => `
+    <div class="metric" data-metric="${t.key}">
+      ${heroMetricIcon(t.icon)}
+      <strong>${t.value}</strong><span>${t.label}</span>
+    </div>`).join("");
 }
 
 function renderDetails(current, forecast) {
