@@ -677,14 +677,14 @@ body:has(.sheet.is-open) .mesh { animation-play-state: paused; }
   text-align: left;
   cursor: pointer;
   border: 0;
-  /* Neutral grey surface (from the palette's grey ramp), so the severity
-     colour on the chip and icon is never muddied by the sky tint. */
-  background: var(--neutral-card, var(--card-bg));
+  /* Frosted tile like the rest of the app, so the alert adapts to the sky
+     colour; the severity chip and icon keep their own tier colour on top. */
+  background: var(--card-bg);
   border-radius: var(--r-md);
   padding: var(--s-4);
   transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
 }
-.alert:active { transform: scale(0.98); background: var(--neutral-card-hi, var(--card-bg-hi)); }
+.alert:active { transform: scale(0.98); background: var(--card-bg-hi); }
 /* The warning icon takes the severity colour on tiered alerts, and falls back
    to ink on untiered ones. */
 .alert-ic { font-size: 2.2rem; color: var(--alert-fg, var(--ink)); flex: 0 0 auto; line-height: 1; }
@@ -1685,8 +1685,11 @@ body:has(.sheet.is-full) .bottomnav {
   gap: 2px;
   padding: 4px;
   border-radius: var(--r-pill);
-  border: 2px solid color-mix(in srgb, var(--on-surface) 14%, transparent);
-  background: var(--surface);
+  border: 2px solid color-mix(in srgb, var(--on-surface) 16%, transparent);
+  /* Frosted glass so the bar adapts to the sky colour behind it. */
+  background: var(--card-bg-hi);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   color: var(--on-surface);
   box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
 }
