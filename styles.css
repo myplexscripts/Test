@@ -201,20 +201,29 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
 }
+:root {
+  --mesh-base: #10233E;
+  --mesh-a: #78B6FF; --mesh-a0: rgba(120, 182, 255, 0);
+  --mesh-b: #66D7F5; --mesh-b0: rgba(102, 215, 245, 0);
+}
 .mesh {
   position: absolute; top: 50%; left: 50%;
   width: 150vmax; height: 150vmax;
   transform: translate(-50%, -50%) rotate(0deg);
   animation: mesh-spin 90s linear infinite;
-  background-color: var(--mesh-base, #10233E);
+  /* One solid weather colour as the base, the two accent colours as radial
+     blobs on top. Each blob fades to a transparent version of its OWN colour
+     (not plain transparent, which is transparent-black), so the falloff and
+     every overlap stays colour-on-colour, never muddied through black. */
+  background-color: var(--mesh-base);
   background-image:
-    radial-gradient(at 96% 8%, var(--mesh-1, #78B6FF) 0px, transparent 50%),
-    radial-gradient(at 32% 8%, var(--mesh-2, #66D7F5) 0px, transparent 50%),
-    radial-gradient(at 64% 88%, var(--mesh-3, #10233E) 0px, transparent 50%),
-    radial-gradient(at 39% 83%, var(--mesh-4, #4aa0e6) 0px, transparent 50%),
-    radial-gradient(at 30% 21%, var(--mesh-5, #66D7F5) 0px, transparent 50%),
-    radial-gradient(at 66% 54%, var(--mesh-6, #0D2730) 0px, transparent 50%),
-    radial-gradient(at 74% 47%, var(--mesh-7, #78B6FF) 0px, transparent 50%);
+    radial-gradient(at 96% 8%, var(--mesh-a) 0px, var(--mesh-a0) 50%),
+    radial-gradient(at 32% 8%, var(--mesh-b) 0px, var(--mesh-b0) 50%),
+    radial-gradient(at 64% 88%, var(--mesh-a) 0px, var(--mesh-a0) 50%),
+    radial-gradient(at 39% 83%, var(--mesh-b) 0px, var(--mesh-b0) 50%),
+    radial-gradient(at 30% 21%, var(--mesh-a) 0px, var(--mesh-a0) 50%),
+    radial-gradient(at 66% 54%, var(--mesh-b) 0px, var(--mesh-b0) 50%),
+    radial-gradient(at 74% 47%, var(--mesh-a) 0px, var(--mesh-a0) 50%);
 }
 @keyframes mesh-spin {
   from { transform: translate(-50%, -50%) rotate(0deg); }

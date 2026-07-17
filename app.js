@@ -2515,7 +2515,11 @@ function skyFamily(hex) {
 // CSS vars the bloom drives: neutral chrome plus the mesh base and its seven
 // radial blob colours. Cleared when tint is off so the plain palette shows.
 const BLOOM_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--hairline",
-  "--mesh-base", "--mesh-1", "--mesh-2", "--mesh-3", "--mesh-4", "--mesh-5", "--mesh-6", "--mesh-7"];
+  "--mesh-base", "--mesh-a", "--mesh-a0", "--mesh-b", "--mesh-b0"];
+
+// A fully-transparent version of a colour (transparent-<own hue>, not plain
+// transparent which is transparent-black), so radial blobs fade in-hue.
+function rgbaZero(hex) { const [r, g, b] = hexToRgb(hex); return `rgba(${r | 0},${g | 0},${b | 0},0)`; }
 
 // Deepen a bright pastel accent into a darker but still-vivid tone: cap the
 // lightness so it contrasts with white, and lift the saturation so the darker
@@ -2535,20 +2539,18 @@ function applyBloomAccents(sky, dark) {
     if (base) { r.setProperty("--ink", base.ink); r.setProperty("--bg", base.bg); }
     return;
   }
-  // Deep bases + vivid (deepened) accents from the two sky families, hue
-  // tracking the weather. The dfg accents are bright pastels, which wash out
-  // under white text, so deepen them (darker, still saturated). Seven radial
-  // blobs are painted from these, mixing vivid pops with darker patches over a
-  // dark base for depth; the CSS layer rotates the whole thing slowly.
+  // Three weather colours: a solid base (the blend of the two sky families'
+  // deep bases) and the two deepened accents painted as radial blobs on top.
+  // The dfg accents are bright pastels that wash out under white text, so
+  // deepen them (darker, still saturated). Blobs fade to a transparent version
+  // of their own colour, so the mesh is colour-over-colour throughout, never
+  // muddied through black. The CSS layer rotates the whole thing slowly.
   const fa = skyFamily(sky.top), fb = skyFamily(sky.bottom);
   const a1 = deepenAccent(fa.dfg), a2 = deepenAccent(fb.dfg);
-  const d1 = fa.dbg, d2 = fb.dbg;
-  const base = lerpHex(d1, d2, 0.5);
-  // Only vivid accents and dark bases (never a blend of the two accents, which
-  // can average to a dull grey when they are near-complementary).
-  const mesh = [a1, a2, d1, a1, a2, d2, a1];
+  const base = lerpHex(fa.dbg, fb.dbg, 0.5);
   r.setProperty("--mesh-base", base);
-  mesh.forEach((c, i) => r.setProperty(`--mesh-${i + 1}`, c));
+  r.setProperty("--mesh-a", a1); r.setProperty("--mesh-a0", rgbaZero(a1));
+  r.setProperty("--mesh-b", a2); r.setProperty("--mesh-b0", rgbaZero(a2));
   // Solid page colour below the first viewport = the mesh base, so the masked
   // mesh dissolves into it seamlessly.
   r.setProperty("--bg", base);
