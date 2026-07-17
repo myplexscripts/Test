@@ -1522,7 +1522,7 @@ const HERO_METRIC_ICONS = {
   </svg>`,
   waves: `<svg class="cond-ic cond-waves" viewBox="0 0 256 256" fill="currentColor" aria-hidden="true">
     <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16">
-      <path opacity="0.2" d="M28,84 q25,-22 50,0 t50,0 t50,0 t50,0"/>
+      <path d="M28,84 q25,-22 50,0 t50,0 t50,0 t50,0"/>
       <path d="M28,128 q25,-22 50,0 t50,0 t50,0 t50,0"/>
       <path d="M28,172 q25,-22 50,0 t50,0 t50,0 t50,0"/>
     </g>
@@ -2550,6 +2550,16 @@ function watchMeshPlayback() {
   document.addEventListener("visibilitychange", syncMeshPlayback);
 }
 
+// Deepen a bright pastel accent into a darker but still-vivid tone: cap the
+// lightness so it contrasts with white, and lift the saturation so the darker
+// colour stays close to the palette hue instead of going dull/grey.
+function deepenAccent(hex) {
+  let [h, s, l] = rgbToHsl(hexToRgb(hex));
+  l = Math.min(l, 0.42);
+  s = Math.min(1, s * 0.95 + 0.18);
+  return rgbToHex(hslToRgb(h, s, l));
+}
+
 function applyBloomAccents(sky, dark) {
   const r = document.documentElement.style;
   if (!state.tinted || !sky) {
@@ -2560,9 +2570,12 @@ function applyBloomAccents(sky, dark) {
     return;
   }
   // One theme: a deep, rich mesh from the two sky families (two deep bases +
-  // two brighter accents), hue tracking the weather, tone always deep.
+  // two brighter accents), hue tracking the weather, tone always deep. The
+  // family accents (dfg) are bright pastels, which wash out under white text on
+  // light skies, so deepen them: pull the lightness down and push saturation up
+  // so they read darker but stay vivid and on-palette, not grey.
   const fa = skyFamily(sky.top), fb = skyFamily(sky.bottom);
-  const cols = [fa.dbg, fb.dbg, fb.dfg, fa.dfg];
+  const cols = [fa.dbg, fb.dbg, deepenAccent(fb.dfg), deepenAccent(fa.dfg)];
   recolorWxGradient(cols);
   // Solid page colour below the first viewport = the mesh's base blend, so the
   // masked canvas dissolves into it seamlessly.
