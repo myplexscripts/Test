@@ -466,7 +466,10 @@ function newsCleanTitle(t) { const s = decodeEntities(t).trim(); return s.replac
 // collapse whitespace. Truncate on a word boundary when it runs long.
 function newsSummary(raw) {
   if (!raw) return "";
-  return decodeEntities(String(raw).replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim();
+  // Strip HTML but keep paragraph breaks (from block tags / blank lines) so a
+  // multi-paragraph generated summary reads cleanly; collapse other whitespace.
+  const s = decodeEntities(String(raw).replace(/<\/(?:p|div|li|h[1-6])>|<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, " "));
+  return s.replace(/[ \t\f\r]+/g, " ").replace(/\s*\n\s*/g, "\n").replace(/\n{2,}/g, "\n").trim();
 }
 function newsTruncate(s, n) {
   if (!s || s.length <= n) return s || "";
@@ -617,8 +620,8 @@ function openNewsReader(a) {
   else { img.hidden = true; img.removeAttribute("src"); }
   el.newsReaderMeta.textContent = [a.source, newsDate(a.ts)].filter(Boolean).join(" · ");
   el.newsReaderTitle.textContent = a.title || "Article";
-  const sum = a.summary ? newsTruncate(a.summary, 600) : "";
-  el.newsReaderSummary.textContent = sum;
+  const sum = a.summary ? newsTruncate(a.summary, 1600) : "";
+  el.newsReaderSummary.innerHTML = sum ? sum.split("\n").filter(Boolean).map(escapeHTML).join("<br><br>") : "";
   el.newsReaderSummary.hidden = !sum;
   el.newsReaderLink.href = a.link || "#";
   if (el.newsReaderScroll) el.newsReaderScroll.scrollTop = 0;

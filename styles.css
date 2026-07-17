@@ -254,8 +254,8 @@ body:has(.sheet.is-open) .mesh { animation-play-state: paused; }
 .news-list { display: flex; flex-direction: column; gap: var(--s-2); }
 .news-thumb {
   flex: 0 0 auto;
-  width: 76px;
-  height: 76px;
+  width: 116px;
+  height: 116px;
   border-radius: var(--r-md);
   object-fit: cover;
   background: var(--card-bg-hi);
