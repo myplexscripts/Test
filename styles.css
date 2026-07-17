@@ -252,21 +252,22 @@ body:has(.sheet.is-open) .mesh { animation-play-state: paused; }
 
 /* Local weather news: a simple list of frosted cards linking out to articles. */
 .news-list { display: flex; flex-direction: column; gap: var(--s-2); }
-.news-thumb {
-  flex: 0 0 auto;
-  width: 116px;
-  height: 116px;
-  border-radius: var(--r-md);
-  object-fit: cover;
-  background: var(--card-bg-hi);
-  align-self: center;
+/* Date sub-header grouping the articles below it (Today / Yesterday / date). */
+.news-group {
+  font-family: Rubik, Inter, sans-serif;
+  font-size: 0.8rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin: var(--s-4) 0 2px;
 }
-.news-text { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; text-align: left; }
+.news-group:first-child { margin-top: 0; }
+.news-empty { color: var(--ink-soft); font-weight: 500; padding: var(--s-4) 0; }
 .news-item {
   display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: var(--s-4);
+  flex-direction: column;
+  gap: 4px;
   padding: var(--s-4);
   border-radius: var(--r-lg);
   background: var(--card-bg);
@@ -288,81 +289,7 @@ body:has(.sheet.is-open) .mesh { animation-play-state: paused; }
 }
 .news-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); margin-top: 2px; }
 .news-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.02em; }
-/* Match the caret on the detail tiles (1.8rem, full ink) so the tap arrows read
-   the same size across the app. */
-.news-go { flex: none; font-size: 1.8rem; color: var(--ink); }
-
-/* In-app article reader: image, headline, snippet and a link out. */
-.news-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 60;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: calc(var(--safe-t) + var(--s-5)) var(--s-5) calc(var(--safe-b) + var(--s-5));
-  background: rgba(0, 0, 0, 0.5);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity var(--dur) var(--ease-out);
-}
-.news-overlay.is-open { opacity: 1; pointer-events: auto; }
-.news-reader {
-  position: relative;
-  width: min(560px, 100%);
-  max-height: 100%;
-  display: flex;
-  flex-direction: column;
-  background: var(--bg);
-  color: var(--ink);
-  border: 2px solid var(--card-border);
-  border-radius: var(--r-lg);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.45);
-  overflow: hidden;
-  transform: translateY(14px) scale(0.98);
-  transition: transform var(--dur) var(--ease-spring);
-}
-.news-overlay.is-open .news-reader { transform: none; }
-.news-reader-scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
-.news-reader-img { width: 100%; max-height: 240px; object-fit: cover; display: block; background: var(--card-bg-hi); }
-.news-reader-inner { padding: var(--s-5); display: flex; flex-direction: column; gap: var(--s-3); }
-.news-reader-meta { font-size: var(--t-cap); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); }
-.news-reader-title { font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: var(--t-title); line-height: 1.2; }
-.news-reader-summary { font-size: var(--t-body); line-height: 1.55; font-weight: 500; color: var(--ink-soft); }
-.news-reader-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  align-self: flex-start;
-  margin-top: var(--s-2);
-  padding: 10px 18px;
-  border-radius: var(--r-pill);
-  background: var(--card-bg-hi);
-  color: var(--ink);
-  font-weight: 700;
-  text-decoration: none;
-  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
-}
-.news-reader-link i { font-size: 1.1rem; }
-.news-reader-link:active { transform: scale(0.97); background: var(--card-bg); }
-.news-reader-close {
-  position: absolute;
-  top: var(--s-4);
-  right: var(--s-4);
-  z-index: 2;
-  width: 40px;
-  height: 40px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--r-pill);
-  color: #fff;
-  background: rgba(0, 0, 0, 0.42);
-  -webkit-backdrop-filter: blur(8px);
-  backdrop-filter: blur(8px);
-  transition: transform var(--dur-fast) var(--ease-spring);
-}
-.news-reader-close i { font-size: 1.4rem; }
-.news-reader-close:active { transform: scale(0.9); }
+.news-go { flex: none; font-size: 1.4rem; color: var(--ink-faint); }
 
 /* Status-bar scrim: purely a masked backdrop blur, no tint. Strongest at the
    very top so the status bar stays legible over any bloom, then the mask
@@ -853,6 +780,8 @@ body:has(.sheet.is-open) .mesh { animation-play-state: paused; }
   justify-content: center;
   padding: calc(var(--safe-t) + var(--s-5)) var(--s-5) calc(var(--safe-b) + var(--s-5));
   background: rgba(0, 0, 0, 0.5);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
   opacity: 0;
   pointer-events: none;
   transition: opacity var(--dur) var(--ease-out);
@@ -1780,7 +1709,7 @@ body:has(.sheet.is-full) .bottomnav {
   position: relative;
   z-index: 1;
   flex: 1 1 0;
-  min-width: 62px;
+  min-width: 54px;
   height: 48px;
   display: grid;
   place-items: center;
@@ -1807,7 +1736,7 @@ body:has(.sheet.is-full) .bottomnav {
   top: 4px;
   bottom: 4px;
   left: 4px;
-  width: calc((100% - 14px) / 4);   /* container padding 8 + 3 gaps of 2 */
+  width: calc((100% - 16px) / 5);   /* container padding 8 + 4 gaps of 2 */
   border-radius: var(--r-pill);
   background: var(--on-surface);
   transition: transform var(--dur-toggle) var(--ease-toggle);
@@ -1815,6 +1744,7 @@ body:has(.sheet.is-full) .bottomnav {
 .bottomnav[data-pos="1"]::after { transform: translateX(calc(100% + 2px)); }
 .bottomnav[data-pos="2"]::after { transform: translateX(calc(200% + 4px)); }
 .bottomnav[data-pos="3"]::after { transform: translateX(calc(300% + 6px)); }
+.bottomnav[data-pos="4"]::after { transform: translateX(calc(400% + 8px)); }
 
 /* Settings drop-up: a small dark menu that springs out of the nav bar from
    the gear's corner. transform-origin sits over the gear so the scale reads

@@ -8,7 +8,6 @@ const AQHI_BASE = "https://api.weather.gc.ca";
 const NEWS_PROXY = "https://rss-proxy.davidbusch-02.workers.dev/local?_=";
 // The /local feed is a site:ctvnews.ca/london search, so any item that arrives
 // without its own publisher is still CTV News London.
-const NEWS_SOURCE = "CTV News London";
 const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
@@ -39,11 +38,9 @@ const el = {
   heroLo: $("heroLo"), heroHi: $("heroHi"), heroFeels: $("heroFeels"), heroWhen: $("heroWhen"),
   alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
   hero: document.querySelector(".hero"),
-  metrics: $("metrics"), news: $("news"), newsList: $("newsList"),
+  metrics: $("metrics"), newsList: $("newsList"),
   meshWrap: $("meshWrap"), homeNavBtn: $("navHome"),
-  newsOverlay: $("newsOverlay"), newsReaderImg: $("newsReaderImg"), newsReaderMeta: $("newsReaderMeta"),
-  newsReaderTitle: $("newsReaderTitle"), newsReaderSummary: $("newsReaderSummary"), newsReaderLink: $("newsReaderLink"),
-  newsReaderClose: $("newsReaderClose"), newsReaderScroll: $("newsReaderScroll"),
+  newsSheet: $("newsSheet"), newsBack: $("newsBack"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   dayGraph: $("dayGraph"),
   nowcast: $("nowcast"), nowcastLine: $("nowcastLine"), nowcastIc: document.querySelector(".nowcast-ic"),
@@ -272,9 +269,7 @@ function wireEvents() {
 
   if (el.alertModalClose) el.alertModalClose.onclick = closeAlertModal;
   if (el.alertOverlay) el.alertOverlay.onclick = (e) => { if (e.target === el.alertOverlay) closeAlertModal(); };
-  if (el.newsReaderClose) el.newsReaderClose.onclick = closeNewsReader;
-  if (el.newsOverlay) el.newsOverlay.onclick = (e) => { if (e.target === el.newsOverlay) closeNewsReader(); };
-  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNewsReader(); });
+  if (el.newsBack) el.newsBack.onclick = closeNews;
 
   window.addEventListener("resize", () => {
     if (radar.preview) radar.preview.invalidateSize();
@@ -479,13 +474,22 @@ function newsTruncate(s, n) {
   return cut.replace(/[\s.,;:]+$/, "") + "…";
 }
 
-// Pull a lead image (og:image / enclosure / media) from a JSON item.
-function newsPickImage(it) {
-  const cand = it.image || it.image_url || it.imageUrl || it.thumbnail || it.og_image || it.ogImage
-    || (it.enclosure && (it.enclosure.url || it.enclosure.link))
-    || (it["media:content"] && it["media:content"].url)
-    || (it["media:thumbnail"] && it["media:thumbnail"].url) || "";
-  return typeof cand === "string" ? cand.trim() : "";
+// Last-resort publisher name from the article's own domain (so items are never
+// all mislabelled with one source). Returns "" for Google redirect links.
+const NEWS_DOMAINS = {
+  "ctvnews.ca": "CTV News", "cbc.ca": "CBC", "globalnews.ca": "Global News",
+  "theweathernetwork.com": "The Weather Network", "thestar.com": "Toronto Star",
+  "lfpress.com": "London Free Press", "weather.gc.ca": "Environment Canada",
+  "thespec.com": "The Spectator", "nationalpost.com": "National Post"
+};
+function newsSourceFromLink(link) {
+  try {
+    const h = new URL(link).hostname.replace(/^www\./, "").toLowerCase();
+    if (/(^|\.)google\./.test(h)) return "";
+    for (const d in NEWS_DOMAINS) if (h === d || h.endsWith("." + d)) return NEWS_DOMAINS[d];
+    const core = h.split(".").slice(-2, -1)[0] || "";
+    return core ? core.charAt(0).toUpperCase() + core.slice(1) : "";
+  } catch { return ""; }
 }
 
 // Pull a publisher name from a JSON item, wherever a feed might tuck it away.
@@ -512,7 +516,6 @@ function parseNews(text) {
       title: newsCleanTitle(it.title || ""),
       link: it.link || it.url || it.guid || "",
       source: newsPickSource(it),
-      image: newsPickImage(it),
       ts: parseWhen(it.pubDate || it.published || it.date || it.pubdate || it.isoDate || ""),
       summary: newsSummary(it.description || it.summary || it.contentSnippet || it.content || it.content_text || "")
     }));
@@ -520,8 +523,8 @@ function parseNews(text) {
   if (!items) items = parseRssXml(text);
   return (items || [])
     .filter((a) => a.title && a.link && newsIsWeather(a.title))
-    .map((a) => ({ ...a, source: (typeof a.source === "string" && a.source.trim()) ? a.source.trim() : NEWS_SOURCE }))
-    .slice(0, 8);
+    .map((a) => ({ ...a, source: (typeof a.source === "string" && a.source.trim()) ? a.source.trim() : newsSourceFromLink(a.link) }))
+    .slice(0, 20);
 }
 
 function parseRssXml(text) {
@@ -533,27 +536,14 @@ function parseRssXml(text) {
     const q = (s) => it.querySelector(s)?.textContent?.trim() || "";
     const rawTitle = q("title");
     const src = tag(it, "source") || tag(it, "dc:creator") || tag(it, "creator") || tag(it, "author");
-    const attr = (name, a) => it.getElementsByTagName(name)[0]?.getAttribute(a) || "";
     return {
       title: newsCleanTitle(rawTitle),
       link: q("link") || it.querySelector("guid")?.textContent?.trim() || "",
       source: src || newsSourceFromTitle(rawTitle),
-      image: (attr("enclosure", "url") || attr("media:content", "url") || attr("media:thumbnail", "url") || tag(it, "image") || "").trim(),
       ts: parseWhen(q("pubDate") || tag(it, "dc:date") || tag(it, "published") || tag(it, "updated")),
       summary: newsSummary(tag(it, "description") || tag(it, "content:encoded") || tag(it, "summary") || tag(it, "content"))
     };
   });
-}
-
-// Publish date: the clock time if it is from today, otherwise the month and day.
-function newsDate(ts) {
-  if (!ts) return "";
-  const tz = state.tz || 0;
-  const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  const d = new Date((ts + tz) * 1000);
-  const now = new Date((Math.floor(Date.now() / 1000) + tz) * 1000);
-  const sameDay = d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth() && d.getUTCDate() === now.getUTCDate();
-  return sameDay ? fmtClock(ts, tz) : `${mo[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
 function saveNews(articles) {
@@ -580,58 +570,65 @@ async function loadNews(force) {
   renderNews(state.news || []);
 }
 
-function renderNews(articles) {
-  if (!el.news || !el.newsList) return;
-  if (!articles || !articles.length) { el.news.hidden = true; return; }
-  el.newsList.innerHTML = articles.map((a, i) => {
-    const meta = [a.source, newsDate(a.ts)].filter(Boolean).map(escapeHTML).join(" · ");
-    // Show the description, but only if it adds something: some feeds just
-    // repeat the headline (and source), which would be redundant.
-    const tN = (a.title || "").toLowerCase();
-    const sN = (a.summary || "").toLowerCase();
-    const redundant = !sN || (tN && (sN.startsWith(tN.slice(0, 40)) || tN.startsWith(sN.slice(0, 40))));
-    const summary = redundant ? "" : newsTruncate(a.summary, 140);
-    return `<button class="news-item" type="button" data-i="${i}">
-      ${a.image ? `<img class="news-thumb" src="${escapeHTML(a.image)}" alt="" loading="lazy">` : ""}
-      <span class="news-text">
-        <span class="news-title">${escapeHTML(a.title)}</span>
-        ${summary ? `<span class="news-summary">${escapeHTML(summary)}</span>` : ""}
-        <span class="news-foot">
-          <span class="news-meta">${meta}</span>
-          <i class="ph ph-caret-right news-go" aria-hidden="true"></i>
-        </span>
-      </span>
-    </button>`;
-  }).join("");
-  el.newsList.querySelectorAll(".news-thumb").forEach((img) => { img.onerror = () => img.remove(); });
-  el.newsList.querySelectorAll(".news-item").forEach((btn) => {
-    btn.onclick = () => openNewsReader(articles[+btn.dataset.i]);
-  });
-  el.news.hidden = false;
+// Group label for a publish time: Today / Yesterday / weekday and date.
+function newsGroupLabel(ts) {
+  if (!ts) return "Earlier";
+  const tz = state.tz || 0;
+  const day = (t) => Math.floor((t + tz) / 86400);
+  const diff = day(Math.floor(Date.now() / 1000)) - day(ts);
+  if (diff <= 0) return "Today";
+  if (diff === 1) return "Yesterday";
+  const d = new Date((ts + tz) * 1000);
+  const wd = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"][d.getUTCDay()];
+  const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()];
+  return `${wd}, ${mo} ${d.getUTCDate()}`;
 }
 
-// In-app reader: the lead image, headline, source and a short snippet, then a
-// link out to the full article. Only the snippet is shown (never the full
-// article body), so the source keeps its readers and its copyright.
-function openNewsReader(a) {
-  if (!el.newsOverlay || !a) return;
-  const img = el.newsReaderImg;
-  if (a.image) { img.hidden = false; img.onerror = () => { img.hidden = true; }; img.src = a.image; }
-  else { img.hidden = true; img.removeAttribute("src"); }
-  el.newsReaderMeta.textContent = [a.source, newsDate(a.ts)].filter(Boolean).join(" · ");
-  el.newsReaderTitle.textContent = a.title || "Article";
-  const sum = a.summary ? newsTruncate(a.summary, 1600) : "";
-  el.newsReaderSummary.innerHTML = sum ? sum.split("\n").filter(Boolean).map(escapeHTML).join("<br><br>") : "";
-  el.newsReaderSummary.hidden = !sum;
-  el.newsReaderLink.href = a.link || "#";
-  if (el.newsReaderScroll) el.newsReaderScroll.scrollTop = 0;
-  el.newsOverlay.classList.add("is-open");
-  el.newsOverlay.setAttribute("aria-hidden", "false");
+// The news screen: articles newest-first, grouped under date sub-headers. Each
+// card links out to the source - no in-app reproduction of the article.
+function renderNews(articles) {
+  if (!el.newsList) return;
+  const list = (articles || []).slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  if (!list.length) {
+    el.newsList.innerHTML = `<p class="news-empty">No weather news right now.</p>`;
+    return;
+  }
+  let html = "", lastLabel = null;
+  for (const a of list) {
+    const label = newsGroupLabel(a.ts);
+    if (label !== lastLabel) { html += `<h2 class="news-group">${escapeHTML(label)}</h2>`; lastLabel = label; }
+    const meta = [a.source, a.ts ? fmtClock(a.ts, state.tz || 0) : ""].filter(Boolean).map(escapeHTML).join(" · ");
+    const tN = (a.title || "").toLowerCase(), sN = (a.summary || "").toLowerCase();
+    const redundant = !sN || (tN && (sN.startsWith(tN.slice(0, 40)) || tN.startsWith(sN.slice(0, 40))));
+    const summary = redundant ? "" : newsTruncate(a.summary, 150);
+    html += `<a class="news-item" href="${escapeHTML(a.link)}" target="_blank" rel="noopener noreferrer">
+      <span class="news-title">${escapeHTML(a.title)}</span>
+      ${summary ? `<span class="news-summary">${escapeHTML(summary)}</span>` : ""}
+      <span class="news-foot"><span class="news-meta">${meta}</span><i class="ph ph-arrow-up-right news-go" aria-hidden="true"></i></span>
+    </a>`;
+  }
+  el.newsList.innerHTML = html;
 }
-function closeNewsReader() {
-  if (!el.newsOverlay || !el.newsOverlay.classList.contains("is-open")) return;
-  el.newsOverlay.classList.remove("is-open");
-  el.newsOverlay.setAttribute("aria-hidden", "true");
+
+function openNews() {
+  if (!el.newsSheet || state.newsOpen) return;
+  state.newsOpen = true;
+  renderNews(state.news || []);
+  loadNews();
+  el.newsSheet.classList.add("is-open");
+  el.newsSheet.setAttribute("aria-hidden", "false");
+  document.body.style.overflow = "hidden";
+  const sc = el.newsSheet.querySelector(".sheet-scroll");
+  if (sc) sc.scrollTop = 0;
+  syncNav();
+}
+function closeNews() {
+  if (!el.newsSheet || !state.newsOpen) return;
+  state.newsOpen = false;
+  el.newsSheet.classList.remove("is-open");
+  el.newsSheet.setAttribute("aria-hidden", "true");
+  document.body.style.overflow = "";
+  syncNav();
 }
 
 function wmoMain(code) {
@@ -1012,7 +1009,7 @@ function onPageScroll() {
 // on the bare home view - not while a sheet, radar, search or settings is up.
 function updateHomeNavAffordance(y = window.scrollY || 0) {
   if (!el.homeNavBtn) return;
-  const homeContext = !state.radarOpen && !state.searchOpen && !state.sheetOpen && !state.popOpen;
+  const homeContext = !state.radarOpen && !state.searchOpen && !state.sheetOpen && !state.popOpen && !state.newsOpen;
   const show = homeContext && y > 400;
   el.homeNavBtn.classList.toggle("at-top", show);
   el.homeNavBtn.setAttribute("aria-label", show ? "Back to top" : "Home");
@@ -3614,22 +3611,27 @@ function closeSettingsPop() {
 }
 
 // ---- Bottom navigation ------------------------------------------------------
-const NAV_TABS = ["home", "radar", "search", "settings"];
+const NAV_TABS = ["home", "radar", "search", "news", "settings"];
 
 function navTo(tab) {
   if (tab === "home") {
-    closeSettingsPop(); closeSheet(); closeRadar(); closeSearch();
+    closeSettingsPop(); closeSheet(); closeRadar(); closeSearch(); closeNews();
     window.scrollTo({ top: 0, behavior: "smooth" });
     return;
   }
   if (tab === "radar") {
-    closeSettingsPop(); closeSheet(); closeSearch();
+    closeSettingsPop(); closeSheet(); closeSearch(); closeNews();
     if (!state.radarOpen) openRadar();
     return;
   }
   if (tab === "search") {
-    closeSettingsPop(); closeSheet(); closeRadar();
+    closeSettingsPop(); closeSheet(); closeRadar(); closeNews();
     if (!state.searchOpen) openSearch();
+    return;
+  }
+  if (tab === "news") {
+    closeSettingsPop(); closeSheet(); closeRadar(); closeSearch();
+    if (!state.newsOpen) openNews();
     return;
   }
   if (tab === "settings") {
@@ -3643,7 +3645,7 @@ function navTo(tab) {
 // sub-screens of Home, so Home stays lit while they're up.
 function syncNav() {
   if (!el.bottomNav) return;
-  const tab = state.popOpen ? "settings" : state.radarOpen ? "radar" : state.searchOpen ? "search" : "home";
+  const tab = state.popOpen ? "settings" : state.radarOpen ? "radar" : state.searchOpen ? "search" : state.newsOpen ? "news" : "home";
   el.bottomNav.dataset.pos = String(NAV_TABS.indexOf(tab));
   el.bottomNav.querySelectorAll("[data-nav]").forEach((b) => {
     const on = b.dataset.nav === tab;
