@@ -236,7 +236,9 @@ body:has(.sheet.is-open) #gradient-canvas { opacity: 0; }
 }
 .news-item:active { transform: scale(0.985); background: var(--card-bg-hi); }
 .news-title { font-weight: 600; line-height: 1.32; }
-.news-meta { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.02em; }
+.news-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); margin-top: 2px; }
+.news-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.02em; }
+.news-go { flex: none; font-size: 1rem; color: var(--ink-faint); }
 
 /* Status-bar scrim: purely a masked backdrop blur, no tint. Strongest at the
    very top so the status bar stays legible over any bloom, then the mask

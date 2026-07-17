@@ -11,6 +11,7 @@ const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
 const ACTIVITY_KEY = "hw_activityplan_v1";
+const NEWS_CACHE_KEY = "hw_news_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
 
 const PALETTES = {
@@ -131,6 +132,12 @@ function init() {
     appEl.classList.add("intro");
     setTimeout(() => appEl.classList.remove("intro"), 2800);
   }
+
+  // Prewarm the news: show any cached articles at once, then fetch fresh right
+  // away, independent of geolocation and the weather load, so the feed is ready
+  // by the time it scrolls into view instead of waiting on the weather refresh.
+  state.news = loadNewsCache();
+  loadNews();
 
   const cache = loadCache();
   if (cache && cache.units === state.units) {
@@ -470,27 +477,52 @@ function parseRssXml(text) {
   });
 }
 
-function newsRelTime(ts) {
+// Publish date: the clock time if it is from today, otherwise the month and day.
+function newsDate(ts) {
   if (!ts) return "";
-  const diff = Math.floor(Date.now() / 1000) - ts;
-  if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+  const tz = state.tz || 0;
+  const mo = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const d = new Date((ts + tz) * 1000);
+  const now = new Date((Math.floor(Date.now() / 1000) + tz) * 1000);
+  const sameDay = d.getUTCFullYear() === now.getUTCFullYear() && d.getUTCMonth() === now.getUTCMonth() && d.getUTCDate() === now.getUTCDate();
+  return sameDay ? fmtClock(ts, tz) : `${mo[d.getUTCMonth()]} ${d.getUTCDate()}`;
 }
 
-async function loadNews() {
-  state.news = await fetchNews();
-  renderNews(state.news);
+function saveNews(articles) {
+  try { localStorage.setItem(NEWS_CACHE_KEY, JSON.stringify({ ts: Date.now(), articles })); } catch { /* storage full or disabled */ }
+}
+function loadNewsCache() {
+  try {
+    const j = JSON.parse(localStorage.getItem(NEWS_CACHE_KEY) || "null");
+    if (!j || !Array.isArray(j.articles) || Date.now() - (j.ts || 0) > 24 * 3600e3) return [];
+    return j.articles;
+  } catch { return []; }
+}
+
+// Fetch fresh news, but no more than once a minute so the startup prewarm and
+// the first weather refresh do not double-fetch. Keeps the last good list on a
+// failed fetch instead of blanking the section.
+async function loadNews(force) {
+  const now = Date.now();
+  if (!force && state.newsLoadedAt && now - state.newsLoadedAt < 60000) return;
+  state.newsLoadedAt = now;
+  const arr = await fetchNews();
+  if (arr && arr.length) { state.news = arr; saveNews(arr); }
+  else state.newsLoadedAt = 0;
+  renderNews(state.news || []);
 }
 
 function renderNews(articles) {
   if (!el.news || !el.newsList) return;
   if (!articles || !articles.length) { el.news.hidden = true; return; }
   el.newsList.innerHTML = articles.map((a) => {
-    const meta = [a.source, newsRelTime(a.ts)].filter(Boolean).map(escapeHTML).join(" · ");
+    const meta = [a.source, newsDate(a.ts)].filter(Boolean).map(escapeHTML).join(" · ");
     return `<a class="news-item" href="${escapeHTML(a.link)}" target="_blank" rel="noopener noreferrer">
       <span class="news-title">${escapeHTML(a.title)}</span>
-      ${meta ? `<span class="news-meta">${meta}</span>` : ""}
+      <span class="news-foot">
+        <span class="news-meta">${meta}</span>
+        <i class="ph ph-arrow-up-right news-go" aria-hidden="true"></i>
+      </span>
     </a>`;
   }).join("");
   el.news.hidden = false;
