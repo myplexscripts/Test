@@ -41,6 +41,9 @@ const el = {
   hero: document.querySelector(".hero"),
   metrics: $("metrics"), news: $("news"), newsList: $("newsList"),
   meshWrap: $("meshWrap"), homeNavBtn: $("navHome"),
+  newsOverlay: $("newsOverlay"), newsReaderImg: $("newsReaderImg"), newsReaderMeta: $("newsReaderMeta"),
+  newsReaderTitle: $("newsReaderTitle"), newsReaderSummary: $("newsReaderSummary"), newsReaderLink: $("newsReaderLink"),
+  newsReaderClose: $("newsReaderClose"), newsReaderScroll: $("newsReaderScroll"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   dayGraph: $("dayGraph"),
   nowcast: $("nowcast"), nowcastLine: $("nowcastLine"), nowcastIc: document.querySelector(".nowcast-ic"),
@@ -269,6 +272,9 @@ function wireEvents() {
 
   if (el.alertModalClose) el.alertModalClose.onclick = closeAlertModal;
   if (el.alertOverlay) el.alertOverlay.onclick = (e) => { if (e.target === el.alertOverlay) closeAlertModal(); };
+  if (el.newsReaderClose) el.newsReaderClose.onclick = closeNewsReader;
+  if (el.newsOverlay) el.newsOverlay.onclick = (e) => { if (e.target === el.newsOverlay) closeNewsReader(); };
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeNewsReader(); });
 
   window.addEventListener("resize", () => {
     if (radar.preview) radar.preview.invalidateSize();
@@ -470,6 +476,15 @@ function newsTruncate(s, n) {
   return cut.replace(/[\s.,;:]+$/, "") + "…";
 }
 
+// Pull a lead image (og:image / enclosure / media) from a JSON item.
+function newsPickImage(it) {
+  const cand = it.image || it.image_url || it.imageUrl || it.thumbnail || it.og_image || it.ogImage
+    || (it.enclosure && (it.enclosure.url || it.enclosure.link))
+    || (it["media:content"] && it["media:content"].url)
+    || (it["media:thumbnail"] && it["media:thumbnail"].url) || "";
+  return typeof cand === "string" ? cand.trim() : "";
+}
+
 // Pull a publisher name from a JSON item, wherever a feed might tuck it away.
 function newsPickSource(it) {
   const s = it.source;
@@ -494,6 +509,7 @@ function parseNews(text) {
       title: newsCleanTitle(it.title || ""),
       link: it.link || it.url || it.guid || "",
       source: newsPickSource(it),
+      image: newsPickImage(it),
       ts: parseWhen(it.pubDate || it.published || it.date || it.pubdate || it.isoDate || ""),
       summary: newsSummary(it.description || it.summary || it.contentSnippet || it.content || it.content_text || "")
     }));
@@ -514,10 +530,12 @@ function parseRssXml(text) {
     const q = (s) => it.querySelector(s)?.textContent?.trim() || "";
     const rawTitle = q("title");
     const src = tag(it, "source") || tag(it, "dc:creator") || tag(it, "creator") || tag(it, "author");
+    const attr = (name, a) => it.getElementsByTagName(name)[0]?.getAttribute(a) || "";
     return {
       title: newsCleanTitle(rawTitle),
       link: q("link") || it.querySelector("guid")?.textContent?.trim() || "",
       source: src || newsSourceFromTitle(rawTitle),
+      image: (attr("enclosure", "url") || attr("media:content", "url") || attr("media:thumbnail", "url") || tag(it, "image") || "").trim(),
       ts: parseWhen(q("pubDate") || tag(it, "dc:date") || tag(it, "published") || tag(it, "updated")),
       summary: newsSummary(tag(it, "description") || tag(it, "content:encoded") || tag(it, "summary") || tag(it, "content"))
     };
@@ -562,24 +580,55 @@ async function loadNews(force) {
 function renderNews(articles) {
   if (!el.news || !el.newsList) return;
   if (!articles || !articles.length) { el.news.hidden = true; return; }
-  el.newsList.innerHTML = articles.map((a) => {
+  el.newsList.innerHTML = articles.map((a, i) => {
     const meta = [a.source, newsDate(a.ts)].filter(Boolean).map(escapeHTML).join(" · ");
     // Show the description, but only if it adds something: some feeds just
     // repeat the headline (and source), which would be redundant.
     const tN = (a.title || "").toLowerCase();
     const sN = (a.summary || "").toLowerCase();
     const redundant = !sN || (tN && (sN.startsWith(tN.slice(0, 40)) || tN.startsWith(sN.slice(0, 40))));
-    const summary = redundant ? "" : newsTruncate(a.summary, 160);
-    return `<a class="news-item" href="${escapeHTML(a.link)}" target="_blank" rel="noopener noreferrer">
-      <span class="news-title">${escapeHTML(a.title)}</span>
-      ${summary ? `<span class="news-summary">${escapeHTML(summary)}</span>` : ""}
-      <span class="news-foot">
-        <span class="news-meta">${meta}</span>
-        <i class="ph ph-arrow-up-right news-go" aria-hidden="true"></i>
+    const summary = redundant ? "" : newsTruncate(a.summary, 140);
+    return `<button class="news-item" type="button" data-i="${i}">
+      ${a.image ? `<img class="news-thumb" src="${escapeHTML(a.image)}" alt="" loading="lazy">` : ""}
+      <span class="news-text">
+        <span class="news-title">${escapeHTML(a.title)}</span>
+        ${summary ? `<span class="news-summary">${escapeHTML(summary)}</span>` : ""}
+        <span class="news-foot">
+          <span class="news-meta">${meta}</span>
+          <i class="ph ph-caret-right news-go" aria-hidden="true"></i>
+        </span>
       </span>
-    </a>`;
+    </button>`;
   }).join("");
+  el.newsList.querySelectorAll(".news-thumb").forEach((img) => { img.onerror = () => img.remove(); });
+  el.newsList.querySelectorAll(".news-item").forEach((btn) => {
+    btn.onclick = () => openNewsReader(articles[+btn.dataset.i]);
+  });
   el.news.hidden = false;
+}
+
+// In-app reader: the lead image, headline, source and a short snippet, then a
+// link out to the full article. Only the snippet is shown (never the full
+// article body), so the source keeps its readers and its copyright.
+function openNewsReader(a) {
+  if (!el.newsOverlay || !a) return;
+  const img = el.newsReaderImg;
+  if (a.image) { img.hidden = false; img.onerror = () => { img.hidden = true; }; img.src = a.image; }
+  else { img.hidden = true; img.removeAttribute("src"); }
+  el.newsReaderMeta.textContent = [a.source, newsDate(a.ts)].filter(Boolean).join(" · ");
+  el.newsReaderTitle.textContent = a.title || "Article";
+  const sum = a.summary ? newsTruncate(a.summary, 600) : "";
+  el.newsReaderSummary.textContent = sum;
+  el.newsReaderSummary.hidden = !sum;
+  el.newsReaderLink.href = a.link || "#";
+  if (el.newsReaderScroll) el.newsReaderScroll.scrollTop = 0;
+  el.newsOverlay.classList.add("is-open");
+  el.newsOverlay.setAttribute("aria-hidden", "false");
+}
+function closeNewsReader() {
+  if (!el.newsOverlay || !el.newsOverlay.classList.contains("is-open")) return;
+  el.newsOverlay.classList.remove("is-open");
+  el.newsOverlay.setAttribute("aria-hidden", "true");
 }
 
 function wmoMain(code) {

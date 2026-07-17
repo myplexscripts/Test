@@ -256,6 +256,21 @@
     </div>
   </div>
 
+  <div class="news-overlay" id="newsOverlay" aria-hidden="true">
+    <div class="news-reader" role="dialog" aria-modal="true" aria-labelledby="newsReaderTitle">
+      <button class="news-reader-close" id="newsReaderClose" type="button" aria-label="Close"><i class="ph ph-x" aria-hidden="true"></i></button>
+      <div class="news-reader-scroll" id="newsReaderScroll">
+        <img class="news-reader-img" id="newsReaderImg" alt="" hidden>
+        <div class="news-reader-inner">
+          <span class="news-reader-meta" id="newsReaderMeta"></span>
+          <h2 class="news-reader-title" id="newsReaderTitle">Article</h2>
+          <p class="news-reader-summary" id="newsReaderSummary"></p>
+          <a class="news-reader-link" id="newsReaderLink" target="_blank" rel="noopener noreferrer">Read full article<i class="ph ph-arrow-up-right" aria-hidden="true"></i></a>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <script src="vendor/meteocons/icons.js" defer></script>
   <script src="vendor/worldmap/land.js" defer></script>
   <script src="app.js" defer></script>
