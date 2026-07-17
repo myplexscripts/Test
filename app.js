@@ -40,6 +40,7 @@ const el = {
   alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
   hero: document.querySelector(".hero"),
   metrics: $("metrics"), news: $("news"), newsList: $("newsList"),
+  gradientCanvas: $("gradient-canvas"), homeNavBtn: $("navHome"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   dayGraph: $("dayGraph"),
   nowcast: $("nowcast"), nowcastLine: $("nowcastLine"), nowcastIc: document.querySelector(".nowcast-ic"),
@@ -181,6 +182,7 @@ function wireEvents() {
   if (el.searchBack) el.searchBack.onclick = closeSearch;
   if (el.mapPickConfirm) el.mapPickConfirm.onclick = confirmMapPick;
   if (el.bottomNav) el.bottomNav.querySelectorAll("[data-nav]").forEach((b) => b.onclick = () => navTo(b.dataset.nav));
+  window.addEventListener("scroll", onPageScroll, { passive: true });
   // Light-dismiss for the settings drop-up: any tap outside it (and outside
   // the nav, whose own buttons manage it) folds it back into the bar.
   document.addEventListener("pointerdown", (e) => {
@@ -902,6 +904,34 @@ function setupScrollFx() {
     });
   }, { threshold: 0.2 });
   [el.sunCard, el.windCard].forEach((t) => t && reveal.observe(t));
+}
+
+let scrollRaf = 0;
+function onPageScroll() {
+  if (scrollRaf) return;
+  scrollRaf = requestAnimationFrame(() => {
+    scrollRaf = 0;
+    const y = window.scrollY || 0;
+    // Parallax: the animated mesh drifts up slower than the content, so the
+    // background and foreground scroll at different rates. Skipped for reduced
+    // motion. The solid page colour behind it never moves.
+    if (el.gradientCanvas && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      el.gradientCanvas.style.transform = `translate3d(0, ${(y * 0.4).toFixed(1)}px, 0)`;
+    }
+    updateHomeNavAffordance(y);
+  });
+}
+
+// Well down the home screen, the Home nav button morphs into an up arrow:
+// tapping it (which already smooth-scrolls to the top) then reads as "back to
+// top", and it morphs back to the house once you are near the top again. Only
+// on the bare home view - not while a sheet, radar, search or settings is up.
+function updateHomeNavAffordance(y = window.scrollY || 0) {
+  if (!el.homeNavBtn) return;
+  const homeContext = !state.radarOpen && !state.searchOpen && !state.sheetOpen && !state.popOpen;
+  const show = homeContext && y > 400;
+  el.homeNavBtn.classList.toggle("at-top", show);
+  el.homeNavBtn.setAttribute("aria-label", show ? "Back to top" : "Home");
 }
 
 function tween(ms, ease, step) {
@@ -3577,6 +3607,7 @@ function syncNav() {
     b.classList.toggle("is-active", on);
     if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
   });
+  updateHomeNavAffordance();
 }
 
 function haveLeaflet() { return typeof window.L !== "undefined"; }
