@@ -371,8 +371,8 @@ function parseWhen(s) {
 }
 
 async function fetchAir(lat, lon) {
-  const cur = "current=us_aqi,pm2_5,pm10,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide,uv_index";
-  const hourly = "hourly=uv_index,us_aqi&forecast_days=1";
+  const cur = "current=pm2_5,pm10,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide,uv_index";
+  const hourly = "hourly=uv_index,ozone,nitrogen_dioxide,pm2_5&forecast_days=1";
   const json = await fetchJSON(`${AIR_BASE}?latitude=${lat}&longitude=${lon}&${cur}&${hourly}&timezone=auto`);
   const out = json.current || {};
   out.hourly = json.hourly || null;
@@ -510,32 +510,27 @@ const POLLUTANTS = {
   pm2_5: {
     name: "PM2.5",
     desc: "Tiny pollution particles that are about 30 times smaller than the width of a human hair. Because they're so small, they can travel deep into your lungs and even enter your bloodstream.",
-    sources: "Wildfire smoke, wood stoves, vehicle exhaust, diesel engines, factories, power plants, candles, cooking fumes.",
-    bounds: [11, 23, 35, 41, 47, 53, 58, 64, 70]
+    sources: "Wildfire smoke, wood stoves, vehicle exhaust, diesel engines, factories, power plants, candles, cooking fumes."
   },
   pm10: {
     name: "PM10",
     desc: "Larger airborne particles that can be breathed into your nose and upper airways. They can irritate your eyes, nose and throat, and some can still reach your lungs.",
-    sources: "Dust, pollen, mould spores, road dust, construction sites, farming, crushed leaves, sand.",
-    bounds: [16, 33, 50, 58, 66, 75, 83, 91, 100]
+    sources: "Dust, pollen, mould spores, road dust, construction sites, farming, crushed leaves, sand."
   },
   ozone: {
     name: "Ozone (O₃)",
     desc: "A harmful gas that forms when sunlight reacts with pollution from vehicles, industry and wildfire smoke. It can build up far from where the pollution started because wind can carry it long distances. It can irritate your lungs and make it harder to breathe.",
-    sources: "Vehicle exhaust, industrial emissions, gasoline vapours, wildfire smoke. Ozone itself isn't emitted directly - it forms in the air from these pollutants.",
-    bounds: [33, 66, 100, 120, 140, 160, 187, 213, 240]
+    sources: "Vehicle exhaust, industrial emissions, gasoline vapours, wildfire smoke. Ozone itself isn't emitted directly - it forms in the air from these pollutants."
   },
   nitrogen_dioxide: {
     name: "Nitrogen dioxide (NO₂)",
     desc: "A harmful gas released whenever fuel is burned. It can irritate your lungs, worsen asthma and contribute to the formation of ozone and fine particle pollution.",
-    sources: "Car and truck exhaust, buses, gas stoves, gas furnaces, fireplaces, power plants, industrial facilities.",
-    bounds: [67, 134, 200, 267, 334, 400, 467, 534, 600]
+    sources: "Car and truck exhaust, buses, gas stoves, gas furnaces, fireplaces, power plants, industrial facilities."
   },
   sulphur_dioxide: {
     name: "Sulphur dioxide (SO₂)",
     desc: "A harmful gas released when fuels containing sulphur are burned or certain metals are processed. It can irritate your airways and also contributes to the formation of fine particle pollution.",
-    sources: "Coal and oil power plants, oil refineries, metal smelters, ships, diesel fuel, volcanic eruptions.",
-    bounds: [88, 177, 266, 354, 443, 532, 710, 887, 1064]
+    sources: "Coal and oil power plants, oil refineries, metal smelters, ships, diesel fuel, volcanic eruptions."
   },
   carbon_monoxide: {
     name: "Carbon monoxide (CO)",
@@ -544,36 +539,65 @@ const POLLUTANTS = {
   }
 };
 
-// Air quality on a simple 1-10 scale (the UK Daily Air Quality Index): each
-// pollutant maps to a sub-index from its concentration, and the overall index
-// is the worst of them. Bands: 1-3 low, 4-6 moderate, 7-9 high, 10 very high.
-// (CO has no DAQI band, so it's shown for reference but doesn't drive the index.)
-function daqiSub(value, bounds) {
-  if (value == null || !bounds) return null;
-  for (let i = 0; i < bounds.length; i++) if (value <= bounds[i]) return i + 1;
-  return 10;
+// Canada's Air Quality Health Index (AQHI): a 1-10+ scale from Environment
+// Canada that blends ground-level ozone, nitrogen dioxide and PM2.5 as 3-hour
+// averages. Open-Meteo has no AQHI field, so we compute it with Environment
+// Canada's own formula. O3 and NO2 arrive in ug/m3 and convert to ppb (factor
+// 24.45 / molar mass, at 25C); PM2.5 stays in ug/m3.
+const UGM3_TO_PPB = { ozone: 24.45 / 48.00, nitrogen_dioxide: 24.45 / 46.01 };
+
+function aqhiValue(o3ppb, no2ppb, pm25) {
+  if (o3ppb == null || no2ppb == null || pm25 == null) return null;
+  const v = (1000 / 10.4) * (
+    (Math.exp(0.000537 * o3ppb) - 1) +
+    (Math.exp(0.000871 * no2ppb) - 1) +
+    (Math.exp(0.000487 * pm25) - 1)
+  );
+  return Math.max(1, Math.round(v));
 }
-function airIndex(air) {
-  if (!air) return { index: null, pollutant: null };
-  let index = null, pollutant = null;
-  for (const key in POLLUTANTS) {
-    const sub = daqiSub(air[key], POLLUTANTS[key].bounds);
-    if (sub == null) continue;
-    if (index == null || sub > index) { index = sub; pollutant = key; }
+
+// 3-hour trailing mean of a pollutant from the hourly series, falling back to
+// the current snapshot when fewer than three past hours are available.
+function airAvg3(air, key) {
+  const arr = air.hourly && air.hourly[key], times = air.hourly && air.hourly.time;
+  if (arr && times && times.length) {
+    const tz = state.tz || 0;
+    const nowHr = Math.floor((Math.floor(Date.now() / 1000) + tz) / 3600) % 24;
+    let i = times.findIndex((t) => Number(String(t).slice(11, 13)) === nowHr);
+    if (i < 0) i = arr.length - 1;
+    const vals = [];
+    for (let k = Math.max(0, i - 2); k <= i; k++) if (Number.isFinite(arr[k])) vals.push(arr[k]);
+    if (vals.length) return vals.reduce((a, b) => a + b, 0) / vals.length;
   }
+  return air[key] != null ? air[key] : null;
+}
+
+function airHealthIndex(air) {
+  if (!air) return { index: null, pollutant: null };
+  const o3 = airAvg3(air, "ozone"), no2 = airAvg3(air, "nitrogen_dioxide"), pm = airAvg3(air, "pm2_5");
+  if (o3 == null || no2 == null || pm == null) return { index: null, pollutant: null };
+  const o3p = o3 * UGM3_TO_PPB.ozone, no2p = no2 * UGM3_TO_PPB.nitrogen_dioxide;
+  const index = aqhiValue(o3p, no2p, pm);
+  // Whichever pollutant contributes the largest AQHI term is the driver.
+  const terms = {
+    ozone: Math.exp(0.000537 * o3p) - 1,
+    nitrogen_dioxide: Math.exp(0.000871 * no2p) - 1,
+    pm2_5: Math.exp(0.000487 * pm) - 1
+  };
+  const pollutant = Object.keys(terms).reduce((a, b) => (terms[b] > terms[a] ? b : a));
   return { index, pollutant };
 }
 
-// US Air Quality Index bands (US EPA 0-500 scale), the scale most weather apps
-// show. Open-Meteo returns the overall us_aqi (worst pollutant) directly.
-function usAqiBand(aqi) {
-  if (aqi == null) return { label: "--", advice: "" };
-  if (aqi <= 50)  return { label: "Good", advice: "Air quality is good - enjoy your usual activities outdoors." };
-  if (aqi <= 100) return { label: "Moderate", advice: "Unusually sensitive people should consider easing back on strenuous activity outdoors." };
-  if (aqi <= 150) return { label: "Unhealthy for sensitive groups", advice: "People with heart or lung conditions, older adults and children should limit prolonged exertion outdoors." };
-  if (aqi <= 200) return { label: "Unhealthy", advice: "Everyone may start to feel effects; sensitive groups should avoid prolonged exertion outdoors." };
-  if (aqi <= 300) return { label: "Very unhealthy", advice: "Health alert - everyone should avoid strenuous activity outdoors." };
-  return { label: "Hazardous", advice: "Health warning of emergency conditions - stay indoors if you can." };
+// AQHI health-risk bands (Environment Canada). Values above 10 read as "10+".
+function aqhiBand(index) {
+  if (index == null) return { label: "--", advice: "" };
+  if (index <= 3)  return { label: "Low", advice: "Ideal air quality for outdoor activities." };
+  if (index <= 6)  return { label: "Moderate", advice: "No need to change your plans unless you have symptoms like coughing or throat irritation." };
+  if (index <= 10) return { label: "High", advice: "Consider reducing or rescheduling strenuous activities outdoors if you have symptoms." };
+  return { label: "Very high", advice: "Reduce or reschedule strenuous activities outdoors, especially if you have symptoms." };
+}
+function aqhiLabel(index) {
+  return index == null ? "--" : (index > 10 ? "10+" : `${index}`);
 }
 
 function uvBand(uv) {
@@ -1049,7 +1073,7 @@ function selectActivities(force) {
     rainStart: (pts.find((p) => p.precip > 0.2) || {}).dt || null,
     rainRisk: dayPool.length ? Math.max(...dayPool.map((p) => p.pop || 0)) : 0,
     uvMax,
-    aqi: state.data?.air?.us_aqi ?? null,
+    aqi: airHealthIndex(state.data?.air).index ?? null,
     moonIllum: moonPhase().illum,
     capeMax: pts.length ? Math.max(...pts.map((p) => p.cape || 0)) : 0,
     gustMax: pts.length ? Math.max(...pts.map((p) => p.gust || 0)) : 0,
@@ -1280,10 +1304,10 @@ function renderDetails(current, forecast) {
   items.push(pd);
 
   const air = state.data?.air;
-  const aqi = air?.us_aqi != null ? Math.round(air.us_aqi) : null;
-  if (aqi != null) {
-    const b = usAqiBand(aqi);
-    items.push(["aqi", "ph-waves", "Air quality", `${aqi}`, b.label, null, rangeMeter(aqi, 0, 300, "Good", "Poor")]);
+  const aq = airHealthIndex(air);
+  if (aq.index != null) {
+    const b = aqhiBand(aq.index);
+    items.push(["aqi", "ph-waves", "Air quality", aqhiLabel(aq.index), b.label, null, rangeMeter(Math.min(aq.index, 10), 0, 10, "Low", "High")]);
   }
   if (air && air.uv_index != null) {
     const u = uvBand(air.uv_index);
@@ -1313,7 +1337,7 @@ function renderDetails(current, forecast) {
   // Thresholds are deliberately low - this is a stylistic highlight, not an
   // alert, so a tile gets featured whenever a reading is merely elevated.
   const promo = [];
-  if (aqi != null && aqi > 50) promo.push(["aqi", 5]);
+  if (aq.index != null && aq.index >= 4) promo.push(["aqi", 5]);
   if (air && air.uv_index != null && air.uv_index >= 5) promo.push(["uv", 4]);
   if (popNow != null && popNow * 100 >= 40) promo.push(["precip", 3]);
   if (m.humidity != null && m.humidity >= 65) promo.push(["humidity", 2]);
@@ -1519,8 +1543,8 @@ function summaryNotes(current, hrs) {
   const uvMax = uvArr && uvArr.length ? Math.max(...uvArr.filter(Number.isFinite)) : (state.data?.air?.uv_index ?? 0);
   if (uvMax >= 8) out.push("UV climbs to very high near midday, so sun protection matters.");
   else if (uvMax >= 6) out.push("UV is high near midday, so wear sunscreen.");
-  const aqiNow = state.data?.air?.us_aqi;
-  if (aqiNow != null && aqiNow > 150) out.push("Air quality is poor today.");
+  const aqhiNow = airHealthIndex(state.data?.air).index;
+  if (aqhiNow != null && aqhiNow >= 7) out.push("Air quality is poor today.");
   return out.slice(0, 2);
 }
 
@@ -1862,13 +1886,13 @@ function scaleBar(pos, ends) {
 
 function renderAqiSheet(air) {
   el.sheetTitle.textContent = "Air Quality";
-  const aqi = air?.us_aqi != null ? Math.round(air.us_aqi) : null;
-  const { pollutant } = airIndex(air);
-  if (aqi == null) { el.sheetNote.textContent = "Air quality data is unavailable right now."; el.sheetList.innerHTML = ""; return; }
-  const b = usAqiBand(aqi);
-  el.sheetNote.textContent = `The US Air Quality Index is ${aqi} - ${b.label.toLowerCase()}.`;
+  const { index, pollutant } = airHealthIndex(air);
+  if (index == null) { el.sheetNote.textContent = "Air quality data is unavailable right now."; el.sheetList.innerHTML = ""; return; }
+  const b = aqhiBand(index);
+  const shown = aqhiLabel(index);
+  el.sheetNote.textContent = `Canada's Air Quality Health Index is ${shown} - ${b.label.toLowerCase()} health risk.`;
 
-  const scale = scaleBar(Math.min(aqi / 300, 1) * 100, ["0", "Moderate", "Unhealthy", "300+"]);
+  const scale = scaleBar(Math.min(index / 10, 1) * 100, ["1", "Moderate", "High", "10+"]);
 
   const primary = pollutant
     ? section(`Main pollutant · ${POLLUTANTS[pollutant].name}`,
@@ -1884,11 +1908,11 @@ function renderAqiSheet(air) {
     </div>`).join("");
 
   el.sheetList.innerHTML =
-    `<div class="aqi-hero"><span class="aqi-big">${aqi}</span><span class="aqi-band">${b.label}</span></div>` +
+    `<div class="aqi-hero"><span class="aqi-big">${shown}</span><span class="aqi-band">${b.label}</span></div>` +
     scale +
     section("What this means", `<p class="info-text">${b.advice}</p>`) +
     primary +
-    section("About the scale", `<p class="info-text">This is the US Air Quality Index (AQI). 0-50 is good, 51-100 moderate, 101-150 unhealthy for sensitive groups, 151-200 unhealthy, 201-300 very unhealthy and 301-500 hazardous. The number reflects whichever pollutant is worst right now.</p>`) +
+    section("About the scale", `<p class="info-text">This is Canada's Air Quality Health Index (AQHI) from Environment Canada. 1-3 is low health risk, 4-6 moderate, 7-10 high and above 10 very high. It blends ground-level ozone, nitrogen dioxide and fine particulate matter (PM2.5), as a 3-hour average.</p>`) +
     section("Pollutants right now", breakdown, true);
 }
 
