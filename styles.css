@@ -236,6 +236,15 @@ body:has(.sheet.is-open) #gradient-canvas { opacity: 0; }
 }
 .news-item:active { transform: scale(0.985); background: var(--card-bg-hi); }
 .news-title { font-weight: 600; line-height: 1.32; }
+.news-summary {
+  font-size: 0.86rem;
+  line-height: 1.38;
+  color: var(--ink-soft);
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
 .news-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--s-3); margin-top: 2px; }
 .news-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.02em; }
 /* Match the caret on the detail tiles (1.8rem, full ink) so the tap arrows read

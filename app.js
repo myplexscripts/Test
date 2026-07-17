@@ -443,16 +443,41 @@ async function fetchNews() {
   return parseNews(text);
 }
 
+// Decode HTML entities that arrive in feed text (e.g. &#8216; -> a curly
+// quote). A detached textarea decodes text only and never runs scripts; callers
+// still escapeHTML before writing to the DOM, so decode-then-escape stays safe.
+let _entityEl = null;
+function decodeEntities(s) {
+  if (!s) return "";
+  _entityEl = _entityEl || document.createElement("textarea");
+  _entityEl.innerHTML = String(s);
+  return _entityEl.value;
+}
+
 // Google News titles read "Headline - Publisher"; split the publisher out.
-function newsSourceFromTitle(t) { const m = String(t).match(/\s+-\s+([^-]+)$/); return m ? m[1].trim() : ""; }
-function newsCleanTitle(t) { const s = String(t).trim(); return s.replace(/\s+-\s+[^-]+$/, "").trim() || s; }
+function newsSourceFromTitle(t) { const m = decodeEntities(t).match(/\s+-\s+([^-]+)$/); return m ? m[1].trim() : ""; }
+function newsCleanTitle(t) { const s = decodeEntities(t).trim(); return s.replace(/\s+-\s+[^-]+$/, "").trim() || s; }
+
+// Reduce a feed description to a plain-text snippet: drop HTML, decode entities,
+// collapse whitespace. Truncate on a word boundary when it runs long.
+function newsSummary(raw) {
+  if (!raw) return "";
+  return decodeEntities(String(raw).replace(/<[^>]*>/g, " ")).replace(/\s+/g, " ").trim();
+}
+function newsTruncate(s, n) {
+  if (!s || s.length <= n) return s || "";
+  let cut = s.slice(0, n);
+  const sp = cut.lastIndexOf(" ");
+  if (sp > n * 0.6) cut = cut.slice(0, sp);
+  return cut.replace(/[\s.,;:]+$/, "") + "…";
+}
 
 // Pull a publisher name from a JSON item, wherever a feed might tuck it away.
 function newsPickSource(it) {
   const s = it.source;
   const cand = (s && (s.title || s.name)) || (typeof s === "string" ? s : "")
     || it.publisher || it.sourceName || it.author || it.creator || it["dc:creator"] || "";
-  return (cand && String(cand).trim()) || newsSourceFromTitle(it.title || "");
+  return (cand ? decodeEntities(String(cand)).trim() : "") || newsSourceFromTitle(it.title || "");
 }
 
 // The feed is a broad "weather" search, so non-weather stories slip in. Keep
@@ -471,7 +496,8 @@ function parseNews(text) {
       title: newsCleanTitle(it.title || ""),
       link: it.link || it.url || it.guid || "",
       source: newsPickSource(it),
-      ts: parseWhen(it.pubDate || it.published || it.date || it.pubdate || it.isoDate || "")
+      ts: parseWhen(it.pubDate || it.published || it.date || it.pubdate || it.isoDate || ""),
+      summary: newsSummary(it.description || it.summary || it.contentSnippet || it.content || it.content_text || "")
     }));
   } catch { /* not JSON, try XML below */ }
   if (!items) items = parseRssXml(text);
@@ -494,7 +520,8 @@ function parseRssXml(text) {
       title: newsCleanTitle(rawTitle),
       link: q("link") || it.querySelector("guid")?.textContent?.trim() || "",
       source: src || newsSourceFromTitle(rawTitle),
-      ts: parseWhen(q("pubDate") || tag(it, "dc:date") || tag(it, "published") || tag(it, "updated"))
+      ts: parseWhen(q("pubDate") || tag(it, "dc:date") || tag(it, "published") || tag(it, "updated")),
+      summary: newsSummary(tag(it, "description") || tag(it, "content:encoded") || tag(it, "summary") || tag(it, "content"))
     };
   });
 }
@@ -539,8 +566,15 @@ function renderNews(articles) {
   if (!articles || !articles.length) { el.news.hidden = true; return; }
   el.newsList.innerHTML = articles.map((a) => {
     const meta = [a.source, newsDate(a.ts)].filter(Boolean).map(escapeHTML).join(" · ");
+    // Show the description, but only if it adds something: some feeds just
+    // repeat the headline (and source), which would be redundant.
+    const tN = (a.title || "").toLowerCase();
+    const sN = (a.summary || "").toLowerCase();
+    const redundant = !sN || (tN && (sN.startsWith(tN.slice(0, 40)) || tN.startsWith(sN.slice(0, 40))));
+    const summary = redundant ? "" : newsTruncate(a.summary, 160);
     return `<a class="news-item" href="${escapeHTML(a.link)}" target="_blank" rel="noopener noreferrer">
       <span class="news-title">${escapeHTML(a.title)}</span>
+      ${summary ? `<span class="news-summary">${escapeHTML(summary)}</span>` : ""}
       <span class="news-foot">
         <span class="news-meta">${meta}</span>
         <i class="ph ph-arrow-up-right news-go" aria-hidden="true"></i>
