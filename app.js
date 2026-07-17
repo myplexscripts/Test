@@ -18,13 +18,6 @@ const PALETTES = {
   bloomdark: { bg: "#111113", ink: "#f2f0eb", surface: "#f2f0eb", onSurface: "#111113", accent: "#111113", dark: true, isDynamic: true, bloom: true, statusBar: "#050505" }
 };
 
-// Any previously-saved theme now maps into the Bloom set.
-const THEME_REMAP = {
-  night: "bloomdark", newmoon: "bloomdark", slate: "bloomdark",
-  lemon: "bloom", sand: "bloom", orchid: "bloom", sage: "bloom", dynamic: "bloom",
-  rose: "bloom", ocean: "bloom", lilac: "bloom"
-};
-
 const $ = (id) => document.getElementById(id);
 const el = {
   ptr: $("ptr"), splash: $("splash"),
@@ -198,7 +191,7 @@ function wireEvents() {
     };
   });
 
-  window.addEventListener("scroll", onBloomScroll, { passive: true });
+  watchMeshPlayback();
 
   if (el.animToggle) el.animToggle.onclick = () => {
     state.animate = !(state.animate !== false);   // flip on/off
@@ -1646,8 +1639,6 @@ function applyPalette(kind) {
   }
   r.setProperty("--neutral-card", p.dark ? NEUTRAL_SURFACE.card.dark : NEUTRAL_SURFACE.card.light);
   r.setProperty("--neutral-card-hi", p.dark ? NEUTRAL_SURFACE.cardHi.dark : NEUTRAL_SURFACE.cardHi.light);
-  if (p.bloom) { syncBloomFade(); document.documentElement.removeAttribute("data-dyn"); }
-  else r.removeProperty("--bloom-fade");
   updateMapTheme();
   if (state.data) { renderDayView(); renderNowcast(); }
 
@@ -1656,20 +1647,6 @@ function applyPalette(kind) {
 
 function themeKind() {
   return PALETTES[state.theme] ? state.theme : "bloom";
-}
-
-function setTheme(theme) {
-  state.theme = PALETTES[theme] ? theme : "bloom";
-  saveState();
-  if (el.themeToggle) el.themeToggle.setAttribute("aria-checked", PALETTES[state.theme] && PALETTES[state.theme].dark ? "true" : "false");
-  applyPalette(themeKind());
-}
-
-function setTint(on) {
-  state.tinted = !!on;
-  saveState();
-  if (el.tintToggle) el.tintToggle.setAttribute("aria-checked", state.tinted ? "true" : "false");
-  applyPalette(themeKind());
 }
 
 function wxCode(main, isNight) {
@@ -2104,10 +2081,6 @@ function darkenHex(hex, amt) {
   if (!amt) return hex;
   return lerpHex(hex, amt > 0 ? "#000000" : "#ffffff", Math.min(1, Math.abs(amt)));
 }
-function luminance(hex) {
-  const [r, g, b] = hexToRgb(hex);
-  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
-}
 function rgbToHsl([r, g, b]) {
   r /= 255; g /= 255; b /= 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b), dd = max - min;
@@ -2134,17 +2107,6 @@ function hslToRgb(h, s, l) {
   };
   return [hue(h + 1 / 3) * 255, hue(h) * 255, hue(h - 1 / 3) * 255];
 }
-// Take a sky colour straight from the weather-background logic and make it more
-// vibrant: boost saturation, and pull washed-out pastels a little off the white/
-// black extremes so the extra saturation actually reads. Same hue, no new palette.
-function vivid(hex, dark) {
-  const [h, s, l] = rgbToHsl(hexToRgb(hex));
-  const s2 = Math.min(1, s * 1.55 + 0.12);
-  let l2 = l;
-  if (!dark && l > 0.66) l2 = l - (l - 0.66) * 0.55;
-  if (dark && l < 0.42) l2 = l + (0.42 - l) * 0.4;
-  return rgbToHex(hslToRgb(h, s2, Math.min(1, Math.max(0, l2))));
-}
 
 // A curated tint palette: named hue families, each a bg/fg pair tuned for
 // legible contrast in light and dark. The live sky is classified to the nearest
@@ -2169,30 +2131,6 @@ const TINT_NEUTRAL = { lbg: "#ECECE8", lfg: "#3A3A37", dbg: "#2A2A27", dfg: "#EC
 // Each family's hue angle (from its light fg), precomputed for classification.
 const TINT_HUES = Object.entries(TINT_FAMILIES).map(([name, f]) => [name, rgbToHsl(hexToRgb(f.lfg))[0] * 360]);
 
-// WCAG relative luminance + contrast ratio, for the icon-on-tile safety check.
-function wcagLum(hex) {
-  const s = hexToRgb(hex).map((v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); });
-  return 0.2126 * s[0] + 0.7152 * s[1] + 0.0722 * s[2];
-}
-function contrastRatio(a, b) {
-  const la = wcagLum(a), lb = wcagLum(b);
-  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
-}
-// Nudge a colour's lightness until it clears a contrast target against a given
-// background, hue and chroma held. Direction is set by the background: darken
-// the mark on a light background, lighten it on a dark one, whichever way the
-// ratio actually climbs.
-function ensureContrast(fg, bg, target) {
-  const darken = wcagLum(bg) > 0.16;
-  let [h, s, l] = rgbToHsl(hexToRgb(fg));
-  let c = fg, guard = 0;
-  while (contrastRatio(c, bg) < target && guard++ < 60) {
-    l = darken ? Math.max(0, l - 0.02) : Math.min(1, l + 0.02);
-    c = rgbToHex(hslToRgb(h, s, l));
-  }
-  return c;
-}
-
 // Classify a sky colour to the nearest family by hue; low saturation -> neutral.
 function skyFamily(hex) {
   const [h, s] = rgbToHsl(hexToRgb(hex));
@@ -2205,22 +2143,6 @@ function skyFamily(hex) {
   }
   return TINT_FAMILIES[best];
 }
-// Map a sky's two colours to their families' fg, for a palette-driven bloom.
-// Theme-independent on purpose: the glow is the same in light and dark, only
-// the page behind it changes. Always the light fg (the truer, saturated hue),
-// which reads as a colour on both the off-white and near-black page.
-function paletteSky(sky) {
-  const fg = (hex) => skyFamily(hex).lfg;
-  return { top: fg(sky.top), bottom: fg(sky.bottom) };
-}
-
-// Weather glyphs are coloured by what they depict, not the sky: a sun is amber,
-// rain blue, snow icy, storm purple, cloud/fog neutral. Keyed by the category
-// class wxCategory() already puts on every weather icon.
-const WX_ICON_FAMILY = {
-  "wx-clear-d": "amber", "wx-clear-n": "indigo", "wx-rain": "blue",
-  "wx-storm": "purple", "wx-snow": "cyan", "wx-clouds": null, "wx-mist": null
-};
 
 // ---- Colour mode: the Stripe WebGL mesh, coloured from the weather ----------
 // One theme (no light/dark): a deep, rich weather-hued mesh in the first
@@ -2252,6 +2174,20 @@ function initWxGradient() {
   } catch (e) { wxGrad = null; }
 }
 
+// The mesh only runs on the home screen: pause it whenever a sheet is open or
+// the tab is hidden, so other screens rest on the solid colour.
+function syncMeshPlayback() {
+  if (!wxGrad) return;
+  if (document.hidden || document.querySelector(".sheet.is-open")) wxGrad.pause();
+  else wxGrad.play();
+}
+function watchMeshPlayback() {
+  const sheets = [el.sheet, el.radarSheet, el.searchSheet].filter(Boolean);
+  const mo = new MutationObserver(syncMeshPlayback);
+  sheets.forEach((s) => mo.observe(s, { attributes: true, attributeFilter: ["class"] }));
+  document.addEventListener("visibilitychange", syncMeshPlayback);
+}
+
 function applyBloomAccents(sky, dark) {
   const r = document.documentElement.style;
   if (!state.tinted || !sky) {
@@ -2279,21 +2215,6 @@ function applyBloomAccents(sky, dark) {
   initWxGradient();
   if (wxGrad) { wxGrad.amp = state.animate === false ? 0 : 320; wxGrad.play(); }
 }
-function setDynamicPalette(dark) {
-  const r = document.documentElement.style;
-  const vars = dark
-    ? { "--bg": "#050505", "--ink": "#fafafa", "--surface": "#fafafa", "--on-surface": "#050505", "--surface-accent": "#050505", "--moon-lit": "var(--ink)", "--moon-shadow": "var(--bg)" }
-    : { "--bg": "#fafafa", "--ink": "#050505", "--surface": "#050505", "--on-surface": "#fafafa", "--surface-accent": "#fafafa", "--moon-lit": "transparent", "--moon-shadow": "var(--ink)" };
-  for (const k in vars) r.setProperty(k, vars[k]);
-  r.setProperty("--statusbar", "#050505");
-  r.setProperty("--theme", "#050505");
-  document.querySelector('meta[name="theme-color"]').setAttribute("content", "#050505");
-  document.documentElement.style.colorScheme = dark ? "dark" : "light";
-  document.documentElement.setAttribute("data-dyn", dark ? "dark" : "light");
-  const changed = state.dark !== dark;
-  state.dark = dark;
-  if (changed) { updateMapTheme(); if (state.data) { renderDayView(); renderNowcast(); } }
-}
 function skyGradientAt(bands, nowH) {
   const anchors = bands.map((b) => ({ h: (b[0] + b[1]) / 2, key: b[2] }));
   if (!anchors.length) return DYNAMIC_SKY.day;
@@ -2312,16 +2233,6 @@ function skyGradientAt(bands, nowH) {
   return { top: lerpHex(a.top, b.top, frac), bottom: lerpHex(a.bottom, b.bottom, frac) };
 }
 
-// Bloom rendered as a gradient mesh: colour is pooled around a handful of
-// control points via inverse-distance weighting, giving soft organic plumes
-// instead of hard radial rings - the "ink in water" look of the reference mock.
-// The two Dynamic sky colours (time-of-day sky with the weather veil already
-// applied) seed the plumes; a per-pixel vertical alpha fade dissolves the bloom
-// into the flat page. Returned as a data-URL so it drops straight into the
-// existing crossfade / scroll-fade background layers. A luminance guard keeps
-// ink readable: near-black night skies are lifted toward the light page
-// (keeping their hue), pale skies deepened slightly on the dark page.
-let bloomCanvas = null;
 // Alert severity tiers, from the curated palette (bg = chip fill, fg = chip
 // text / warning icon / tier dot). Tuned for legibility in both modes.
 const ALERT_TOKENS = {
@@ -2335,77 +2246,6 @@ const NEUTRAL_SURFACE = {
   card:   { light: "#ECECE8", dark: "#2A2A27" },
   cardHi: { light: "#D8D8D3", dark: "#343431" }
 };
-
-function bloomGradient(sky, dark, curated) {
-  // The bloom is rendered theme-independently so the colours read identically
-  // in light and dark mode - only the page behind it changes, not the glow.
-  // When curated (Colour mode), the sky colours are already palette fg values,
-  // so they skip the vibrancy/legibility pass and are used as given.
-  const legible = (c) => {
-    const l = luminance(c);
-    if (l < 0.4) return lerpHex(c, "#ffffff", (0.4 - l) * 1.5);
-    return c;
-  };
-  const prep = (c) => curated ? c : legible(vivid(c, false));
-  const c1 = hexToRgb(prep(sky.top)), c2 = hexToRgb(prep(sky.bottom));
-  const mid = [0, 1, 2].map((i) => Math.sqrt((c1[i] * c1[i] + c2[i] * c2[i]) / 2));
-  // Two plumes: c2 pools on the left, c1 upper-right, blends where they meet.
-  // Lower plumes carry colour down so the glow keeps its hue as it descends.
-  const grid = [
-    { x: 0.16, y: 0.06, c: c2 }, { x: 0.72, y: 0.05, c: c1 }, { x: 0.98, y: 0.17, c: c1 },
-    { x: 0.05, y: 0.30, c: c2 }, { x: 0.50, y: 0.27, c: mid }, { x: 1.02, y: 0.42, c: c1 },
-    { x: 0.30, y: 0.55, c: mid }, { x: 0.82, y: 0.58, c: mid },
-    { x: 0.12, y: 0.82, c: c2 }, { x: 0.72, y: 0.86, c: c1 }
-  ];
-  const W = 150, H = 320, power = 2.4, peak = 0.88;
-  const cv = bloomCanvas || (bloomCanvas = document.createElement("canvas"));
-  cv.width = W; cv.height = H;
-  const ctx = cv.getContext("2d");
-  const img = ctx.createImageData(W, H), d = img.data;
-  for (let y = 0; y < H; y++) {
-    const ny = y / H;
-    // Vertical dissolve: full up top, holding strong through the mid-page, gone
-    // by ~92% so the glow reaches down to about the daily summary.
-    const t = Math.max(0, Math.min(1, (ny - 0.24) / 0.66));
-    const alpha = Math.round(255 * peak * (1 - t * t * (3 - 2 * t)));
-    for (let x = 0; x < W; x++) {
-      const nx = x / W;
-      // Blend in linear-light (squared) space: gamma-naive RGB averaging is
-      // what dips the meeting zone into dark grey mud - mixing the squares
-      // and square-rooting back keeps the crossover bright and airy.
-      let r = 0, g = 0, b = 0, wsum = 0;
-      for (const p of grid) {
-        const dx = nx - p.x, dy = ny - p.y;
-        const w = 1 / Math.pow(dx * dx + dy * dy + 1e-4, power / 2);
-        r += p.c[0] * p.c[0] * w; g += p.c[1] * p.c[1] * w; b += p.c[2] * p.c[2] * w; wsum += w;
-      }
-      r = Math.sqrt(r / wsum); g = Math.sqrt(g / wsum); b = Math.sqrt(b / wsum);
-      // Saturation boost recovers the chroma that averaging washes out of the
-      // middle, so what's left there reads as colour rather than grey.
-      const lt = (Math.max(r, g, b) + Math.min(r, g, b)) / 2, sat = 1.35;
-      r = lt + (r - lt) * sat; g = lt + (g - lt) * sat; b = lt + (b - lt) * sat;
-      r = r < 0 ? 0 : r > 255 ? 255 : r;
-      g = g < 0 ? 0 : g > 255 ? 255 : g;
-      b = b < 0 ? 0 : b > 255 ? 255 : b;
-      const i = (y * W + x) * 4;
-      d[i] = r; d[i + 1] = g; d[i + 2] = b; d[i + 3] = alpha;
-    }
-  }
-  ctx.putImageData(img, 0, 0);
-  return `url("${cv.toDataURL()}")`;
-}
-
-// Fade the bloom out over the first ~420px of scroll so the page settles onto
-// the flat background. Driven by a CSS var so the layers stay crossfadeable.
-let bloomScrollRaf = null;
-function syncBloomFade() {
-  const f = Math.max(0, Math.min(1, 1 - (window.scrollY || 0) / 420));
-  document.documentElement.style.setProperty("--bloom-fade", f.toFixed(3));
-}
-function onBloomScroll() {
-  if (!PALETTES[themeKind()]?.bloom || bloomScrollRaf) return;
-  bloomScrollRaf = requestAnimationFrame(() => { bloomScrollRaf = null; syncBloomFade(); });
-}
 
 function weatherVeil(main, cloudPct) {
   const v = WEATHER_VEIL[main] || WEATHER_VEIL.Clouds;
@@ -2426,21 +2266,6 @@ function applyWeatherVeil(sky, main, cloudPct) {
 }
 
 let dynamicTimer = null;
-let dynLayerFlip = false;
-
-function setDynamicGradient(css) {
-  const r = document.documentElement.style;
-  if (dynLayerFlip) {
-    r.setProperty("--dyn-a", css);
-    r.setProperty("--dyn-op-a", "1");
-    r.setProperty("--dyn-op-b", "0");
-  } else {
-    r.setProperty("--dyn-b", css);
-    r.setProperty("--dyn-op-b", "1");
-    r.setProperty("--dyn-op-a", "0");
-  }
-  dynLayerFlip = !dynLayerFlip;
-}
 
 function updateDynamicBackground() {
   const c = state.center || {};
@@ -2461,21 +2286,8 @@ function updateDynamicBackground() {
     sky = DYNAMIC_SKY.day;
   }
 
-  const p = PALETTES[themeKind()];
-  if (p?.bloom) {
-    // Colour mode paints the full-screen weather mesh (the CSS layer reads the
-    // vars applyBloomAccents sets); the plain theme keeps its top glow.
-    if (state.tinted) {
-      applyBloomAccents(sky, !!p.dark);
-    } else {
-      setDynamicGradient(bloomGradient(sky, !!p.dark, false));
-      applyBloomAccents(sky, !!p.dark);
-    }
-    return;
-  }
-
-  setDynamicPalette((luminance(sky.top) + luminance(sky.bottom)) / 2 < 0.42);
-  setDynamicGradient(`linear-gradient(180deg, ${sky.top} 0%, ${sky.bottom} 100%)`);
+  // Feed the current sky/weather to the mesh (colours + solid base + ink).
+  applyBloomAccents(sky);
 }
 
 function startDynamicTheme() {
@@ -2485,9 +2297,6 @@ function startDynamicTheme() {
 }
 function stopDynamicTheme() {
   if (dynamicTimer) { clearInterval(dynamicTimer); dynamicTimer = null; }
-  const r = document.documentElement.style;
-  ["--dyn-a", "--dyn-b", "--dyn-op-a", "--dyn-op-b"].forEach((v) => r.removeProperty(v));
-  document.documentElement.removeAttribute("data-dyn");
 }
 
 function sunMapSVG(lat, lon) {

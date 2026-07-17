@@ -187,46 +187,6 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   .splash-mark { animation: none; }
   .splash { transition: none; }
 }
-.bg::before, .bg::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-size: 100% 100%;
-  background-repeat: no-repeat;
-  transition: opacity 1.4s var(--ease-out);
-  /* The plumes make a diagonal fan; sweep that fan from one lean to the other
-     (/ | \ <-> \ | /) with a slow skew, plus a gentle breathing zoom. The base
-     overscan scale is generous enough that neither the skew nor the zoom ever
-     reveals an edge. Tied to the settings motion toggle (:root[data-anim]). */
-  animation: bloomSweep 12s var(--ease-in-out, ease-in-out) infinite;
-  will-change: transform;
-}
-@keyframes bloomSweep {
-  0%   { transform: scale(1.35) skewX(5.5deg)  translateY(-1.6%); }
-  50%  { transform: scale(1.42) skewX(-5.5deg) translateY(1.8%); }
-  100% { transform: scale(1.35) skewX(5.5deg)  translateY(-1.6%); }
-}
-:root[data-anim="off"] .bg::before,
-:root[data-anim="off"] .bg::after { animation: none; transform: none; }
-@media (prefers-reduced-motion: reduce) {
-  .bg::before, .bg::after { animation: none; transform: none; }
-}
-.bg::before { background-image: var(--dyn-a, none); opacity: var(--dyn-op-a, 0); }
-.bg::after { background-image: var(--dyn-b, none); opacity: var(--dyn-op-b, 0); }
-
-/* Bloom: the glow lives at the top of the home screen and dissolves into the
-   flat page colour as you scroll (--bloom-fade is scroll-driven, 1 -> 0). */
-[data-theme="bloom"] .bg::before,
-[data-theme="bloomdark"] .bg::before { opacity: calc(var(--dyn-op-a, 0) * var(--bloom-fade, 1)); transition: opacity 260ms var(--ease-out); }
-[data-theme="bloom"] .bg::after,
-[data-theme="bloomdark"] .bg::after { opacity: calc(var(--dyn-op-b, 0) * var(--bloom-fade, 1)); transition: opacity 260ms var(--ease-out); }
-
-/* Bloom is home-screen only: every other screen sits on the solid background. */
-:root[data-theme="bloom"] body:has(.sheet.is-open) .bg::before,
-:root[data-theme="bloom"] body:has(.sheet.is-open) .bg::after,
-:root[data-theme="bloomdark"] body:has(.sheet.is-open) .bg::before,
-:root[data-theme="bloomdark"] body:has(.sheet.is-open) .bg::after { opacity: 0; }
 
 /* ===== Weather gradient (Colour mode) ==================================
    The Stripe WebGL mesh, coloured from the live weather (JS sets its four
@@ -244,6 +204,9 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   --gradient-color-3: #66D7F5; --gradient-color-4: #78B6FF;
 }
 :root[data-tint="on"] #gradient-canvas { opacity: 1; }
+/* Home screen only: on any open sheet (detail, radar, search) hide the mesh so
+   those screens sit on the flat solid colour (--bg) behind them. */
+body:has(.sheet.is-open) #gradient-canvas { opacity: 0; }
 /* In Colour mode the mesh is the background; hide the plain top-bloom layers. */
 :root[data-tint="on"] .bg::before,
 :root[data-tint="on"] .bg::after { opacity: 0; }
@@ -279,9 +242,7 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 [data-theme="night"] .bottomnav,
 [data-theme="night"] .nav-pop,
 [data-theme="bloomdark"] .bottomnav,
-[data-theme="bloomdark"] .nav-pop,
-[data-dyn="dark"] .bottomnav,
-[data-dyn="dark"] .nav-pop {
+[data-theme="bloomdark"] .nav-pop {
   --surface: #1c1c1e;
   --on-surface: #fafafa;
   --on-surface-soft: color-mix(in srgb, #fafafa 64%, transparent);
@@ -2245,44 +2206,11 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .uv-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--ink); }
 .uv-range { font-size: var(--t-sm); color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
-/* ===== Bloom Colour (tinted) option =====================================
-   Kept simple: a subtle wash of one live sky colour on the tiles, and the
-   weather icons in the other sky colour (contrast-checked in JS so they stay
-   legible on the wash). Nothing else changes - body text, charts and chrome
-   stay ink. The tile fills are translucent, so a tile nested inside another
-   deepens naturally from the stacked wash. Everything falls back to ink until
-   JS computes the colours, so there is no flash. Placed late so it wins
-   equal-specificity ties over the base component rules. */
-:root[data-tint="on"] {
-  /* Tiles are the family bg, near-solid so they block the bloom behind them and
-     the tuned bg/fg contrast holds. A hair of translucency lets nested tiles
-     deepen and keeps them from feeling flat. */
-  --card-bg: color-mix(in srgb, var(--tile, var(--ink)) 88%, transparent);
-  --card-bg-hi: color-mix(in srgb, var(--tile, var(--ink)) 96%, transparent);
-  --card-border: color-mix(in srgb, var(--icon, var(--ink)) 20%, transparent);
-  --hairline: color-mix(in srgb, var(--icon, var(--ink)) 22%, transparent);
-}
-
-/* Metric + nowcast icons carry the sky accent; weather glyphs default to it. */
+/* Colour mode: all icons (weather glyphs + metric + nowcast) ride as ink over
+   the mesh; --icon is set to the contrast colour in JS. */
 [data-tint="on"] .wx-icon,
 [data-tint="on"] .metric .cond-ic,
 [data-tint="on"] .nowcast-ic { color: var(--icon, var(--ink)); }
-
-/* Weather glyphs, hero included, are coloured by what they depict rather than
-   the sky tint: a clear day is an amber sun, rain blue, snow icy, storm purple,
-   cloud/fog neutral. A condition colour differs in hue from the bloom, so the
-   hero reads well on it (unlike a same-hue sky accent). Contrast-checked in JS. */
-[data-tint="on"] .wx-clear-d { color: var(--icon-wx-clear-d, var(--icon)); }
-[data-tint="on"] .wx-clear-n { color: var(--icon-wx-clear-n, var(--icon)); }
-[data-tint="on"] .wx-clouds  { color: var(--icon-wx-clouds, var(--icon)); }
-[data-tint="on"] .wx-rain    { color: var(--icon-wx-rain, var(--icon)); }
-[data-tint="on"] .wx-storm   { color: var(--icon-wx-storm, var(--icon)); }
-[data-tint="on"] .wx-snow    { color: var(--icon-wx-snow, var(--icon)); }
-[data-tint="on"] .wx-mist    { color: var(--icon-wx-mist, var(--icon)); }
-
-/* The hero glyph floats on the bloom, so its colour is contrast-checked against
-   the bloom (not the tile) in JS and exposed here. */
-[data-tint="on"] .hero-icon { color: var(--hero-icon, var(--icon)); }
 
 @keyframes eFade { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
 @keyframes ePop  { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: none; } }
