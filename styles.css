@@ -2069,15 +2069,16 @@ body:has(.sheet.is-open) .app { visibility: hidden; }
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  display: flex;
-  flex-direction: column;
-  gap: var(--s-5);
+  /* Plain block scroller: pairing overflow:auto with display:flex makes iOS
+     Safari only start a scroll when the touch lands on a child box, not on
+     empty gaps or padding. Keep the vertical rhythm with margins instead. */
   padding:
     calc(var(--safe-t) + var(--s-4))
     calc(var(--gutter) + var(--safe-r))
     calc(var(--safe-b) + var(--nav-clear))
     calc(var(--gutter) + var(--safe-l));
 }
+.sheet-scroll > * + * { margin-top: var(--s-5); }
 
 .sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--s-4); }
 .back-btn {
