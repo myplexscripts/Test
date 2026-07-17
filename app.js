@@ -5,6 +5,7 @@ const API_KEY = "37c88f3496272531c686b0686ecfe1dd";
 const GEO_BASE = "https://api.openweathermap.org/geo/1.0";
 const AIR_BASE = "https://air-quality-api.open-meteo.com/v1/air-quality";
 const AQHI_BASE = "https://api.weather.gc.ca";
+const NEWS_PROXY = "https://rss-proxy.davidbusch-02.workers.dev/local?_=";
 const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
@@ -34,7 +35,7 @@ const el = {
   heroLo: $("heroLo"), heroHi: $("heroHi"), heroFeels: $("heroFeels"), heroWhen: $("heroWhen"),
   alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
   hero: document.querySelector(".hero"),
-  metrics: $("metrics"),
+  metrics: $("metrics"), news: $("news"), newsList: $("newsList"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   dayGraph: $("dayGraph"),
   nowcast: $("nowcast"), nowcastLine: $("nowcastLine"), nowcastIc: document.querySelector(".nowcast-ic"),
@@ -287,6 +288,7 @@ async function refresh(force) {
     saveCache(data);
     render(data);
     setStatus(`Updated ${fmtClock(Date.now() / 1000, current.timezone || 0)}`);
+    loadNews();
   } catch (err) {
     if (state.data) setStatus(`Offline, showing saved weather. (${err.message})`);
     else setStatus(`Couldn't load weather. ${err.message}`);
@@ -414,6 +416,84 @@ async function fetchAir(lat, lon) {
   out.hourly = json.hourly || null;
   if (eccc) { out.aqhi = eccc.aqhi; out.aqhiStation = eccc.station; out.aqhiTime = eccc.time; }
   return out;
+}
+
+// Local weather news via the user's Cloudflare Worker, which proxies a Google
+// News RSS search (browsers can't fetch that feed directly). The worker may
+// return JSON or raw RSS XML, so parseNews handles both. Never throws.
+async function fetchNews() {
+  let text;
+  try {
+    const res = await fetch(NEWS_PROXY + Date.now(), { cache: "no-store" });
+    if (!res.ok) return [];
+    text = await res.text();
+  } catch { return []; }
+  return parseNews(text);
+}
+
+// Google News titles read "Headline - Publisher"; split the publisher out.
+function newsSourceFromTitle(t) { const m = String(t).match(/\s+-\s+([^-]+)$/); return m ? m[1].trim() : ""; }
+function newsCleanTitle(t) { const s = String(t).trim(); return s.replace(/\s+-\s+[^-]+$/, "").trim() || s; }
+
+function parseNews(text) {
+  let items = null;
+  try {
+    const j = JSON.parse(text);
+    items = j.items || j.articles || j.entries || (Array.isArray(j) ? j : null);
+    if (items) items = items.map((it) => ({
+      title: newsCleanTitle(it.title || ""),
+      link: it.link || it.url || it.guid || "",
+      source: (it.source && (it.source.title || it.source)) || newsSourceFromTitle(it.title || ""),
+      ts: parseWhen(it.pubDate || it.published || it.date || it.pubdate || it.isoDate || "")
+    }));
+  } catch { /* not JSON, try XML below */ }
+  if (!items) items = parseRssXml(text);
+  return (items || [])
+    .filter((a) => a.title && a.link)
+    .map((a) => ({ ...a, source: typeof a.source === "string" ? a.source : "" }))
+    .slice(0, 8);
+}
+
+function parseRssXml(text) {
+  let doc;
+  try { doc = new DOMParser().parseFromString(text, "text/xml"); } catch { return []; }
+  if (!doc || doc.querySelector("parsererror")) return [];
+  return [...doc.querySelectorAll("item")].map((it) => {
+    const q = (s) => it.querySelector(s)?.textContent?.trim() || "";
+    const rawTitle = q("title");
+    return {
+      title: newsCleanTitle(rawTitle),
+      link: q("link") || it.querySelector("guid")?.textContent?.trim() || "",
+      source: it.querySelector("source")?.textContent?.trim() || newsSourceFromTitle(rawTitle),
+      ts: parseWhen(q("pubDate"))
+    };
+  });
+}
+
+function newsRelTime(ts) {
+  if (!ts) return "";
+  const diff = Math.floor(Date.now() / 1000) - ts;
+  if (diff < 3600) return `${Math.max(1, Math.floor(diff / 60))}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+async function loadNews() {
+  state.news = await fetchNews();
+  renderNews(state.news);
+}
+
+function renderNews(articles) {
+  if (!el.news || !el.newsList) return;
+  if (!articles || !articles.length) { el.news.hidden = true; return; }
+  el.newsList.innerHTML = articles.map((a) => {
+    const meta = [a.source, newsRelTime(a.ts)].filter(Boolean).map(escapeHTML).join(" · ");
+    return `<a class="news-item" href="${escapeHTML(a.link)}" target="_blank" rel="noopener noreferrer">
+      <span class="news-title">${escapeHTML(a.title)}</span>
+      ${meta ? `<span class="news-meta">${meta}</span>` : ""}
+    </a>`;
+  }).join("");
+  el.news.hidden = false;
 }
 
 function wmoMain(code) {
@@ -741,6 +821,7 @@ function render(data, opts) {
   renderSun(current);
   renderMoon(current);
   renderDetails(current, forecast);
+  renderNews(state.news || []);
 
   syncMaps();
   setupScrollFx();

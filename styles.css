@@ -215,10 +215,28 @@ body:has(.sheet.is-open) #gradient-canvas { opacity: 0; }
 .conditions-tile, .dayview-card, .nowcast-card, .graph-card,
 .hour-card, .day-card, .radar-preview, .detail,
 .sun-card, .moon-card, .wind-card, .alert, .map-link,
-.qh-tiles > * {
+.news-item, .qh-tiles > * {
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
 }
+
+/* Local weather news: a simple list of frosted cards linking out to articles. */
+.news-list { display: flex; flex-direction: column; gap: var(--s-2); }
+.news-item {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--s-3) var(--s-4);
+  border-radius: var(--r-lg);
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-spring);
+}
+.news-item:active { transform: scale(0.985); background: var(--card-bg-hi); }
+.news-title { font-weight: 600; line-height: 1.32; }
+.news-meta { font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.02em; }
 
 /* Status-bar scrim: purely a masked backdrop blur, no tint. Strongest at the
    very top so the status bar stays legible over any bloom, then the mask
