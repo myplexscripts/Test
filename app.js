@@ -2163,6 +2163,30 @@ function recolorWxGradient(hexes) {
   for (let i = 1; i < sc.length; i++) wxGrad.uniforms.u_waveLayers.value[i - 1].value.color.value = sc[i];
 }
 
+// Size the mesh at the device pixel ratio so the shader renders crisp on
+// retina, while the canvas stays laid out at CSS size (100% / 100svh). The
+// library's own resize only sizes the buffer at CSS resolution, which upscales
+// blurry; this mirrors its resize but scales the drawing buffer by dpr. Mesh
+// tessellation and shadow threshold stay keyed to CSS px so the look is
+// unchanged, just sharper.
+function sizeMesh() {
+  if (!wxGrad || !wxGrad.minigl || !wxGrad.mesh) return;
+  const dpr = Math.min(window.devicePixelRatio || 1, 2);
+  const cssW = window.innerWidth, cssH = window.innerHeight;
+  const w = Math.round(cssW * dpr), h = Math.round(cssH * dpr);
+  wxGrad.width = w;
+  wxGrad.height = h;
+  wxGrad.minigl.setSize(w, h);
+  wxGrad.minigl.setOrthographicCamera();
+  wxGrad.xSegCount = Math.ceil(cssW * wxGrad.conf.density[0]);
+  wxGrad.ySegCount = Math.ceil(cssH * wxGrad.conf.density[1]);
+  wxGrad.mesh.geometry.setTopology(wxGrad.xSegCount, wxGrad.ySegCount);
+  wxGrad.mesh.geometry.setSize(w, h);
+  wxGrad.mesh.material.uniforms.u_shadow_power.value = cssW < 600 ? 5 : 6;
+  const cv = document.getElementById("gradient-canvas");
+  if (cv) { cv.style.width = "100%"; cv.style.height = "100svh"; }
+}
+
 function initWxGradient() {
   const cv = document.getElementById("gradient-canvas");
   if (wxGrad || !cv || typeof window.Gradient !== "function") return;
@@ -2170,7 +2194,12 @@ function initWxGradient() {
     wxGrad = new window.Gradient();
     wxGrad.height = Math.round(window.innerHeight);
     wxGrad.initGradient("#gradient-canvas");
-    window.addEventListener("resize", () => { if (wxGrad) { wxGrad.height = Math.round(window.innerHeight); wxGrad.resize(); } });
+    // Swap the library's CSS-resolution resize for our dpr-aware one, then run
+    // it once so the buffer is retina-sharp from the start.
+    window.removeEventListener("resize", wxGrad.resize);
+    wxGrad.resize = sizeMesh;
+    window.addEventListener("resize", sizeMesh);
+    sizeMesh();
   } catch (e) { wxGrad = null; }
 }
 
@@ -2210,7 +2239,7 @@ function applyBloomAccents(sky, dark) {
   // Frosted glass tiles over the deep mesh.
   r.setProperty("--card-bg", "rgba(255,255,255,0.10)");
   r.setProperty("--card-bg-hi", "rgba(255,255,255,0.16)");
-  r.setProperty("--card-border", "rgba(255,255,255,0.16)");
+  r.setProperty("--card-border", "transparent");
   r.setProperty("--hairline", "rgba(255,255,255,0.20)");
   initWxGradient();
   if (wxGrad) { wxGrad.amp = state.animate === false ? 0 : 320; wxGrad.play(); }

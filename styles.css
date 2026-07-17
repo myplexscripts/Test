@@ -216,8 +216,8 @@ body:has(.sheet.is-open) #gradient-canvas { opacity: 0; }
 .hour-card, .day-card, .radar-preview, .detail,
 .sun-card, .moon-card, .wind-card, .alert, .map-link,
 .qh-tiles > * {
-  -webkit-backdrop-filter: blur(7px);
-  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
 }
 
 /* Status-bar scrim: purely a masked backdrop blur, no tint. Strongest at the
