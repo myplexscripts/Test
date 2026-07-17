@@ -40,7 +40,8 @@ const el = {
   hero: document.querySelector(".hero"),
   metrics: $("metrics"), newsList: $("newsList"),
   meshWrap: $("meshWrap"), homeNavBtn: $("navHome"),
-  newsSheet: $("newsSheet"), newsBack: $("newsBack"),
+  newsSheet: $("newsSheet"), newsBack: $("newsBack"), navNews: $("navNews"),
+  homeNews: $("homeNews"), homeNewsList: $("homeNewsList"), homeNewsMore: $("homeNewsMore"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   dayGraph: $("dayGraph"),
   nowcast: $("nowcast"), nowcastLine: $("nowcastLine"), nowcastIc: document.querySelector(".nowcast-ic"),
@@ -183,6 +184,11 @@ function wireEvents() {
   if (el.mapPickConfirm) el.mapPickConfirm.onclick = confirmMapPick;
   if (el.bottomNav) el.bottomNav.querySelectorAll("[data-nav]").forEach((b) => b.onclick = () => navTo(b.dataset.nav));
   window.addEventListener("scroll", onPageScroll, { passive: true });
+  if (el.homeNewsMore) el.homeNewsMore.onclick = () => navTo("news");
+  if (el.newsSheet) {
+    const sc = el.newsSheet.querySelector(".sheet-scroll");
+    if (sc) sc.addEventListener("scroll", onNewsScroll, { passive: true });
+  }
   // Light-dismiss for the settings drop-up: any tap outside it (and outside
   // the nav, whose own buttons manage it) folds it back into the bar.
   document.addEventListener("pointerdown", (e) => {
@@ -567,7 +573,7 @@ async function loadNews(force) {
   const arr = await fetchNews();
   if (arr && arr.length) { state.news = arr; saveNews(arr); }
   else state.newsLoadedAt = 0;
-  renderNews(state.news || []);
+  renderNewsAll();
 }
 
 // Group label for a publish time: Today / Yesterday / weekday and date.
@@ -584,30 +590,56 @@ function newsGroupLabel(ts) {
   return `${wd}, ${mo} ${d.getUTCDate()}`;
 }
 
-// The news screen: articles newest-first, grouped under date sub-headers. Each
-// card links out to the source - no in-app reproduction of the article.
+// One article card. `cls` swaps the frame: news-item on Home, news-tile inside
+// the news-screen folders. Always links straight out to the source.
+function newsCardHtml(a, cls) {
+  const meta = [a.source, a.ts ? fmtClock(a.ts, state.tz || 0) : ""].filter(Boolean).map(escapeHTML).join(" · ");
+  const tN = (a.title || "").toLowerCase(), sN = (a.summary || "").toLowerCase();
+  const redundant = !sN || (tN && (sN.startsWith(tN.slice(0, 40)) || tN.startsWith(sN.slice(0, 40))));
+  const summary = redundant ? "" : newsTruncate(a.summary, 150);
+  return `<a class="${cls}" href="${escapeHTML(a.link)}" target="_blank" rel="noopener noreferrer">
+    <span class="news-title">${escapeHTML(a.title)}</span>
+    ${summary ? `<span class="news-summary">${escapeHTML(summary)}</span>` : ""}
+    <span class="news-foot"><span class="news-meta">${meta}</span><i class="ph ph-arrow-up-right news-go" aria-hidden="true"></i></span>
+  </a>`;
+}
+
+function newsSorted(articles) {
+  return (articles || []).slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
+}
+
+function renderNewsAll() {
+  renderHomeNews(state.news || []);
+  renderNews(state.news || []);
+}
+
+// Home: the five most recent, with a click-through to the full news screen.
+function renderHomeNews(articles) {
+  if (!el.homeNews || !el.homeNewsList) return;
+  const list = newsSorted(articles).slice(0, 5);
+  if (!list.length) { el.homeNews.hidden = true; return; }
+  el.homeNewsList.innerHTML = list.map((a) => newsCardHtml(a, "news-item")).join("");
+  el.homeNews.hidden = false;
+}
+
+// News screen: articles newest-first, each day a folder of article tiles.
 function renderNews(articles) {
   if (!el.newsList) return;
-  const list = (articles || []).slice().sort((a, b) => (b.ts || 0) - (a.ts || 0));
+  const list = newsSorted(articles);
   if (!list.length) {
     el.newsList.innerHTML = `<p class="news-empty">No weather news right now.</p>`;
     return;
   }
-  let html = "", lastLabel = null;
+  const groups = [];
   for (const a of list) {
     const label = newsGroupLabel(a.ts);
-    if (label !== lastLabel) { html += `<h2 class="news-group">${escapeHTML(label)}</h2>`; lastLabel = label; }
-    const meta = [a.source, a.ts ? fmtClock(a.ts, state.tz || 0) : ""].filter(Boolean).map(escapeHTML).join(" · ");
-    const tN = (a.title || "").toLowerCase(), sN = (a.summary || "").toLowerCase();
-    const redundant = !sN || (tN && (sN.startsWith(tN.slice(0, 40)) || tN.startsWith(sN.slice(0, 40))));
-    const summary = redundant ? "" : newsTruncate(a.summary, 150);
-    html += `<a class="news-item" href="${escapeHTML(a.link)}" target="_blank" rel="noopener noreferrer">
-      <span class="news-title">${escapeHTML(a.title)}</span>
-      ${summary ? `<span class="news-summary">${escapeHTML(summary)}</span>` : ""}
-      <span class="news-foot"><span class="news-meta">${meta}</span><i class="ph ph-arrow-up-right news-go" aria-hidden="true"></i></span>
-    </a>`;
+    let g = groups[groups.length - 1];
+    if (!g || g.label !== label) { g = { label, items: [] }; groups.push(g); }
+    g.items.push(a);
   }
-  el.newsList.innerHTML = html;
+  el.newsList.innerHTML = groups.map((g) =>
+    section(escapeHTML(g.label), `<div class="news-tiles">${g.items.map((a) => newsCardHtml(a, "news-tile")).join("")}</div>`, false, "ph-calendar-blank")
+  ).join("");
 }
 
 function openNews() {
@@ -956,7 +988,7 @@ function render(data, opts) {
   renderSun(current);
   renderMoon(current);
   renderDetails(current, forecast);
-  renderNews(state.news || []);
+  renderNewsAll();
 
   syncMaps();
   setupScrollFx();
@@ -1013,6 +1045,20 @@ function updateHomeNavAffordance(y = window.scrollY || 0) {
   const show = homeContext && y > 400;
   el.homeNavBtn.classList.toggle("at-top", show);
   el.homeNavBtn.setAttribute("aria-label", show ? "Back to top" : "Home");
+}
+
+// Same back-to-top morph on the News tab, driven by the news sheet's scroll.
+let newsScrollRaf = 0;
+function onNewsScroll() {
+  if (newsScrollRaf) return;
+  newsScrollRaf = requestAnimationFrame(() => { newsScrollRaf = 0; updateNewsNavAffordance(); });
+}
+function updateNewsNavAffordance() {
+  if (!el.navNews || !el.newsSheet) return;
+  const sc = el.newsSheet.querySelector(".sheet-scroll");
+  const show = state.newsOpen && sc && sc.scrollTop > 400;
+  el.navNews.classList.toggle("at-top", show);
+  el.navNews.setAttribute("aria-label", show ? "Back to top" : "Weather news");
 }
 
 function tween(ms, ease, step) {
@@ -3632,6 +3678,7 @@ function navTo(tab) {
   if (tab === "news") {
     closeSettingsPop(); closeSheet(); closeRadar(); closeSearch();
     if (!state.newsOpen) openNews();
+    else { const sc = el.newsSheet && el.newsSheet.querySelector(".sheet-scroll"); if (sc) sc.scrollTo({ top: 0, behavior: "smooth" }); }
     return;
   }
   if (tab === "settings") {
@@ -3653,6 +3700,7 @@ function syncNav() {
     if (on) b.setAttribute("aria-current", "page"); else b.removeAttribute("aria-current");
   });
   updateHomeNavAffordance();
+  updateNewsNavAffordance();
 }
 
 function haveLeaflet() { return typeof window.L !== "undefined"; }

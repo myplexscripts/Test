@@ -129,6 +129,13 @@
       <div class="detail-grid" id="detailGrid"></div>
     </section>
 
+    <section class="block b-news" id="homeNews" aria-label="Weather news" hidden>
+      <div class="block-head">
+        <h2>Weather news</h2>
+        <button class="arrow-btn" id="homeNewsMore" aria-label="Open all news"><svg class="arrow-ic" viewBox="-144 0 368 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" aria-hidden="true"><line x1="-136" y1="128" x2="216" y2="128"/><polyline points="144 56 216 128 144 200"/></svg></button>
+      </div>
+      <div class="news-list" id="homeNewsList"></div>
+    </section>
 
       </div>
     </div>
@@ -144,7 +151,7 @@
     <button class="bn-item is-active" id="navHome" data-nav="home" aria-label="Home"><i class="ph ph-house bn-ic bn-ic-home" aria-hidden="true"></i><i class="ph ph-arrow-up bn-ic bn-ic-top" aria-hidden="true"></i></button>
     <button class="bn-item" data-nav="radar" aria-label="Radar map"><i class="ph ph-target" aria-hidden="true"></i></button>
     <button class="bn-item" data-nav="search" aria-label="Search locations"><i class="ph ph-magnifying-glass" aria-hidden="true"></i></button>
-    <button class="bn-item" data-nav="news" aria-label="Weather news"><i class="ph ph-newspaper" aria-hidden="true"></i></button>
+    <button class="bn-item" id="navNews" data-nav="news" aria-label="Weather news"><i class="ph ph-newspaper bn-ic bn-ic-home" aria-hidden="true"></i><i class="ph ph-arrow-up bn-ic bn-ic-top" aria-hidden="true"></i></button>
     <button class="bn-item" data-nav="settings" aria-label="Settings" aria-haspopup="true" aria-expanded="false"><i class="ph ph-gear-six" aria-hidden="true"></i></button>
   </nav>
 

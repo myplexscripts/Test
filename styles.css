@@ -291,6 +291,22 @@ body:has(.sheet.is-open) .mesh { animation-play-state: paused; }
 .news-meta { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 0.8rem; font-weight: 600; color: var(--ink-soft); letter-spacing: 0.02em; }
 .news-go { flex: none; font-size: 1.4rem; color: var(--ink-faint); }
 
+/* News screen: each day is a folder; the articles are tiles inside it. */
+.news-list .folder:first-child { margin-top: 0; }
+.news-tiles { display: flex; flex-direction: column; gap: var(--s-3); }
+.news-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--s-4);
+  border-radius: calc(var(--r-lg) - var(--s-5));
+  background: var(--card-bg-hi);
+  color: var(--ink);
+  text-decoration: none;
+  transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-spring);
+}
+.news-tile:active { transform: scale(0.985); background: var(--card-bg); }
+
 /* Status-bar scrim: purely a masked backdrop blur, no tint. Strongest at the
    very top so the status bar stays legible over any bloom, then the mask
    dissolves the blur so scrolled content slides under a soft fade. */
@@ -1725,10 +1741,10 @@ body:has(.sheet.is-full) .bottomnav {
 /* Home button "back to top" morph: the house and up arrow are stacked in the
    same grid cell and cross-fade with a little slide, so the icon appears to
    transform from one into the other when the page is scrolled down. */
-#navHome .bn-ic { grid-area: 1 / 1; transition: opacity var(--dur-toggle) var(--ease-out), transform var(--dur-toggle) var(--ease-spring); }
-#navHome .bn-ic-top { opacity: 0; transform: translateY(7px) scale(0.6); }
-#navHome.at-top .bn-ic-home { opacity: 0; transform: translateY(-7px) scale(0.6); }
-#navHome.at-top .bn-ic-top { opacity: 1; transform: none; }
+#navHome .bn-ic, #navNews .bn-ic { grid-area: 1 / 1; transition: opacity var(--dur-toggle) var(--ease-out), transform var(--dur-toggle) var(--ease-spring); }
+#navHome .bn-ic-top, #navNews .bn-ic-top { opacity: 0; transform: translateY(7px) scale(0.6); }
+#navHome.at-top .bn-ic-home, #navNews.at-top .bn-ic-home { opacity: 0; transform: translateY(-7px) scale(0.6); }
+#navHome.at-top .bn-ic-top, #navNews.at-top .bn-ic-top { opacity: 1; transform: none; }
 .bottomnav::after {
   content: "";
   position: absolute;
