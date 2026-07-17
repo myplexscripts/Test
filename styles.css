@@ -2202,7 +2202,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
   width: 60%;
   box-sizing: border-box;
   background: var(--card-bg);
-  border-radius: var(--r-md) var(--r-md) 0 0;
+  border-radius: var(--r-lg) var(--r-lg) 0 0;
   padding: var(--s-4) var(--s-5) var(--s-2);
   position: relative;
   z-index: 1;
@@ -2224,11 +2224,11 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
   position: absolute;
   bottom: 100%;
   left: 60%;
-  width: var(--r-md);
-  height: var(--r-md);
+  width: var(--r-lg);
+  height: var(--r-lg);
   background: var(--card-bg);
-  -webkit-mask: radial-gradient(circle at top right, transparent var(--r-md), #000 calc(var(--r-md) + 0.5px));
-  mask: radial-gradient(circle at top right, transparent var(--r-md), #000 calc(var(--r-md) + 0.5px));
+  -webkit-mask: radial-gradient(circle at top right, transparent var(--r-lg), #000 calc(var(--r-lg) + 0.5px));
+  mask: radial-gradient(circle at top right, transparent var(--r-lg), #000 calc(var(--r-lg) + 0.5px));
   pointer-events: none;
 }
 .folder-body .info-text:first-child { margin-top: 0; }
