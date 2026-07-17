@@ -40,7 +40,7 @@ const el = {
   alertOverlay: $("alertOverlay"), alertModalTitle: $("alertModalTitle"), alertModalMeta: $("alertModalMeta"), alertModalBody: $("alertModalBody"), alertModalClose: $("alertModalClose"),
   hero: document.querySelector(".hero"),
   metrics: $("metrics"), news: $("news"), newsList: $("newsList"),
-  gradientCanvas: $("gradient-canvas"), homeNavBtn: $("navHome"),
+  meshWrap: $("meshWrap"), homeNavBtn: $("navHome"),
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   dayGraph: $("dayGraph"),
   nowcast: $("nowcast"), nowcastLine: $("nowcastLine"), nowcastIc: document.querySelector(".nowcast-ic"),
@@ -204,8 +204,6 @@ function wireEvents() {
       refresh(true);
     };
   });
-
-  watchMeshPlayback();
 
   if (el.animToggle) el.animToggle.onclick = () => {
     state.animate = !(state.animate !== false);   // flip on/off
@@ -949,8 +947,8 @@ function onPageScroll() {
     // Parallax: the animated mesh drifts up slower than the content, so the
     // background and foreground scroll at different rates. Skipped for reduced
     // motion. The solid page colour behind it never moves.
-    if (el.gradientCanvas && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      el.gradientCanvas.style.transform = `translate3d(0, ${(y * 0.4).toFixed(1)}px, 0)`;
+    if (el.meshWrap && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      el.meshWrap.style.transform = `translate3d(0, ${(y * 0.4).toFixed(1)}px, 0)`;
     }
     updateHomeNavAffordance(y);
   });
@@ -2514,75 +2512,10 @@ function skyFamily(hex) {
 // ---- Colour mode: the Stripe WebGL mesh, coloured from the weather ----------
 // One theme (no light/dark): a deep, rich weather-hued mesh in the first
 // viewport, dissolving into a solid base colour below, white ink throughout.
-const WXGRAD_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--hairline"];
-let wxGrad = null;
-
-// Feed four hex colours to the running mesh: set the CSS vars (read on first
-// init) and poke the live shader uniforms so a recolour needs no re-init.
-function recolorWxGradient(hexes) {
-  const cv = document.getElementById("gradient-canvas");
-  if (cv) hexes.forEach((h, i) => cv.style.setProperty(`--gradient-color-${i + 1}`, h));
-  if (!wxGrad || !wxGrad.uniforms) return;
-  const norm = (h) => { const c = parseInt(h.replace("#", ""), 16); return [(c >> 16 & 255) / 255, (c >> 8 & 255) / 255, (c & 255) / 255]; };
-  const sc = hexes.map(norm);
-  wxGrad.sectionColors = sc;
-  wxGrad.uniforms.u_baseColor.value = sc[0];
-  for (let i = 1; i < sc.length; i++) wxGrad.uniforms.u_waveLayers.value[i - 1].value.color.value = sc[i];
-}
-
-// Size the mesh at the device pixel ratio so the shader renders crisp on
-// retina, while the canvas stays laid out at CSS size (100% / 100svh). The
-// library's own resize only sizes the buffer at CSS resolution, which upscales
-// blurry; this mirrors its resize but scales the drawing buffer by dpr. Mesh
-// tessellation and shadow threshold stay keyed to CSS px so the look is
-// unchanged, just sharper.
-function sizeMesh() {
-  if (!wxGrad || !wxGrad.minigl || !wxGrad.mesh) return;
-  const dpr = Math.min(window.devicePixelRatio || 1, 2);
-  const cssW = window.innerWidth, cssH = window.innerHeight;
-  const w = Math.round(cssW * dpr), h = Math.round(cssH * dpr);
-  wxGrad.width = w;
-  wxGrad.height = h;
-  wxGrad.minigl.setSize(w, h);
-  wxGrad.minigl.setOrthographicCamera();
-  wxGrad.xSegCount = Math.ceil(cssW * wxGrad.conf.density[0]);
-  wxGrad.ySegCount = Math.ceil(cssH * wxGrad.conf.density[1]);
-  wxGrad.mesh.geometry.setTopology(wxGrad.xSegCount, wxGrad.ySegCount);
-  wxGrad.mesh.geometry.setSize(w, h);
-  wxGrad.mesh.material.uniforms.u_shadow_power.value = cssW < 600 ? 5 : 6;
-  const cv = document.getElementById("gradient-canvas");
-  if (cv) { cv.style.width = "100%"; cv.style.height = "100svh"; }
-}
-
-function initWxGradient() {
-  const cv = document.getElementById("gradient-canvas");
-  if (wxGrad || !cv || typeof window.Gradient !== "function") return;
-  try {
-    wxGrad = new window.Gradient();
-    wxGrad.height = Math.round(window.innerHeight);
-    wxGrad.initGradient("#gradient-canvas");
-    // Swap the library's CSS-resolution resize for our dpr-aware one, then run
-    // it once so the buffer is retina-sharp from the start.
-    window.removeEventListener("resize", wxGrad.resize);
-    wxGrad.resize = sizeMesh;
-    window.addEventListener("resize", sizeMesh);
-    sizeMesh();
-  } catch (e) { wxGrad = null; }
-}
-
-// The mesh only runs on the home screen: pause it whenever a sheet is open or
-// the tab is hidden, so other screens rest on the solid colour.
-function syncMeshPlayback() {
-  if (!wxGrad) return;
-  if (document.hidden || document.querySelector(".sheet.is-open")) wxGrad.pause();
-  else wxGrad.play();
-}
-function watchMeshPlayback() {
-  const sheets = [el.sheet, el.radarSheet, el.searchSheet].filter(Boolean);
-  const mo = new MutationObserver(syncMeshPlayback);
-  sheets.forEach((s) => mo.observe(s, { attributes: true, attributeFilter: ["class"] }));
-  document.addEventListener("visibilitychange", syncMeshPlayback);
-}
+// CSS vars the bloom drives: neutral chrome plus the mesh base and its seven
+// radial blob colours. Cleared when tint is off so the plain palette shows.
+const BLOOM_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--hairline",
+  "--mesh-base", "--mesh-1", "--mesh-2", "--mesh-3", "--mesh-4", "--mesh-5", "--mesh-6", "--mesh-7"];
 
 // Deepen a bright pastel accent into a darker but still-vivid tone: cap the
 // lightness so it contrasts with white, and lift the saturation so the darker
@@ -2597,23 +2530,28 @@ function deepenAccent(hex) {
 function applyBloomAccents(sky, dark) {
   const r = document.documentElement.style;
   if (!state.tinted || !sky) {
-    WXGRAD_VARS.forEach((v) => r.removeProperty(v));
+    BLOOM_VARS.forEach((v) => r.removeProperty(v));
     const base = PALETTES[themeKind()];
     if (base) { r.setProperty("--ink", base.ink); r.setProperty("--bg", base.bg); }
-    if (wxGrad) wxGrad.pause();
     return;
   }
-  // One theme: a deep, rich mesh from the two sky families (two deep bases +
-  // two brighter accents), hue tracking the weather, tone always deep. The
-  // family accents (dfg) are bright pastels, which wash out under white text on
-  // light skies, so deepen them: pull the lightness down and push saturation up
-  // so they read darker but stay vivid and on-palette, not grey.
+  // Deep bases + vivid (deepened) accents from the two sky families, hue
+  // tracking the weather. The dfg accents are bright pastels, which wash out
+  // under white text, so deepen them (darker, still saturated). Seven radial
+  // blobs are painted from these, mixing vivid pops with darker patches over a
+  // dark base for depth; the CSS layer rotates the whole thing slowly.
   const fa = skyFamily(sky.top), fb = skyFamily(sky.bottom);
-  const cols = [fa.dbg, fb.dbg, deepenAccent(fb.dfg), deepenAccent(fa.dfg)];
-  recolorWxGradient(cols);
-  // Solid page colour below the first viewport = the mesh's base blend, so the
-  // masked canvas dissolves into it seamlessly.
-  r.setProperty("--bg", lerpHex(cols[0], cols[1], 0.5));
+  const a1 = deepenAccent(fa.dfg), a2 = deepenAccent(fb.dfg);
+  const d1 = fa.dbg, d2 = fb.dbg;
+  const base = lerpHex(d1, d2, 0.5);
+  // Only vivid accents and dark bases (never a blend of the two accents, which
+  // can average to a dull grey when they are near-complementary).
+  const mesh = [a1, a2, d1, a1, a2, d2, a1];
+  r.setProperty("--mesh-base", base);
+  mesh.forEach((c, i) => r.setProperty(`--mesh-${i + 1}`, c));
+  // Solid page colour below the first viewport = the mesh base, so the masked
+  // mesh dissolves into it seamlessly.
+  r.setProperty("--bg", base);
   r.setProperty("--ink", "#ffffff");
   r.setProperty("--icon", "#ffffff");
   // Frosted glass tiles over the deep mesh.
@@ -2621,8 +2559,6 @@ function applyBloomAccents(sky, dark) {
   r.setProperty("--card-bg-hi", "rgba(255,255,255,0.16)");
   r.setProperty("--card-border", "transparent");
   r.setProperty("--hairline", "rgba(255,255,255,0.20)");
-  initWxGradient();
-  if (wxGrad) { wxGrad.amp = state.animate === false ? 0 : 320; wxGrad.play(); }
 }
 function skyGradientAt(bands, nowH) {
   const anchors = bands.map((b) => ({ h: (b[0] + b[1]) / 2, key: b[2] }));

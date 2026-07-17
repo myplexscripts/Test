@@ -189,24 +189,45 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 }
 
 /* ===== Weather gradient (Colour mode) ==================================
-   The Stripe WebGL mesh, coloured from the live weather (JS sets its four
-   --gradient-color vars and recolours its uniforms). It lives in the first
-   viewport and scrolls away, its bottom masked so it dissolves into the solid
-   page colour (--bg, set to the mesh's base) below the fold. Shown only in
-   Colour mode; the plain theme keeps its flat page + top bloom. */
-#gradient-canvas {
+   A CSS radial-gradient mesh, coloured from the live weather (JS sets its
+   --mesh-base and --mesh-1..7 vars). It lives in the first viewport and scrolls
+   away, its bottom masked so it dissolves into the solid page colour (--bg, set
+   to the mesh's base) below the fold. The oversized inner layer rotates slowly
+   clockwise; the wrapper clips it so the corners never show. */
+.mesh-wrap {
   position: absolute; top: 0; left: 0; width: 100%; height: 100svh;
-  z-index: -1; pointer-events: none; will-change: transform;
+  z-index: -1; pointer-events: none; overflow: hidden; will-change: transform;
   opacity: 0; transition: opacity 0.8s var(--ease-out);
   -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
-  --gradient-color-1: #10233E; --gradient-color-2: #0D2730;
-  --gradient-color-3: #66D7F5; --gradient-color-4: #78B6FF;
 }
-:root[data-tint="on"] #gradient-canvas { opacity: 1; }
+.mesh {
+  position: absolute; top: 50%; left: 50%;
+  width: 150vmax; height: 150vmax;
+  transform: translate(-50%, -50%) rotate(0deg);
+  animation: mesh-spin 90s linear infinite;
+  background-color: var(--mesh-base, #10233E);
+  background-image:
+    radial-gradient(at 96% 8%, var(--mesh-1, #78B6FF) 0px, transparent 50%),
+    radial-gradient(at 32% 8%, var(--mesh-2, #66D7F5) 0px, transparent 50%),
+    radial-gradient(at 64% 88%, var(--mesh-3, #10233E) 0px, transparent 50%),
+    radial-gradient(at 39% 83%, var(--mesh-4, #4aa0e6) 0px, transparent 50%),
+    radial-gradient(at 30% 21%, var(--mesh-5, #66D7F5) 0px, transparent 50%),
+    radial-gradient(at 66% 54%, var(--mesh-6, #0D2730) 0px, transparent 50%),
+    radial-gradient(at 74% 47%, var(--mesh-7, #78B6FF) 0px, transparent 50%);
+}
+@keyframes mesh-spin {
+  from { transform: translate(-50%, -50%) rotate(0deg); }
+  to   { transform: translate(-50%, -50%) rotate(360deg); }
+}
+@media (prefers-reduced-motion: reduce) { .mesh { animation: none; } }
+:root[data-anim="off"] .mesh { animation: none; }
+:root[data-tint="on"] .mesh-wrap { opacity: 1; }
 /* Home screen only: on any open sheet (detail, radar, search) hide the mesh so
-   those screens sit on the flat solid colour (--bg) behind them. */
-body:has(.sheet.is-open) #gradient-canvas { opacity: 0; }
+   those screens sit on the flat solid colour (--bg) behind them, and pause the
+   spin while it is hidden. */
+body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
+body:has(.sheet.is-open) .mesh { animation-play-state: paused; }
 /* In Colour mode the mesh is the background; hide the plain top-bloom layers. */
 :root[data-tint="on"] .bg::before,
 :root[data-tint="on"] .bg::after { opacity: 0; }
