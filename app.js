@@ -2527,7 +2527,10 @@ function rgbaZero(hex) { const [r, g, b] = hexToRgb(hex); return `rgba(${r | 0},
 function deepenAccent(hex) {
   let [h, s, l] = rgbToHsl(hexToRgb(hex));
   l = Math.min(l, 0.42);
-  s = Math.min(1, s * 0.95 + 0.18);
+  // Only lift saturation on colours that already have some; a near-grey (e.g.
+  // the neutral family's off-white, whose technical hue is ~60deg) goes fully
+  // grey, or the boost manufactures an olive/green out of nothing.
+  s = s > 0.2 ? Math.min(1, s * 0.95 + 0.18) : 0;
   return rgbToHex(hslToRgb(h, s, l));
 }
 
@@ -2547,7 +2550,10 @@ function applyBloomAccents(sky, dark) {
   // muddied through black. The CSS layer rotates the whole thing slowly.
   const fa = skyFamily(sky.top), fb = skyFamily(sky.bottom);
   const a1 = deepenAccent(fa.dfg), a2 = deepenAccent(fb.dfg);
-  const base = lerpHex(fa.dbg, fb.dbg, 0.5);
+  // The solid base is a deep version of the dominant (top) sky colour rather
+  // than a blend of the two dark bases, so the whole page reads as the same
+  // colour as the gradient, just deeper - never a muddy neutral.
+  const base = darkenHex(a1, 0.42);
   r.setProperty("--mesh-base", base);
   r.setProperty("--mesh-a", a1); r.setProperty("--mesh-a0", rgbaZero(a1));
   r.setProperty("--mesh-b", a2); r.setProperty("--mesh-b0", rgbaZero(a2));
