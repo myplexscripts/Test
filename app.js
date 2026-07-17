@@ -467,9 +467,11 @@ function newsCleanTitle(t) { const s = decodeEntities(t).trim(); return s.replac
 // collapse whitespace. Truncate on a word boundary when it runs long.
 function newsSummary(raw) {
   if (!raw) return "";
-  // Strip HTML but keep paragraph breaks (from block tags / blank lines) so a
-  // multi-paragraph generated summary reads cleanly; collapse other whitespace.
-  const s = decodeEntities(String(raw).replace(/<\/(?:p|div|li|h[1-6])>|<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, " "));
+  // Decode entities FIRST (twice, since feeds sometimes double-encode), then
+  // strip tags. Stripping before decoding lets encoded <a href> anchors survive
+  // and show up as raw HTML text. Paragraph breaks kept for longer summaries.
+  let s = decodeEntities(decodeEntities(String(raw)));
+  s = s.replace(/<\/(?:p|div|li|h[1-6])>|<br\s*\/?>/gi, "\n").replace(/<[^>]*>/g, " ");
   return s.replace(/[ \t\f\r]+/g, " ").replace(/\s*\n\s*/g, "\n").replace(/\n{2,}/g, "\n").trim();
 }
 function newsTruncate(s, n) {
@@ -638,7 +640,7 @@ function renderNews(articles) {
     g.items.push(a);
   }
   el.newsList.innerHTML = groups.map((g) =>
-    section(escapeHTML(g.label), `<div class="news-tiles">${g.items.map((a) => newsCardHtml(a, "news-tile")).join("")}</div>`, false, "ph-calendar-blank")
+    section(escapeHTML(g.label), `<div class="news-tiles">${g.items.map((a) => newsCardHtml(a, "news-tile")).join("")}</div>`)
   ).join("");
 }
 
