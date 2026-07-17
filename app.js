@@ -6,6 +6,9 @@ const GEO_BASE = "https://api.openweathermap.org/geo/1.0";
 const AIR_BASE = "https://air-quality-api.open-meteo.com/v1/air-quality";
 const AQHI_BASE = "https://api.weather.gc.ca";
 const NEWS_PROXY = "https://rss-proxy.davidbusch-02.workers.dev/local?_=";
+// The /local feed is a site:ctvnews.ca/london search, so any item that arrives
+// without its own publisher is still CTV News London.
+const NEWS_SOURCE = "CTV News London";
 const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
@@ -442,6 +445,14 @@ async function fetchNews() {
 function newsSourceFromTitle(t) { const m = String(t).match(/\s+-\s+([^-]+)$/); return m ? m[1].trim() : ""; }
 function newsCleanTitle(t) { const s = String(t).trim(); return s.replace(/\s+-\s+[^-]+$/, "").trim() || s; }
 
+// Pull a publisher name from a JSON item, wherever a feed might tuck it away.
+function newsPickSource(it) {
+  const s = it.source;
+  const cand = (s && (s.title || s.name)) || (typeof s === "string" ? s : "")
+    || it.publisher || it.sourceName || it.author || it.creator || it["dc:creator"] || "";
+  return (cand && String(cand).trim()) || newsSourceFromTitle(it.title || "");
+}
+
 function parseNews(text) {
   let items = null;
   try {
@@ -450,14 +461,14 @@ function parseNews(text) {
     if (items) items = items.map((it) => ({
       title: newsCleanTitle(it.title || ""),
       link: it.link || it.url || it.guid || "",
-      source: (it.source && (it.source.title || it.source)) || newsSourceFromTitle(it.title || ""),
+      source: newsPickSource(it),
       ts: parseWhen(it.pubDate || it.published || it.date || it.pubdate || it.isoDate || "")
     }));
   } catch { /* not JSON, try XML below */ }
   if (!items) items = parseRssXml(text);
   return (items || [])
     .filter((a) => a.title && a.link)
-    .map((a) => ({ ...a, source: typeof a.source === "string" ? a.source : "" }))
+    .map((a) => ({ ...a, source: (typeof a.source === "string" && a.source.trim()) ? a.source.trim() : NEWS_SOURCE }))
     .slice(0, 8);
 }
 
@@ -465,14 +476,16 @@ function parseRssXml(text) {
   let doc;
   try { doc = new DOMParser().parseFromString(text, "text/xml"); } catch { return []; }
   if (!doc || doc.querySelector("parsererror")) return [];
+  const tag = (it, name) => it.getElementsByTagName(name)[0]?.textContent?.trim() || "";
   return [...doc.querySelectorAll("item")].map((it) => {
     const q = (s) => it.querySelector(s)?.textContent?.trim() || "";
     const rawTitle = q("title");
+    const src = tag(it, "source") || tag(it, "dc:creator") || tag(it, "creator") || tag(it, "author");
     return {
       title: newsCleanTitle(rawTitle),
       link: q("link") || it.querySelector("guid")?.textContent?.trim() || "",
-      source: it.querySelector("source")?.textContent?.trim() || newsSourceFromTitle(rawTitle),
-      ts: parseWhen(q("pubDate"))
+      source: src || newsSourceFromTitle(rawTitle),
+      ts: parseWhen(q("pubDate") || tag(it, "dc:date") || tag(it, "published") || tag(it, "updated"))
     };
   });
 }
