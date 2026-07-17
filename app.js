@@ -4,6 +4,7 @@
 const API_KEY = "37c88f3496272531c686b0686ecfe1dd";
 const GEO_BASE = "https://api.openweathermap.org/geo/1.0";
 const AIR_BASE = "https://air-quality-api.open-meteo.com/v1/air-quality";
+const AQHI_BASE = "https://api.weather.gc.ca";
 const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
@@ -370,12 +371,48 @@ function parseWhen(s) {
   return Number.isFinite(t) ? Math.floor(t / 1000) : null;
 }
 
+// Environment Canada publishes the official measured AQHI through its OGC API
+// (api.weather.gc.ca). Pull the observation stations near a point and use the
+// closest one. Returns null outside Canada or when the service is unreachable,
+// so callers fall back to the modelled estimate. Never throws.
+async function fetchEcccAqhi(lat, lon) {
+  if (lat < 41 || lat > 84 || lon < -142 || lon > -52) return null; // Canada only
+  const bbox = `${lon - 2},${lat - 2},${lon + 2},${lat + 2}`;
+  const url = `${AQHI_BASE}/collections/aqhi-observations-realtime/items?f=json&bbox=${bbox}&limit=200`;
+  let json;
+  try { json = await fetchJSON(url, 8000); } catch { return null; }
+  const feats = json && Array.isArray(json.features) ? json.features : [];
+  let best = null, bestD = Infinity, bestT = -Infinity;
+  for (const f of feats) {
+    const p = f.properties || {};
+    let raw = p.aqhi;
+    if (raw == null) { const k = Object.keys(p).find((k) => /aqhi/i.test(k)); if (k) raw = p[k]; }
+    const v = (typeof raw === "string" && raw.includes("+")) ? 11 : Number(raw);
+    if (!Number.isFinite(v)) continue;
+    const c = f.geometry && f.geometry.coordinates;
+    if (!c || c.length < 2) continue;
+    const d = (c[1] - lat) ** 2 + (c[0] - lon) ** 2;
+    const t = Date.parse(p.observation_datetime || p.datetime || p.date || "") || 0;
+    if (d < bestD - 1e-9 || (Math.abs(d - bestD) <= 1e-9 && t > bestT)) {
+      best = { aqhi: v, station: p.location_name_en || p.location_name || p.name || null, time: p.observation_datetime || p.datetime || null };
+      bestD = d; bestT = t;
+    }
+  }
+  return best;
+}
+
 async function fetchAir(lat, lon) {
   const cur = "current=pm2_5,pm10,ozone,nitrogen_dioxide,sulphur_dioxide,carbon_monoxide,uv_index";
   const hourly = "hourly=uv_index,ozone,nitrogen_dioxide,pm2_5&forecast_days=1";
-  const json = await fetchJSON(`${AIR_BASE}?latitude=${lat}&longitude=${lon}&${cur}&${hourly}&timezone=auto`);
+  // Fetch the modelled pollutants and the official AQHI in parallel so the
+  // government call adds no latency and a failure never blocks the air data.
+  const [json, eccc] = await Promise.all([
+    fetchJSON(`${AIR_BASE}?latitude=${lat}&longitude=${lon}&${cur}&${hourly}&timezone=auto`),
+    fetchEcccAqhi(lat, lon)
+  ]);
   const out = json.current || {};
   out.hourly = json.hourly || null;
+  if (eccc) { out.aqhi = eccc.aqhi; out.aqhiStation = eccc.station; out.aqhiTime = eccc.time; }
   return out;
 }
 
@@ -572,20 +609,31 @@ function airAvg3(air, key) {
   return air[key] != null ? air[key] : null;
 }
 
-function airHealthIndex(air) {
-  if (!air) return { index: null, pollutant: null };
+// Whichever pollutant contributes the largest AQHI term is the driver. Uses the
+// modelled pollutants, so it is informational even when the index is measured.
+function aqhiDriver(air) {
   const o3 = airAvg3(air, "ozone"), no2 = airAvg3(air, "nitrogen_dioxide"), pm = airAvg3(air, "pm2_5");
-  if (o3 == null || no2 == null || pm == null) return { index: null, pollutant: null };
+  if (o3 == null || no2 == null || pm == null) return null;
   const o3p = o3 * UGM3_TO_PPB.ozone, no2p = no2 * UGM3_TO_PPB.nitrogen_dioxide;
-  const index = aqhiValue(o3p, no2p, pm);
-  // Whichever pollutant contributes the largest AQHI term is the driver.
   const terms = {
     ozone: Math.exp(0.000537 * o3p) - 1,
     nitrogen_dioxide: Math.exp(0.000871 * no2p) - 1,
     pm2_5: Math.exp(0.000487 * pm) - 1
   };
-  const pollutant = Object.keys(terms).reduce((a, b) => (terms[b] > terms[a] ? b : a));
-  return { index, pollutant };
+  return Object.keys(terms).reduce((a, b) => (terms[b] > terms[a] ? b : a));
+}
+
+function airHealthIndex(air) {
+  if (!air) return { index: null, pollutant: null, measured: false };
+  // Prefer Environment Canada's official measured AQHI when we have it.
+  if (air.aqhi != null && Number.isFinite(Number(air.aqhi))) {
+    return { index: Math.max(1, Math.round(Number(air.aqhi))), pollutant: aqhiDriver(air), measured: true };
+  }
+  // Otherwise estimate it from Open-Meteo's modelled pollutants.
+  const o3 = airAvg3(air, "ozone"), no2 = airAvg3(air, "nitrogen_dioxide"), pm = airAvg3(air, "pm2_5");
+  if (o3 == null || no2 == null || pm == null) return { index: null, pollutant: null, measured: false };
+  const index = aqhiValue(o3 * UGM3_TO_PPB.ozone, no2 * UGM3_TO_PPB.nitrogen_dioxide, pm);
+  return { index, pollutant: aqhiDriver(air), measured: false };
 }
 
 // AQHI health-risk bands (Environment Canada). Values above 10 read as "10+".
@@ -1886,11 +1934,14 @@ function scaleBar(pos, ends) {
 
 function renderAqiSheet(air) {
   el.sheetTitle.textContent = "Air Quality";
-  const { index, pollutant } = airHealthIndex(air);
+  const { index, pollutant, measured } = airHealthIndex(air);
   if (index == null) { el.sheetNote.textContent = "Air quality data is unavailable right now."; el.sheetList.innerHTML = ""; return; }
   const b = aqhiBand(index);
   const shown = aqhiLabel(index);
-  el.sheetNote.textContent = `Canada's Air Quality Health Index is ${shown} - ${b.label.toLowerCase()} health risk.`;
+  const src = measured
+    ? (air.aqhiStation ? ` Measured at ${air.aqhiStation}.` : " Measured by Environment Canada.")
+    : " Estimated from modelled pollutants.";
+  el.sheetNote.textContent = `Canada's Air Quality Health Index is ${shown} - ${b.label.toLowerCase()} health risk.${src}`;
 
   const scale = scaleBar(Math.min(index / 10, 1) * 100, ["1", "Moderate", "High", "10+"]);
 
