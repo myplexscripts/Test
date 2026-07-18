@@ -1777,9 +1777,13 @@ body:has(.sheet.is-full) .bottomnav {
   flex-direction: column;
   gap: var(--s-4);
   border-radius: var(--r-lg);
-  background: var(--surface);
+  /* Frosted glass, matching the nav bar, so the menu adapts to the sky
+     colour behind it instead of reading as a solid dark panel. */
+  background: var(--card-bg-hi);
+  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(20px);
   color: var(--on-surface);
-  border: 2px solid color-mix(in srgb, var(--on-surface) 14%, transparent);
+  border: 2px solid color-mix(in srgb, var(--on-surface) 16%, transparent);
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.3);
   /* Closed state doubles as the closing animation: the menu shrinks and
      sinks back toward the gear with a quick ease-in, while opening gets the
