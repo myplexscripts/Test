@@ -2618,7 +2618,7 @@ function skyFamily(hex) {
 // the left and right edges. CSS vars the background drives: neutral chrome plus
 // the base and accent. Cleared when tint is off so the plain palette shows.
 const BLOOM_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--hairline",
-  "--on-surface", "--on-surface-soft", "--surface", "--sky-top", "--sky-bot"];
+  "--on-surface", "--on-surface-soft", "--surface", "--base", "--shared", "--accent"];
 
 // 24-hour palette (GradientWeather), midnight first. Each pair is used as a
 // vertical sky gradient linear-gradient(top, bottom) for that hour.
@@ -2634,27 +2634,24 @@ const HOUR_GRADS = [
 // midday hours so text and glass stay legible.
 function relLum(hex) { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
 
-// A fully-transparent version of a colour (transparent-<own hue>, not plain
-// transparent which is transparent-black), so radial blobs fade in-hue.
-function rgbaZero(hex) { const [r, g, b] = hexToRgb(hex); return `rgba(${r | 0},${g | 0},${b | 0},0)`; }
-
-// Spread two hues to at least minDeg apart so even a single-hue sky (a deep
-// night, where both ends read as the same indigo) still shows two distinct
-// tones in the mesh instead of collapsing into one flat colour.
-function spreadHues(a, b, minDeg) {
-  let d = ((b - a + 540) % 360) - 180;
-  if (Math.abs(d) >= minDeg) return [a, b];
-  const push = (minDeg - Math.abs(d)) / 2, dir = d < 0 ? -1 : 1;
-  return [((a - push * dir) % 360 + 360) % 360, ((b + push * dir) % 360 + 360) % 360];
-}
-const hueOf = (hex) => rgbToHsl(hexToRgb(hex))[0] * 360;
-// Time-of-day sky lightness, normalised 0..1 across night..day.
-const meshNorm = (skyL) => Math.max(0, Math.min(0.65, skyL)) / 0.65;
-// Saturation from the sky scaled by the condition, kept colourful enough that
-// even muted weather still reads as a colour rather than grey.
-function meshSat(skyHex, mod) {
-  const ss = rgbToHsl(hexToRgb(skyHex))[1];
-  return ss < 0.10 ? 0.06 : Math.min(0.95, ss * mod.sat * 1.2 + 0.12);
+// ---- Ultrablur roles: expand each [colourA, colourB] pair into a 3-stop
+// palette (the two originals + their midpoint), then assign roles by
+// luminance and spread their lightness apart for depth. base grounds the page
+// (darkest, pushed darker); shared is the lightest (pushed lighter, repeated in
+// opposite corners); accent is the middle tone.
+const rbHslLum = (hex) => { const [r, g, b] = hexToRgb(hex).map((v) => v / 255); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+const rbGetL = (hex) => rgbToHsl(hexToRgb(hex))[2];
+const rbSetL = (hex, l) => { const [h, s] = rgbToHsl(hexToRgb(hex)); return rgbToHex(hslToRgb(h, s, Math.max(0, Math.min(1, l)))); };
+const threeStops = (c0, c1) => [c0, lerpHex(c0, c1, 0.5), c1];
+const RB_CONTRAST = 0.6;
+function rolesFor(pal) {
+  const [dark, mid, light] = [...pal].sort((a, b) => rbHslLum(a) - rbHslLum(b));
+  const bl = rbGetL(dark), sl = rbGetL(light);
+  return {
+    base: rbSetL(dark, bl * (1 - 0.55 * RB_CONTRAST)),
+    accent: mid,
+    shared: rbSetL(light, sl + (1 - sl) * (0.45 * RB_CONTRAST))
+  };
 }
 
 // h = local hour as a float in [0, 24), or null to clear the tint. Interpolates
@@ -2671,20 +2668,23 @@ function applyMeshColors(h) {
     return;
   }
   const i0 = Math.floor(h) % 24, i1 = (i0 + 1) % 24, t = h - Math.floor(h);
-  const top = lerpHex(HOUR_GRADS[i0][0], HOUR_GRADS[i1][0], t);
-  const bot = lerpHex(HOUR_GRADS[i0][1], HOUR_GRADS[i1][1], t);
-  r.setProperty("--sky-top", top);
-  r.setProperty("--sky-bot", bot);
-  // Solid page colour below the fold = the gradient's bottom stop, so the sky
-  // dissolves seamlessly into it.
-  r.setProperty("--bg", bot);
-  // One decision drives ALL chrome from the gradient's luminance, so every
-  // element that flips light<->dark (cards, nav bar, settings menu, the radar
-  // toolbar, switches, buttons) shares one material and one ink - like Apple's
-  // consistent toolbar materials. Foreground (ink / on-surface) contrasts the
-  // background; the frosted glass is a white veil whose strength scales with the
-  // mode; the "surface" tone is the inverse of the ink for filled/selected bits.
-  const light = (relLum(top) + relLum(bot)) / 2 > 0.6;
+  // Interpolate the source pair for the current moment, then derive the three
+  // ultrablur roles (base solid + two radial colours).
+  const cA = lerpHex(HOUR_GRADS[i0][0], HOUR_GRADS[i1][0], t);
+  const cB = lerpHex(HOUR_GRADS[i0][1], HOUR_GRADS[i1][1], t);
+  const roles = rolesFor(threeStops(cA, cB));
+  r.setProperty("--base", roles.base);
+  r.setProperty("--shared", roles.shared);
+  r.setProperty("--accent", roles.accent);
+  // Solid page colour below the fold = the base, so the blooms dissolve into it.
+  r.setProperty("--bg", roles.base);
+  // One decision drives ALL chrome from the hour's luminance, so every element
+  // that flips light<->dark (cards, nav bar, settings menu, the radar toolbar,
+  // switches, buttons) shares one material and one ink - like Apple's consistent
+  // toolbar materials. Foreground (ink / on-surface) contrasts the background;
+  // the frosted glass is a white veil whose strength scales with the mode; the
+  // "surface" tone is the inverse of the ink for filled/selected bits.
+  const light = (relLum(cA) + relLum(cB)) / 2 > 0.6;
   const ink = light ? "#12202e" : "#f7f5f0";
   const surface = light ? "#eef1f4" : "#161c26";
   r.setProperty("--ink", ink);

@@ -194,30 +194,51 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 }
 
 /* ===== Weather background (Colour mode) ================================
-   A vertical two-colour sky gradient for the current hour (JS sets --sky-top /
-   --sky-bot from the local hour, interpolated between hours). The wrapper lives
-   in the first viewport and scrolls away, its bottom masked so the gradient
-   dissolves into the solid page colour (--bg, = the bottom stop) below the
-   fold. */
+   An "ultrablur" for the current hour: a solid base colour (--base) with three
+   soft radial blooms (--shared x2 in opposite corners, --accent) blended over
+   it and breathing. JS derives the three role colours from the hourly palette.
+   The wrapper lives in the first viewport and scrolls away, its bottom masked
+   so the blooms dissolve into the solid page colour (--bg, = --base). */
 .mesh-wrap {
   position: absolute; top: 0; left: 0; width: 100%; height: 100svh;
   z-index: -1; pointer-events: none; overflow: hidden; will-change: transform;
   opacity: 0; transition: opacity 0.8s var(--ease-out);
-  /* A vertical two-colour sky gradient for the current hour (JS sets the two
-     stops). Fades out at the bottom so it dissolves into the solid page colour
-     (--bg, = the gradient's bottom stop) below the fold. */
-  background: linear-gradient(180deg, var(--sky-top), var(--sky-bot));
+  isolation: isolate;
+  /* Solid darkest-role colour grounds the page; the radial blooms sit over it
+     and dissolve into --bg (= --base) below the fold via the bottom mask. */
+  background: var(--base);
   -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
 }
 :root {
-  --sky-top: #012459;
-  --sky-bot: #001322;
+  --base: #001322;
+  --shared: #3a6ea0;
+  --accent: #012459;
 }
+/* Three soft radial blooms - two "shared" in opposite corners, one accent -
+   blended over the base and softly blurred, each breathing on its own clock. */
+.radial-group { position: absolute; inset: 0; filter: blur(40px); }
+.radial-group.overlay { mix-blend-mode: overlay; }
+.radial {
+  position: absolute; inset: 0;
+  transform-origin: center center;
+  animation: breathe var(--dur, 6s) ease-in-out infinite;
+  animation-delay: var(--delay, 0s);
+}
+.radial.r1 { --dur: 6s;   --delay: 0s;    background: radial-gradient(58% 58% at 84% 16%, var(--shared) 0%, transparent 62%); }
+.radial.r2 { --dur: 7.5s; --delay: -3.4s; background: radial-gradient(58% 58% at 16% 84%, var(--shared) 0%, transparent 62%); }
+.radial.r3 { --dur: 5s;   --delay: -1.6s; background: radial-gradient(64% 64% at 18% 22%, var(--accent) 0%, transparent 66%); }
+@keyframes breathe {
+  0%, 100% { transform: scale(0.78); opacity: 0.72; }
+  50%      { transform: scale(1.5);  opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) { .radial { animation: none; } }
+:root[data-anim="off"] .radial { animation: none; }
 :root[data-tint="on"] .mesh-wrap { opacity: 1; }
-/* Home screen only: on any open sheet (detail, radar, search) hide the sky so
-   those screens sit on the flat solid colour (--bg) behind them. */
+/* Home screen only: on any open sheet hide the blooms so those screens sit on
+   the flat solid colour (--bg) behind them, and pause the breathing. */
 body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
+body:has(.sheet.is-open) .radial { animation-play-state: paused; }
 /* In Colour mode the mesh is the background; hide the plain top-bloom layers. */
 :root[data-tint="on"] .bg::before,
 :root[data-tint="on"] .bg::after { opacity: 0; }
