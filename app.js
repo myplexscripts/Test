@@ -2618,17 +2618,18 @@ const BLOOM_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--h
 // transparent which is transparent-black), so radial blobs fade in-hue.
 function rgbaZero(hex) { const [r, g, b] = hexToRgb(hex); return `rgba(${r | 0},${g | 0},${b | 0},0)`; }
 
-// Deepen a bright pastel accent into a darker but still-vivid tone: cap the
-// lightness so it contrasts with white, and lift the saturation so the darker
-// colour stays close to the palette hue instead of going dull/grey.
-function deepenAccent(hex) {
-  let [h, s, l] = rgbToHsl(hexToRgb(hex));
-  l = Math.min(l, 0.42);
-  // Only lift saturation on colours that already have some; a near-grey (e.g.
-  // the neutral family's off-white, whose technical hue is ~60deg) goes fully
-  // grey, or the boost manufactures an olive/green out of nothing.
-  s = s > 0.2 ? Math.min(1, s * 0.95 + 0.18) : 0;
-  return rgbToHex(hslToRgb(h, s, l));
+// Turn a matched family's curated hue plus the live sky colour into a deep
+// mesh accent. The HUE comes from the family so the mesh always sits inside the
+// app's palette; the SATURATION is taken from the real sky, so muted weather
+// (rain, drizzle, overcast) blooms muted while clear, golden and snowy skies
+// stay bold - and a soft dusty horizon is never forced into a neon red. A
+// near-grey sky (below the saturation floor) stays grey rather than being
+// boosted into an olive/false hue. Lightness stays deep so white text holds.
+function deepenAccent(skyHex, dfgHex) {
+  const fh = rgbToHsl(hexToRgb(dfgHex))[0];
+  const ss = rgbToHsl(hexToRgb(skyHex))[1];
+  const s = ss < 0.12 ? 0 : Math.min(0.92, ss * 1.0 + 0.14);
+  return rgbToHex(hslToRgb(fh, s, 0.42));
 }
 
 function applyBloomAccents(sky, dark) {
@@ -2646,7 +2647,7 @@ function applyBloomAccents(sky, dark) {
   // of their own colour, so the mesh is colour-over-colour throughout, never
   // muddied through black. The CSS layer rotates the whole thing slowly.
   const fa = skyFamily(sky.top), fb = skyFamily(sky.bottom);
-  const a1 = deepenAccent(fa.dfg), a2 = deepenAccent(fb.dfg);
+  const a1 = deepenAccent(sky.top, fa.dfg), a2 = deepenAccent(sky.bottom, fb.dfg);
   // The solid base is a deep version of the dominant (top) sky colour rather
   // than a blend of the two dark bases, so the whole page reads as the same
   // colour as the gradient, just deeper - never a muddy neutral.

@@ -258,11 +258,13 @@ function hslToRgb(h, s, l) {
   return [hue(h + 1 / 3) * 255, hue(h) * 255, hue(h - 1 / 3) * 255];
 }
 function rgbaZero(hex) { const [r, g, b] = hexToRgb(hex); return `rgba(${r | 0},${g | 0},${b | 0},0)`; }
-function deepenAccent(hex) {
-  let [h, s, l] = rgbToHsl(hexToRgb(hex));
-  l = Math.min(l, 0.42);
-  s = s > 0.2 ? Math.min(1, s * 0.95 + 0.18) : 0;
-  return rgbToHex(hslToRgb(h, s, l));
+// Hue from the family (stays in palette), saturation from the live sky (so the
+// mesh reflects how vivid or muted the weather actually is), deep lightness.
+function deepenAccent(skyHex, dfgHex) {
+  const fh = rgbToHsl(hexToRgb(dfgHex))[0];
+  const ss = rgbToHsl(hexToRgb(skyHex))[1];
+  const s = ss < 0.12 ? 0 : Math.min(0.92, ss * 1.0 + 0.14);
+  return rgbToHex(hslToRgb(fh, s, 0.42));
 }
 const TINT_HUES = Object.entries(TINT_FAMILIES).map(([name, f]) => [name, rgbToHsl(hexToRgb(f.lfg))[0] * 360]);
 function skyFamilyName(hex) {
@@ -300,7 +302,7 @@ function computeMesh(phaseKey, condKey, cloudPct) {
   if (condKey && condKey !== "None") sky = applyWeatherVeil(sky, condKey, cloudPct);
   const faName = skyFamilyName(sky.top), fbName = skyFamilyName(sky.bottom);
   const fa = familyByName(faName), fb = familyByName(fbName);
-  const a1 = deepenAccent(fa.dfg), a2 = deepenAccent(fb.dfg);
+  const a1 = deepenAccent(sky.top, fa.dfg), a2 = deepenAccent(sky.bottom, fb.dfg);
   const base = darkenHex(a1, 0.42);
   return { sky, faName, fbName, a1, a2, base };
 }
@@ -441,7 +443,10 @@ function buildFamilies() {
   const g = document.getElementById("famGrid");
   const entries = [...Object.entries(TINT_FAMILIES), ["neutral", TINT_NEUTRAL]];
   g.innerHTML = entries.map(([name, f]) => {
-    const accent = deepenAccent(f.dfg);
+    // The mesh accent now keeps this family's hue but takes its saturation from
+    // the live sky, so there is no single fixed accent per family. Illustrate
+    // the hue at a vivid sky (using dfg as the sky proxy) as the boldest case.
+    const accent = deepenAccent(f.dfg, f.dfg);
     return `<div class="card">
       <div class="head"><b>${name}</b><span class="tag">hue ${(rgbToHsl(hexToRgb(f.lfg))[0] * 360).toFixed(0)}deg</span></div>
       <div class="fam-sws">
@@ -450,7 +455,7 @@ function buildFamilies() {
         <div style="background:${f.dbg};color:#fff">${f.dbg}</div>
         <div style="background:${f.dfg};color:#000">${f.dfg}</div>
       </div>
-      <div class="fam-foot"><span class="sw" style="background:${accent}"></span>deepened accent &rarr; ${accent}</div>
+      <div class="fam-foot"><span class="sw" style="background:${accent}"></span>mesh hue, vivid sky &rarr; ${accent}</div>
     </div>`;
   }).join("");
 }
