@@ -2623,24 +2623,23 @@ const BLOOM_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--h
 // transparent which is transparent-black), so radial blobs fade in-hue.
 function rgbaZero(hex) { const [r, g, b] = hexToRgb(hex); return `rgba(${r | 0},${g | 0},${b | 0},0)`; }
 
-// Map a time-of-day sky lightness to a deep mesh lightness: night stays dark,
-// day is the brightest the mesh gets, capped so white text always holds. This
-// is what keeps night looking like night and day like day.
-function meshLightness(skyL) {
-  return 0.20 + Math.max(0, Math.min(0.65, skyL)) / 0.65 * 0.22;
+// Spread two hues to at least minDeg apart so even a single-hue sky (a deep
+// night, where both ends read as the same indigo) still shows two distinct
+// tones in the mesh instead of collapsing into one flat colour.
+function spreadHues(a, b, minDeg) {
+  let d = ((b - a + 540) % 360) - 180;
+  if (Math.abs(d) >= minDeg) return [a, b];
+  const push = (minDeg - Math.abs(d)) / 2, dir = d < 0 ? -1 : 1;
+  return [((a - push * dir) % 360 + 360) % 360, ((b + push * dir) % 360 + 360) % 360];
 }
-
-// One deep mesh accent. HUE comes from the matched family so the colour stays
-// inside the palette; LIGHTNESS comes from the time of day (via the unveiled
-// sky); SATURATION is the sky's own saturation scaled by the condition, so
-// clear/golden/snow stay bold while rain, drizzle and mist read muted. A
-// near-grey sky stays grey rather than inventing a false hue.
-function meshAccent(skyHex, dfgHex, mod) {
-  const fh = rgbToHsl(hexToRgb(dfgHex))[0];
-  const [, ss, sl] = rgbToHsl(hexToRgb(skyHex));
-  const l = Math.max(0.08, Math.min(0.44, meshLightness(sl) + mod.light));
-  const s = ss < 0.12 ? 0 : Math.min(0.9, ss * mod.sat * 1.15 + 0.08);
-  return rgbToHex(hslToRgb(fh, s, l));
+const hueOf = (hex) => rgbToHsl(hexToRgb(hex))[0] * 360;
+// Time-of-day sky lightness, normalised 0..1 across night..day.
+const meshNorm = (skyL) => Math.max(0, Math.min(0.65, skyL)) / 0.65;
+// Saturation from the sky scaled by the condition, kept colourful enough that
+// even muted weather still reads as a colour rather than grey.
+function meshSat(skyHex, mod) {
+  const ss = rgbToHsl(hexToRgb(skyHex))[1];
+  return ss < 0.10 ? 0.06 : Math.min(0.95, ss * mod.sat * 1.2 + 0.12);
 }
 
 function applyMeshColors(todSky, main) {
@@ -2652,17 +2651,25 @@ function applyMeshColors(todSky, main) {
     return;
   }
   const mod = CONDITION_MOD[main] || CONDITION_MOD.Clear;
-  // Two weather colours plus a solid base. Each accent takes its hue from the
-  // time-of-day sky family and its depth from the time of day, scaled in vividness
-  // by the condition, then paints radial blobs that fade to a transparent version
-  // of their own colour (colour-over-colour, never muddied through black). The
-  // CSS layer rotates the whole thing slowly.
+  // Two accent colours painted as radial blobs over a deeper base. The two hues
+  // come from the top and bottom sky families and are spread apart so the mesh
+  // always shows two visible tones (not one flat wash); their lightness comes
+  // from the time of day (night deep, day bright) and their saturation from the
+  // sky scaled by the condition. The base is a much deeper version of the
+  // primary hue, so the blobs read as glows blooming out of it. Blobs fade to a
+  // transparent version of their OWN colour, so it is colour-over-colour
+  // throughout, never muddied through black. The CSS layer rotates it slowly.
   const fa = skyFamily(todSky.top), fb = skyFamily(todSky.bottom);
-  const a1 = meshAccent(todSky.top, fa.dfg, mod), a2 = meshAccent(todSky.bottom, fb.dfg, mod);
-  // The solid base is a deep version of the dominant (top) sky colour rather
-  // than a blend of the two dark bases, so the whole page reads as the same
-  // colour as the gradient, just deeper - never a muddy neutral.
-  const base = darkenHex(a1, 0.42);
+  const [ha, hb] = spreadHues(hueOf(fa.dfg), hueOf(fb.dfg), 32);
+  const nT = meshNorm(rgbToHsl(hexToRgb(todSky.top))[2]);
+  const nB = meshNorm(rgbToHsl(hexToRgb(todSky.bottom))[2]);
+  const sa = meshSat(todSky.top, mod), sb = meshSat(todSky.bottom, mod);
+  const la = Math.max(0.15, Math.min(0.44, 0.27 + nT * 0.19 + mod.light));
+  const lb = Math.max(0.13, Math.min(0.42, 0.25 + nB * 0.19 + mod.light));
+  const a1 = rgbToHex(hslToRgb(ha / 360, sa, la));
+  const a2 = rgbToHex(hslToRgb(hb / 360, sb, lb));
+  const baseL = Math.max(0.05, Math.min(0.28, 0.07 + nT * 0.18 + mod.light));
+  const base = rgbToHex(hslToRgb(ha / 360, Math.min(sa, 0.8), baseL));
   r.setProperty("--mesh-base", base);
   r.setProperty("--mesh-a", a1); r.setProperty("--mesh-a0", rgbaZero(a1));
   r.setProperty("--mesh-b", a2); r.setProperty("--mesh-b0", rgbaZero(a2));
