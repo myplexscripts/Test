@@ -592,23 +592,18 @@ function newsGroupLabel(ts) {
   return `${wd}, ${mo} ${d.getUTCDate()}`;
 }
 
-// Phosphor duotone number-square glyphs, one to nine, for the Home news
-// tiles' rank badge (index 0 -> "one" ... 8 -> "nine").
-const NEWS_NUM_WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
-
 // One article card. `cls` swaps the frame: news-item on Home, news-tile inside
 // the news-screen folders. Always links straight out to the source. `idx`
-// (Home only) renders a duotone number badge to the left, top-aligned, where
-// the article's lead image used to sit.
+// (Home only) renders a plain rank number to the left, top-aligned, where the
+// article's lead image used to sit.
 function newsCardHtml(a, cls, idx) {
   const meta = [a.source, a.ts ? fmtClock(a.ts, state.tz || 0) : ""].filter(Boolean).map(escapeHTML).join(" · ");
   const tN = (a.title || "").toLowerCase(), sN = (a.summary || "").toLowerCase();
   const redundant = !sN || (tN && (sN.startsWith(tN.slice(0, 40)) || tN.startsWith(sN.slice(0, 40))));
   const summary = redundant ? "" : newsTruncate(a.summary, 150);
-  const word = Number.isInteger(idx) ? NEWS_NUM_WORDS[idx] : null;
-  const numIc = word ? `<i class="ph-duotone ph-number-square-${word} news-num" aria-hidden="true"></i>` : "";
+  const numEl = Number.isInteger(idx) ? `<span class="news-num" aria-hidden="true">${idx + 1}</span>` : "";
   return `<a class="${cls}" href="${escapeHTML(a.link)}" target="_blank" rel="noopener noreferrer">
-    ${numIc}
+    ${numEl}
     <span class="news-body">
       <span class="news-title">${escapeHTML(a.title)}</span>
       ${summary ? `<span class="news-summary">${escapeHTML(summary)}</span>` : ""}

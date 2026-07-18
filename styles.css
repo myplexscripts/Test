@@ -282,9 +282,16 @@ body:has(.sheet.is-open) .radial { animation-play-state: paused; }
   transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-spring);
 }
 .news-item:active { transform: scale(0.985); background: var(--card-bg-hi); }
-/* Rank badge where the article's lead image used to sit: top-left of the
-   tile, sized to the title's cap-height rather than the whole card. */
-.news-num { flex: none; font-size: 1.7rem; line-height: 1; color: var(--ink); margin-top: 1px; }
+/* Rank number where the article's lead image used to sit: plain text, top-left
+   of the tile, matching the alert exclamation mark's size (--alert-ic). */
+.news-num {
+  flex: none;
+  font-family: Rubik, Inter, sans-serif;
+  font-weight: 800;
+  font-size: 2.4rem;
+  line-height: 1;
+  color: var(--ink);
+}
 .news-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .news-title { font-weight: 600; line-height: 1.32; }
 .news-summary {
