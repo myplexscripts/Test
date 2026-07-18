@@ -2618,7 +2618,7 @@ function skyFamily(hex) {
 // the left and right edges. CSS vars the background drives: neutral chrome plus
 // the base and accent. Cleared when tint is off so the plain palette shows.
 const BLOOM_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--hairline",
-  "--sky-top", "--sky-bot"];
+  "--on-surface", "--on-surface-soft", "--surface", "--sky-top", "--sky-bot"];
 
 // 24-hour palette (GradientWeather), midnight first. Each pair is used as a
 // vertical sky gradient linear-gradient(top, bottom) for that hour.
@@ -2664,7 +2664,10 @@ function applyMeshColors(h) {
   if (!state.tinted || h == null) {
     BLOOM_VARS.forEach((v) => r.removeProperty(v));
     const base = PALETTES[themeKind()];
-    if (base) { r.setProperty("--ink", base.ink); r.setProperty("--bg", base.bg); }
+    if (base) {
+      r.setProperty("--ink", base.ink); r.setProperty("--bg", base.bg);
+      r.setProperty("--surface", base.surface); r.setProperty("--on-surface", base.onSurface);
+    }
     return;
   }
   const i0 = Math.floor(h) % 24, i1 = (i0 + 1) % 24, t = h - Math.floor(h);
@@ -2675,15 +2678,24 @@ function applyMeshColors(h) {
   // Solid page colour below the fold = the gradient's bottom stop, so the sky
   // dissolves seamlessly into it.
   r.setProperty("--bg", bot);
-  // Chrome adapts to the gradient's overall luminance: dark ink and dark glass
-  // over the bright midday hours, white over the deep morning/evening hours.
+  // One decision drives ALL chrome from the gradient's luminance, so every
+  // element that flips light<->dark (cards, nav bar, settings menu, the radar
+  // toolbar, switches, buttons) shares one material and one ink - like Apple's
+  // consistent toolbar materials. Foreground (ink / on-surface) contrasts the
+  // background; the frosted glass is a white veil whose strength scales with the
+  // mode; the "surface" tone is the inverse of the ink for filled/selected bits.
   const light = (relLum(top) + relLum(bot)) / 2 > 0.6;
-  r.setProperty("--ink", light ? "#10233b" : "#ffffff");
-  r.setProperty("--icon", light ? "#10233b" : "#ffffff");
-  r.setProperty("--card-bg", light ? "rgba(10,25,45,0.06)" : "rgba(255,255,255,0.10)");
-  r.setProperty("--card-bg-hi", light ? "rgba(10,25,45,0.11)" : "rgba(255,255,255,0.16)");
-  r.setProperty("--card-border", "transparent");
-  r.setProperty("--hairline", light ? "rgba(10,25,45,0.14)" : "rgba(255,255,255,0.20)");
+  const ink = light ? "#12202e" : "#f7f5f0";
+  const surface = light ? "#eef1f4" : "#161c26";
+  r.setProperty("--ink", ink);
+  r.setProperty("--icon", ink);
+  r.setProperty("--on-surface", ink);
+  r.setProperty("--on-surface-soft", light ? "rgba(18,32,46,0.58)" : "rgba(247,245,240,0.60)");
+  r.setProperty("--surface", surface);
+  r.setProperty("--card-bg", light ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.09)");
+  r.setProperty("--card-bg-hi", light ? "rgba(255,255,255,0.44)" : "rgba(255,255,255,0.15)");
+  r.setProperty("--card-border", light ? "rgba(18,32,46,0.10)" : "transparent");
+  r.setProperty("--hairline", light ? "rgba(18,32,46,0.14)" : "rgba(255,255,255,0.20)");
 }
 function skyGradientAt(bands, nowH) {
   const anchors = bands.map((b) => ({ h: (b[0] + b[1]) / 2, key: b[2] }));

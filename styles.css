@@ -21,6 +21,11 @@
   --card-bg-hi: color-mix(in srgb, var(--ink) 9%, transparent);
   --card-border: transparent;
   --on-surface-soft: color-mix(in srgb, var(--on-surface) 64%, transparent);
+  /* Subtle control-track fills (toggles, segmented tracks, menu buttons). Tied
+     to --on-surface so they invert with the ink and stay visible on light and
+     dark chrome alike. */
+  --fill: color-mix(in srgb, var(--on-surface) 9%, transparent);
+  --fill-hi: color-mix(in srgb, var(--on-surface) 16%, transparent);
 
   --r-xs: 10px;
   --r-sm: 14px;
@@ -302,10 +307,13 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
 }
 @media (min-width: 821px) { .status-fade { display: none; } }
 
-[data-theme="night"] .bottomnav,
-[data-theme="night"] .nav-pop,
-[data-theme="bloomdark"] .bottomnav,
-[data-theme="bloomdark"] .nav-pop {
+/* Force a dark nav/menu material only in the plain (non-tinted) dark themes.
+   In Colour mode the tint drives --surface / --on-surface from the live
+   background instead, so the chrome adapts with everything else. */
+:root:not([data-tint="on"])[data-theme="night"] .bottomnav,
+:root:not([data-tint="on"])[data-theme="night"] .nav-pop,
+:root:not([data-tint="on"])[data-theme="bloomdark"] .bottomnav,
+:root:not([data-tint="on"])[data-theme="bloomdark"] .nav-pop {
   --surface: #1c1c1e;
   --on-surface: #fafafa;
   --on-surface-soft: color-mix(in srgb, #fafafa 64%, transparent);
@@ -1511,7 +1519,7 @@ body:has(.sheet.is-full) .bottomnav {
   transition: transform var(--dur-fast) var(--ease-spring);
 }
 .radar-play:active { transform: scale(0.9); }
-.radar-play i { font-size: 1.3rem; color: var(--surface-accent); }
+.radar-play i { font-size: 1.3rem; color: var(--on-surface); }
 .radar-scrub {
   flex: 1;
   min-width: 0;
@@ -1784,7 +1792,7 @@ body:has(.sheet.is-full) .bottomnav {
   padding-top: var(--s-4);
   border-top: 1.5px solid color-mix(in srgb, var(--on-surface) 12%, transparent);
 }
-.nav-pop .segmented { background: rgba(255, 255, 255, 0.1); }
+.nav-pop .segmented { background: var(--fill); }
 .nav-pop .seg-item.is-active { background: var(--on-surface); color: var(--surface); }
 .nav-pop .seg-slide .seg-item.is-active { background: transparent; }
 .nav-pop .seg-slide::after { background: var(--on-surface); }
@@ -1797,10 +1805,10 @@ body:has(.sheet.is-full) .bottomnav {
   width: 62px;
   height: 34px;
   border-radius: var(--r-pill);
-  background: rgba(255, 255, 255, 0.14);
+  background: var(--fill);
   transition: background var(--dur-toggle) var(--ease-out);
 }
-.switch[aria-checked="true"] { background: rgba(255, 255, 255, 0.24); }
+.switch[aria-checked="true"] { background: var(--fill-hi); }
 .switch:active { transform: scale(0.96); }
 .switch-thumb {
   position: absolute;
@@ -1921,15 +1929,15 @@ body:has(.sheet.is-full) .bottomnav {
   min-height: 56px;
   padding: 0 var(--s-4);
   border-radius: var(--r-sm);
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--fill);
   color: var(--on-surface);
   font-weight: 600;
   text-align: left;
   transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
 }
-.drawer-action:active { transform: scale(0.97); background: rgba(255, 255, 255, 0.16); }
-.drawer-action i { font-size: 1.6rem; color: var(--surface-accent); }
-.drawer-action.is-active { background: rgba(255, 255, 255, 0.18); }
+.drawer-action:active { transform: scale(0.97); background: var(--fill-hi); }
+.drawer-action i { font-size: 1.6rem; color: var(--on-surface); }
+.drawer-action.is-active { background: var(--fill-hi); }
 
 .segmented {
   display: inline-flex;
