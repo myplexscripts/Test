@@ -218,7 +218,9 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 /* Three soft radial blooms - two "shared" in opposite corners, one accent -
    blended over the base and softly blurred, each breathing on its own clock. */
 .radial-group { position: absolute; inset: 0; filter: blur(40px); }
-.radial-group.overlay { mix-blend-mode: overlay; }
+/* Screen (not overlay) so light blooms stay visible - they glow over the deep
+   night base instead of being multiplied away. */
+.radial-group.overlay { mix-blend-mode: screen; }
 .radial {
   position: absolute; inset: 0;
   transform-origin: center center;
