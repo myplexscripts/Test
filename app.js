@@ -2611,13 +2611,27 @@ function skyFamily(hex) {
   return TINT_FAMILIES[best];
 }
 
-// ---- Colour mode: the Stripe WebGL mesh, coloured from the weather ----------
-// One theme (no light/dark): a deep, rich weather-hued mesh in the first
-// viewport, dissolving into a solid base colour below, white ink throughout.
-// CSS vars the bloom drives: neutral chrome plus the mesh base and its seven
-// radial blob colours. Cleared when tint is off so the plain palette shows.
+// ---- Colour mode: a time-of-day background with drifting accent blobs --------
+// The background is driven purely by the local hour for now (no weather
+// modulation yet). A 24-hour palette gives a [base, accent] pair per hour: the
+// base fills the page, the accent paints the soft blobs that drift up and down
+// the left and right edges. CSS vars the background drives: neutral chrome plus
+// the base and accent. Cleared when tint is off so the plain palette shows.
 const BLOOM_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--hairline",
-  "--mesh-base", "--mesh-a", "--mesh-a0", "--mesh-b", "--mesh-b0"];
+  "--base", "--acc", "--acc0"];
+
+// 24-hour palette (GradientWeather): [base, accent] per hour, midnight first.
+const HOUR_GRADS = [
+  ["#012459", "#001322"], ["#003972", "#001322"], ["#003972", "#001322"], ["#004372", "#00182b"],
+  ["#004372", "#011d34"], ["#016792", "#00182b"], ["#07729f", "#042c47"], ["#12a1c0", "#07506e"],
+  ["#74d4cc", "#1386a6"], ["#efeebc", "#61d0cf"], ["#fee154", "#a3dec6"], ["#fdc352", "#e8ed92"],
+  ["#ffac6f", "#ffe467"], ["#fda65a", "#ffe467"], ["#fd9e58", "#ffe467"], ["#f18448", "#ffd364"],
+  ["#f06b7e", "#f9a856"], ["#ca5a92", "#f4896b"], ["#5b2c83", "#d1628b"], ["#371a79", "#713684"],
+  ["#28166b", "#45217c"], ["#192861", "#372074"], ["#040b3c", "#233072"], ["#040b3c", "#012459"]
+];
+// Perceived luminance 0..1, used to flip chrome to dark ink over the light
+// midday hours so text and glass stay legible.
+function relLum(hex) { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
 
 // A fully-transparent version of a colour (transparent-<own hue>, not plain
 // transparent which is transparent-black), so radial blobs fade in-hue.
@@ -2642,47 +2656,33 @@ function meshSat(skyHex, mod) {
   return ss < 0.10 ? 0.06 : Math.min(0.95, ss * mod.sat * 1.2 + 0.12);
 }
 
-function applyMeshColors(todSky, main) {
+// h = local hour as a float in [0, 24), or null to clear the tint. Interpolates
+// the hourly palette so the background glides smoothly through the day.
+function applyMeshColors(h) {
   const r = document.documentElement.style;
-  if (!state.tinted || !todSky) {
+  if (!state.tinted || h == null) {
     BLOOM_VARS.forEach((v) => r.removeProperty(v));
     const base = PALETTES[themeKind()];
     if (base) { r.setProperty("--ink", base.ink); r.setProperty("--bg", base.bg); }
     return;
   }
-  const mod = CONDITION_MOD[main] || CONDITION_MOD.Clear;
-  // Two accent colours painted as radial blobs over a deeper base. The two hues
-  // come from the top and bottom sky families and are spread apart so the mesh
-  // always shows two visible tones (not one flat wash); their lightness comes
-  // from the time of day (night deep, day bright) and their saturation from the
-  // sky scaled by the condition. The base is a much deeper version of the
-  // primary hue, so the blobs read as glows blooming out of it. Blobs fade to a
-  // transparent version of their OWN colour, so it is colour-over-colour
-  // throughout, never muddied through black. The CSS layer rotates it slowly.
-  const fa = skyFamily(todSky.top), fb = skyFamily(todSky.bottom);
-  const [ha, hb] = spreadHues(hueOf(fa.dfg), hueOf(fb.dfg), 32);
-  const nT = meshNorm(rgbToHsl(hexToRgb(todSky.top))[2]);
-  const nB = meshNorm(rgbToHsl(hexToRgb(todSky.bottom))[2]);
-  const sa = meshSat(todSky.top, mod), sb = meshSat(todSky.bottom, mod);
-  const la = Math.max(0.15, Math.min(0.44, 0.27 + nT * 0.19 + mod.light));
-  const lb = Math.max(0.13, Math.min(0.42, 0.25 + nB * 0.19 + mod.light));
-  const a1 = rgbToHex(hslToRgb(ha / 360, sa, la));
-  const a2 = rgbToHex(hslToRgb(hb / 360, sb, lb));
-  const baseL = Math.max(0.05, Math.min(0.28, 0.07 + nT * 0.18 + mod.light));
-  const base = rgbToHex(hslToRgb(ha / 360, Math.min(sa, 0.8), baseL));
-  r.setProperty("--mesh-base", base);
-  r.setProperty("--mesh-a", a1); r.setProperty("--mesh-a0", rgbaZero(a1));
-  r.setProperty("--mesh-b", a2); r.setProperty("--mesh-b0", rgbaZero(a2));
-  // Solid page colour below the first viewport = the mesh base, so the masked
-  // mesh dissolves into it seamlessly.
+  const i0 = Math.floor(h) % 24, i1 = (i0 + 1) % 24, t = h - Math.floor(h);
+  const base = lerpHex(HOUR_GRADS[i0][0], HOUR_GRADS[i1][0], t);
+  const acc = lerpHex(HOUR_GRADS[i0][1], HOUR_GRADS[i1][1], t);
+  r.setProperty("--base", base);
+  r.setProperty("--acc", acc); r.setProperty("--acc0", rgbaZero(acc));
+  // Solid page colour = the base, so the first-viewport blobs sit over it and
+  // everything below the fold matches.
   r.setProperty("--bg", base);
-  r.setProperty("--ink", "#ffffff");
-  r.setProperty("--icon", "#ffffff");
-  // Frosted glass tiles over the deep mesh.
-  r.setProperty("--card-bg", "rgba(255,255,255,0.10)");
-  r.setProperty("--card-bg-hi", "rgba(255,255,255,0.16)");
+  // Chrome adapts to the base luminance: dark ink and dark glass over the bright
+  // midday hours, white over the deep morning/evening hours.
+  const light = relLum(base) > 0.6;
+  r.setProperty("--ink", light ? "#10233b" : "#ffffff");
+  r.setProperty("--icon", light ? "#10233b" : "#ffffff");
+  r.setProperty("--card-bg", light ? "rgba(10,25,45,0.06)" : "rgba(255,255,255,0.10)");
+  r.setProperty("--card-bg-hi", light ? "rgba(10,25,45,0.11)" : "rgba(255,255,255,0.16)");
   r.setProperty("--card-border", "transparent");
-  r.setProperty("--hairline", "rgba(255,255,255,0.20)");
+  r.setProperty("--hairline", light ? "rgba(10,25,45,0.14)" : "rgba(255,255,255,0.20)");
 }
 function skyGradientAt(bands, nowH) {
   const anchors = bands.map((b) => ({ h: (b[0] + b[1]) / 2, key: b[2] }));
@@ -2721,23 +2721,17 @@ let dynamicTimer = null;
 function updateDynamicBackground() {
   const c = state.center || {};
   const lat = c.lat, lon = c.lon;
-  let sky, main;
+  let h;
   if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    // Local hour at the viewed location.
     const tz = state.tz || state.data?.current?.timezone || 0;
-    const nowUnix = Math.floor(Date.now() / 1000);
-    const localMidnight = Math.floor((nowUnix + tz) / 86400) * 86400 - tz;
-    const t = sunTimes(localMidnight + 43200, lat, lon);
-    const bands = bandsFromSunTimes(t, tz);
-    const nowH = hourOfDay(nowUnix, tz);
-    sky = skyGradientAt(bands, nowH);
-    main = state.data?.current?.weather?.[0]?.main;
+    h = hourOfDay(Math.floor(Date.now() / 1000), tz);
   } else {
-    sky = DYNAMIC_SKY.day;
+    // No location yet: fall back to the device's local time.
+    const d = new Date();
+    h = d.getHours() + d.getMinutes() / 60;
   }
-
-  // Feed the time-of-day sky and the current condition to the mesh; time owns
-  // the hue/brightness, the condition modulates vividness and depth.
-  applyMeshColors(sky, main);
+  applyMeshColors(h);
 }
 
 function startDynamicTheme() {

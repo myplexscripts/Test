@@ -188,12 +188,12 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   .splash { transition: none; }
 }
 
-/* ===== Weather gradient (Colour mode) ==================================
-   A CSS radial-gradient mesh, coloured from the live weather (JS sets its
-   --mesh-base and --mesh-1..7 vars). It lives in the first viewport and scrolls
-   away, its bottom masked so it dissolves into the solid page colour (--bg, set
-   to the mesh's base) below the fold. The oversized inner layer rotates slowly
-   clockwise; the wrapper clips it so the corners never show. */
+/* ===== Weather background (Colour mode) ================================
+   A time-of-day base colour (JS sets --base / --acc from the local hour) with
+   soft accent blobs drifting up and down the left and right edges. The wrapper
+   lives in the first viewport and scrolls away, its bottom masked so the blobs
+   dissolve into the solid page colour (--bg, set to --base) below the fold; the
+   wrapper also clips the blobs so nothing spills past the screen edges. */
 .mesh-wrap {
   position: absolute; top: 0; left: 0; width: 100%; height: 100svh;
   z-index: -1; pointer-events: none; overflow: hidden; will-change: transform;
@@ -202,41 +202,40 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
 }
 :root {
-  --mesh-base: #10233E;
-  --mesh-a: #78B6FF; --mesh-a0: rgba(120, 182, 255, 0);
-  --mesh-b: #66D7F5; --mesh-b0: rgba(102, 215, 245, 0);
+  --base: #012459;
+  --acc: #001322; --acc0: rgba(0, 19, 34, 0);
 }
-.mesh {
-  position: absolute; top: 50%; left: 50%;
-  width: 150vmax; height: 150vmax;
-  transform: translate(-50%, -50%) rotate(0deg);
-  animation: mesh-spin 90s linear infinite;
-  /* One solid weather colour as the base, the two accent colours as radial
-     blobs on top. Each blob fades to a transparent version of its OWN colour
-     (not plain transparent, which is transparent-black), so the falloff and
-     every overlap stays colour-on-colour, never muddied through black. */
-  background-color: var(--mesh-base);
-  background-image:
-    radial-gradient(at 96% 8%, var(--mesh-a) 0px, var(--mesh-a0) 50%),
-    radial-gradient(at 32% 8%, var(--mesh-b) 0px, var(--mesh-b0) 50%),
-    radial-gradient(at 64% 88%, var(--mesh-a) 0px, var(--mesh-a0) 50%),
-    radial-gradient(at 39% 83%, var(--mesh-b) 0px, var(--mesh-b0) 50%),
-    radial-gradient(at 30% 21%, var(--mesh-a) 0px, var(--mesh-a0) 50%),
-    radial-gradient(at 66% 54%, var(--mesh-b) 0px, var(--mesh-b0) 50%),
-    radial-gradient(at 74% 47%, var(--mesh-a) 0px, var(--mesh-a0) 50%);
+/* Soft accent-coloured discs that hug the left and right edges and drift slowly
+   up and down while scaling, so the background feels gently alive. Each blob
+   fades to a transparent version of its OWN colour (not plain transparent,
+   which is transparent-black) so the falloff never muddies through black.
+   Motion is deliberately subtle - just noticeable, not distracting. */
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  background: radial-gradient(circle at center, var(--acc) 0%, var(--acc0) 68%);
+  filter: blur(6px);
+  will-change: transform;
+  animation-timing-function: ease-in-out;
+  animation-iteration-count: infinite;
 }
-@keyframes mesh-spin {
-  from { transform: translate(-50%, -50%) rotate(0deg); }
-  to   { transform: translate(-50%, -50%) rotate(360deg); }
-}
-@media (prefers-reduced-motion: reduce) { .mesh { animation: none; } }
-:root[data-anim="off"] .mesh { animation: none; }
+.blob.l1 { left: -14vmin; width: 58vmin; height: 58vmin; animation-name: drift-a; animation-duration: 26s; }
+.blob.l2 { left:   3vmin; width: 34vmin; height: 34vmin; animation-name: drift-b; animation-duration: 32s; animation-delay: -7s; }
+.blob.l3 { left:  -6vmin; width: 44vmin; height: 44vmin; animation-name: drift-c; animation-duration: 38s; animation-delay: -15s; }
+.blob.r1 { right:-14vmin; width: 62vmin; height: 62vmin; animation-name: drift-b; animation-duration: 28s; animation-delay: -10s; }
+.blob.r2 { right:  5vmin; width: 32vmin; height: 32vmin; animation-name: drift-a; animation-duration: 34s; animation-delay: -18s; }
+.blob.r3 { right: -4vmin; width: 46vmin; height: 46vmin; animation-name: drift-c; animation-duration: 40s; animation-delay: -5s; }
+@keyframes drift-a { 0% { transform: translateY(-9vh) scale(0.93); } 50% { transform: translateY(12vh) scale(1.08); } 100% { transform: translateY(-9vh) scale(0.93); } }
+@keyframes drift-b { 0% { transform: translateY(11vh) scale(1.07); } 50% { transform: translateY(-7vh) scale(0.92); } 100% { transform: translateY(11vh) scale(1.07); } }
+@keyframes drift-c { 0% { transform: translateY(3vh) scale(0.96); } 45% { transform: translateY(-10vh) scale(1.05); } 100% { transform: translateY(3vh) scale(0.96); } }
+@media (prefers-reduced-motion: reduce) { .blob { animation: none !important; } }
+:root[data-anim="off"] .blob { animation: none !important; }
 :root[data-tint="on"] .mesh-wrap { opacity: 1; }
-/* Home screen only: on any open sheet (detail, radar, search) hide the mesh so
+/* Home screen only: on any open sheet (detail, radar, search) hide the blobs so
    those screens sit on the flat solid colour (--bg) behind them, and pause the
-   spin while it is hidden. */
+   drift while it is hidden. */
 body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
-body:has(.sheet.is-open) .mesh { animation-play-state: paused; }
+body:has(.sheet.is-open) .blob { animation-play-state: paused; }
 /* In Colour mode the mesh is the background; hide the plain top-bloom layers. */
 :root[data-tint="on"] .bg::before,
 :root[data-tint="on"] .bg::after { opacity: 0; }
