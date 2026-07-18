@@ -695,9 +695,17 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
   transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
 }
 .alert:active { transform: scale(0.98); background: var(--card-bg-hi); }
-/* The warning icon takes the severity colour on tiered alerts, and falls back
-   to ink on untiered ones. */
-.alert-ic { font-size: 2.2rem; color: var(--alert-fg, var(--ink)); flex: 0 0 auto; line-height: 1; }
+/* A tall exclamation mark that spans the height of the alert tile, in the
+   adaptive ink (light or dark to the sky, never the alert's own colour). */
+.alert-ic {
+  align-self: stretch;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  font-size: 4.6rem;
+  line-height: 0.7;
+  color: var(--ink);
+}
 .alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 /* Severity chip: the tier colour as a filled tag with dark text, so the
    "colour warning" reads clearly even where the colour itself (yellow) is too
@@ -1698,8 +1706,9 @@ body:has(.sheet.is-full) .bottomnav {
   padding: 4px;
   border-radius: var(--r-pill);
   border: 2px solid color-mix(in srgb, var(--on-surface) 16%, transparent);
-  /* Frosted glass so the bar adapts to the sky colour behind it. */
-  background: var(--card-bg-hi);
+  /* Frosted glass so the bar adapts to the sky colour behind it. A touch more
+     translucent than the tiles so a little more of the page shows through. */
+  background: color-mix(in srgb, var(--card-bg-hi) 82%, transparent);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   color: var(--on-surface);
@@ -1761,9 +1770,9 @@ body:has(.sheet.is-full) .bottomnav {
   flex-direction: column;
   gap: var(--s-4);
   border-radius: var(--r-lg);
-  /* Frosted glass, matching the nav bar, so the menu adapts to the sky
-     colour behind it instead of reading as a solid dark panel. */
-  background: var(--card-bg-hi);
+  /* Frosted glass, matching the nav bar (and a touch more translucent than the
+     tiles), so the menu adapts to the sky and shows a little of the page. */
+  background: color-mix(in srgb, var(--card-bg-hi) 82%, transparent);
   -webkit-backdrop-filter: blur(20px);
   backdrop-filter: blur(20px);
   color: var(--on-surface);

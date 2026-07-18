@@ -2036,7 +2036,7 @@ function renderAlerts(alerts, tz) {
     const meta = escapeHTML(alertMeta(a, tz));
     const tier = isTier(a.colour) ? a.colour : "";
     return `<button class="alert${tier ? ` alert--${tier}` : ""}" type="button">
-      <i class="ph-duotone ph-warning-octagon alert-ic" aria-hidden="true"></i>
+      <i class="ph ph-exclamation-mark alert-ic" aria-hidden="true"></i>
       <span class="alert-body">
         ${tier ? `<span class="alert-tier">${cap(tier)} warning</span>` : ""}
         <span class="alert-title">${escapeHTML(a.event)}</span>
@@ -2694,7 +2694,7 @@ function applyMeshColors(h) {
   r.setProperty("--surface", surface);
   r.setProperty("--card-bg", light ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.09)");
   r.setProperty("--card-bg-hi", light ? "rgba(255,255,255,0.44)" : "rgba(255,255,255,0.15)");
-  r.setProperty("--card-border", light ? "rgba(18,32,46,0.10)" : "transparent");
+  r.setProperty("--card-border", "transparent");
   r.setProperty("--hairline", light ? "rgba(18,32,46,0.14)" : "rgba(255,255,255,0.20)");
 }
 function skyGradientAt(bands, nowH) {
