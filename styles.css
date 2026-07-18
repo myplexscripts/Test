@@ -718,15 +718,16 @@ body:has(.sheet.is-open) .radial { animation-play-state: paused; }
   transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
 }
 .alert:active { transform: scale(0.98); background: var(--card-bg-hi); }
-/* A tall exclamation mark that spans the height of the alert tile, in the
-   adaptive ink (light or dark to the sky, never the alert's own colour). */
+/* An exclamation mark centred in the alert tile's height, in the adaptive ink
+   (light or dark to the sky, never the alert's own colour). align-self:stretch
+   plus place-items:center keeps it centred even if the tile grows taller. */
 .alert-ic {
   align-self: stretch;
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  font-size: 4.6rem;
-  line-height: 0.7;
+  font-size: 2.4rem;
+  line-height: 1;
   color: var(--ink);
 }
 .alert-body { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
