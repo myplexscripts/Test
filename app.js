@@ -2618,11 +2618,10 @@ function skyFamily(hex) {
 // the left and right edges. CSS vars the background drives: neutral chrome plus
 // the base and accent. Cleared when tint is off so the plain palette shows.
 const BLOOM_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--hairline",
-  "--base", "--acc", "--acc0"];
+  "--sky-top", "--sky-bot"];
 
-// 24-hour palette (GradientWeather), midnight first. Each pair is [a, b]; we
-// use the SECOND colour as the sky base and the FIRST as the drifting radial
-// accent (base = sky, radial = accent).
+// 24-hour palette (GradientWeather), midnight first. Each pair is used as a
+// vertical sky gradient linear-gradient(top, bottom) for that hour.
 const HOUR_GRADS = [
   ["#012459", "#001322"], ["#003972", "#001322"], ["#003972", "#001322"], ["#004372", "#00182b"],
   ["#004372", "#011d34"], ["#016792", "#00182b"], ["#07729f", "#042c47"], ["#12a1c0", "#07506e"],
@@ -2669,17 +2668,16 @@ function applyMeshColors(h) {
     return;
   }
   const i0 = Math.floor(h) % 24, i1 = (i0 + 1) % 24, t = h - Math.floor(h);
-  // Base = sky (the cooler second colour); accent = the warmer first colour.
-  const base = lerpHex(HOUR_GRADS[i0][1], HOUR_GRADS[i1][1], t);
-  const acc = lerpHex(HOUR_GRADS[i0][0], HOUR_GRADS[i1][0], t);
-  r.setProperty("--base", base);
-  r.setProperty("--acc", acc); r.setProperty("--acc0", rgbaZero(acc));
-  // Solid page colour = the base, so the first-viewport blobs sit over it and
-  // everything below the fold matches.
-  r.setProperty("--bg", base);
-  // Chrome adapts to the base luminance: dark ink and dark glass over the bright
-  // midday hours, white over the deep morning/evening hours.
-  const light = relLum(base) > 0.6;
+  const top = lerpHex(HOUR_GRADS[i0][0], HOUR_GRADS[i1][0], t);
+  const bot = lerpHex(HOUR_GRADS[i0][1], HOUR_GRADS[i1][1], t);
+  r.setProperty("--sky-top", top);
+  r.setProperty("--sky-bot", bot);
+  // Solid page colour below the fold = the gradient's bottom stop, so the sky
+  // dissolves seamlessly into it.
+  r.setProperty("--bg", bot);
+  // Chrome adapts to the gradient's overall luminance: dark ink and dark glass
+  // over the bright midday hours, white over the deep morning/evening hours.
+  const light = (relLum(top) + relLum(bot)) / 2 > 0.6;
   r.setProperty("--ink", light ? "#10233b" : "#ffffff");
   r.setProperty("--icon", light ? "#10233b" : "#ffffff");
   r.setProperty("--card-bg", light ? "rgba(10,25,45,0.06)" : "rgba(255,255,255,0.10)");

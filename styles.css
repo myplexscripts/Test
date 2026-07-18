@@ -189,56 +189,30 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 }
 
 /* ===== Weather background (Colour mode) ================================
-   A time-of-day base colour (JS sets --base / --acc from the local hour) with
-   soft accent blobs drifting up and down the left and right edges. The wrapper
-   lives in the first viewport and scrolls away, its bottom masked so the blobs
-   dissolve into the solid page colour (--bg, set to --base) below the fold; the
-   wrapper also clips the blobs so nothing spills past the screen edges. */
+   A vertical two-colour sky gradient for the current hour (JS sets --sky-top /
+   --sky-bot from the local hour, interpolated between hours). The wrapper lives
+   in the first viewport and scrolls away, its bottom masked so the gradient
+   dissolves into the solid page colour (--bg, = the bottom stop) below the
+   fold. */
 .mesh-wrap {
   position: absolute; top: 0; left: 0; width: 100%; height: 100svh;
   z-index: -1; pointer-events: none; overflow: hidden; will-change: transform;
   opacity: 0; transition: opacity 0.8s var(--ease-out);
+  /* A vertical two-colour sky gradient for the current hour (JS sets the two
+     stops). Fades out at the bottom so it dissolves into the solid page colour
+     (--bg, = the gradient's bottom stop) below the fold. */
+  background: linear-gradient(180deg, var(--sky-top), var(--sky-bot));
   -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
   mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
 }
 :root {
-  --base: #012459;
-  --acc: #001322; --acc0: rgba(0, 19, 34, 0);
+  --sky-top: #012459;
+  --sky-bot: #001322;
 }
-/* Soft accent-coloured discs that hug the left and right edges and drift slowly
-   up and down while scaling, so the background feels gently alive. Each blob
-   fades to a transparent version of its OWN colour (not plain transparent,
-   which is transparent-black) so the falloff never muddies through black.
-   Motion is deliberately subtle - just noticeable, not distracting. */
-.blob {
-  position: absolute;
-  border-radius: 50%;
-  background: radial-gradient(circle at center, var(--acc) 0%, var(--acc0) 68%);
-  filter: blur(6px);
-  will-change: transform;
-  animation-timing-function: ease-in-out;
-  animation-iteration-count: infinite;
-}
-/* Two columns hugging the left and right edges. Each blob travels only along
-   the Y axis (up and down its own side) at its own speed, flexing size as it
-   goes - like slow breathing. Different durations so no two are in sync. */
-.blob.l1 { left: -12vmin; top: -8vh;  width: 52vmin; height: 52vmin; animation-name: breathe-a; animation-duration: 15s; }
-.blob.l2 { left:  -2vmin; top: 34vh;  width: 34vmin; height: 34vmin; animation-name: breathe-b; animation-duration: 19s; animation-delay: -6s; }
-.blob.l3 { left:  -8vmin; top: 66vh;  width: 44vmin; height: 44vmin; animation-name: breathe-c; animation-duration: 23s; animation-delay: -13s; }
-.blob.r1 { right:-12vmin; top:  6vh;  width: 56vmin; height: 56vmin; animation-name: breathe-b; animation-duration: 17s; animation-delay: -9s; }
-.blob.r2 { right: -2vmin; top: 42vh;  width: 32vmin; height: 32vmin; animation-name: breathe-a; animation-duration: 21s; animation-delay: -15s; }
-.blob.r3 { right: -6vmin; top: 72vh;  width: 46vmin; height: 46vmin; animation-name: breathe-c; animation-duration: 26s; animation-delay: -3s; }
-@keyframes breathe-a { 0% { transform: translateY(-17vh) scale(0.82); } 50% { transform: translateY(19vh) scale(1.18); } 100% { transform: translateY(-17vh) scale(0.82); } }
-@keyframes breathe-b { 0% { transform: translateY(20vh) scale(1.16); } 50% { transform: translateY(-15vh) scale(0.84); } 100% { transform: translateY(20vh) scale(1.16); } }
-@keyframes breathe-c { 0% { transform: translateY(5vh) scale(0.9); } 45% { transform: translateY(-19vh) scale(1.12); } 100% { transform: translateY(5vh) scale(0.9); } }
-@media (prefers-reduced-motion: reduce) { .blob { animation: none !important; } }
-:root[data-anim="off"] .blob { animation: none !important; }
 :root[data-tint="on"] .mesh-wrap { opacity: 1; }
-/* Home screen only: on any open sheet (detail, radar, search) hide the blobs so
-   those screens sit on the flat solid colour (--bg) behind them, and pause the
-   drift while it is hidden. */
+/* Home screen only: on any open sheet (detail, radar, search) hide the sky so
+   those screens sit on the flat solid colour (--bg) behind them. */
 body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
-body:has(.sheet.is-open) .blob { animation-play-state: paused; }
 /* In Colour mode the mesh is the background; hide the plain top-bloom layers. */
 :root[data-tint="on"] .bg::before,
 :root[data-tint="on"] .bg::after { opacity: 0; }
