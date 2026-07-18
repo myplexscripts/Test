@@ -2516,14 +2516,19 @@ const DYNAMIC_SKY = {
   day:      { top: "#4fa3e8", bottom: "#bfe6f7" }
 };
 
-const WEATHER_VEIL = {
-  Clear:        { color: "#9aa3b4" },
-  Clouds:       { color: "#8f96a6", darken: 0.05 },
-  Mist:         { color: "#c9cdd6", mix: 0.7 },
-  Drizzle:      { color: "#69738a", mix: 0.55, darken: 0.05 },
-  Rain:         { color: "#5b6478", mix: 0.68, darken: 0.08 },
-  Snow:         { color: "#dfe6ee", mix: 0.55, darken: -0.06 },
-  Thunderstorm: { color: "#332c40", mix: 0.72, darken: 0.18 }
+// Weather no longer repaints the sky. Time of day owns the mesh's hue and
+// brightness (so night always reads as night, day as day, golden as warm), and
+// the condition only modulates it: sat scales how vivid the mesh is (clear
+// bold, rain/mist muted) and light nudges the deep base up (snow, mist) or down
+// (rain, storm). The weather comes and goes over a stable per-time identity.
+const CONDITION_MOD = {
+  Clear:        { sat: 1.00, light:  0.00 },
+  Clouds:       { sat: 0.66, light: -0.02 },
+  Mist:         { sat: 0.34, light:  0.03 },
+  Drizzle:      { sat: 0.54, light: -0.03 },
+  Rain:         { sat: 0.48, light: -0.05 },
+  Snow:         { sat: 0.82, light:  0.05 },
+  Thunderstorm: { sat: 0.56, light: -0.08 }
 };
 
 function hexToRgb(hex) {
@@ -2618,36 +2623,42 @@ const BLOOM_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--h
 // transparent which is transparent-black), so radial blobs fade in-hue.
 function rgbaZero(hex) { const [r, g, b] = hexToRgb(hex); return `rgba(${r | 0},${g | 0},${b | 0},0)`; }
 
-// Turn a matched family's curated hue plus the live sky colour into a deep
-// mesh accent. The HUE comes from the family so the mesh always sits inside the
-// app's palette; the SATURATION is taken from the real sky, so muted weather
-// (rain, drizzle, overcast) blooms muted while clear, golden and snowy skies
-// stay bold - and a soft dusty horizon is never forced into a neon red. A
-// near-grey sky (below the saturation floor) stays grey rather than being
-// boosted into an olive/false hue. Lightness stays deep so white text holds.
-function deepenAccent(skyHex, dfgHex) {
-  const fh = rgbToHsl(hexToRgb(dfgHex))[0];
-  const ss = rgbToHsl(hexToRgb(skyHex))[1];
-  const s = ss < 0.12 ? 0 : Math.min(0.92, ss * 1.0 + 0.14);
-  return rgbToHex(hslToRgb(fh, s, 0.42));
+// Map a time-of-day sky lightness to a deep mesh lightness: night stays dark,
+// day is the brightest the mesh gets, capped so white text always holds. This
+// is what keeps night looking like night and day like day.
+function meshLightness(skyL) {
+  return 0.20 + Math.max(0, Math.min(0.65, skyL)) / 0.65 * 0.22;
 }
 
-function applyBloomAccents(sky, dark) {
+// One deep mesh accent. HUE comes from the matched family so the colour stays
+// inside the palette; LIGHTNESS comes from the time of day (via the unveiled
+// sky); SATURATION is the sky's own saturation scaled by the condition, so
+// clear/golden/snow stay bold while rain, drizzle and mist read muted. A
+// near-grey sky stays grey rather than inventing a false hue.
+function meshAccent(skyHex, dfgHex, mod) {
+  const fh = rgbToHsl(hexToRgb(dfgHex))[0];
+  const [, ss, sl] = rgbToHsl(hexToRgb(skyHex));
+  const l = Math.max(0.08, Math.min(0.44, meshLightness(sl) + mod.light));
+  const s = ss < 0.12 ? 0 : Math.min(0.9, ss * mod.sat * 1.15 + 0.08);
+  return rgbToHex(hslToRgb(fh, s, l));
+}
+
+function applyMeshColors(todSky, main) {
   const r = document.documentElement.style;
-  if (!state.tinted || !sky) {
+  if (!state.tinted || !todSky) {
     BLOOM_VARS.forEach((v) => r.removeProperty(v));
     const base = PALETTES[themeKind()];
     if (base) { r.setProperty("--ink", base.ink); r.setProperty("--bg", base.bg); }
     return;
   }
-  // Three weather colours: a solid base (the blend of the two sky families'
-  // deep bases) and the two deepened accents painted as radial blobs on top.
-  // The dfg accents are bright pastels that wash out under white text, so
-  // deepen them (darker, still saturated). Blobs fade to a transparent version
-  // of their own colour, so the mesh is colour-over-colour throughout, never
-  // muddied through black. The CSS layer rotates the whole thing slowly.
-  const fa = skyFamily(sky.top), fb = skyFamily(sky.bottom);
-  const a1 = deepenAccent(sky.top, fa.dfg), a2 = deepenAccent(sky.bottom, fb.dfg);
+  const mod = CONDITION_MOD[main] || CONDITION_MOD.Clear;
+  // Two weather colours plus a solid base. Each accent takes its hue from the
+  // time-of-day sky family and its depth from the time of day, scaled in vividness
+  // by the condition, then paints radial blobs that fade to a transparent version
+  // of their own colour (colour-over-colour, never muddied through black). The
+  // CSS layer rotates the whole thing slowly.
+  const fa = skyFamily(todSky.top), fb = skyFamily(todSky.bottom);
+  const a1 = meshAccent(todSky.top, fa.dfg, mod), a2 = meshAccent(todSky.bottom, fb.dfg, mod);
   // The solid base is a deep version of the dominant (top) sky colour rather
   // than a blend of the two dark bases, so the whole page reads as the same
   // colour as the gradient, just deeper - never a muddy neutral.
@@ -2698,30 +2709,12 @@ const NEUTRAL_SURFACE = {
   cardHi: { light: "#D8D8D3", dark: "#343431" }
 };
 
-function weatherVeil(main, cloudPct) {
-  const v = WEATHER_VEIL[main] || WEATHER_VEIL.Clouds;
-  let mix = v.mix;
-  if (mix == null) {
-    const c = Number.isFinite(cloudPct) ? cloudPct : 40;
-    mix = main === "Clear" ? Math.max(0, Math.min(0.2, (c / 100) * 0.25)) : Math.max(0.15, Math.min(0.7, 0.1 + (c / 100) * 0.6));
-  }
-  return { color: v.color, mix, darken: v.darken || 0 };
-}
-
-function applyWeatherVeil(sky, main, cloudPct) {
-  const v = weatherVeil(main, cloudPct);
-  return {
-    top: darkenHex(lerpHex(sky.top, v.color, v.mix), v.darken),
-    bottom: darkenHex(lerpHex(sky.bottom, v.color, v.mix), v.darken)
-  };
-}
-
 let dynamicTimer = null;
 
 function updateDynamicBackground() {
   const c = state.center || {};
   const lat = c.lat, lon = c.lon;
-  let sky;
+  let sky, main;
   if (Number.isFinite(lat) && Number.isFinite(lon)) {
     const tz = state.tz || state.data?.current?.timezone || 0;
     const nowUnix = Math.floor(Date.now() / 1000);
@@ -2730,15 +2723,14 @@ function updateDynamicBackground() {
     const bands = bandsFromSunTimes(t, tz);
     const nowH = hourOfDay(nowUnix, tz);
     sky = skyGradientAt(bands, nowH);
-    const w = state.data?.current?.weather?.[0]?.main;
-    const cloudPct = state.data?.current?.clouds?.all;
-    if (w) sky = applyWeatherVeil(sky, w, cloudPct);
+    main = state.data?.current?.weather?.[0]?.main;
   } else {
     sky = DYNAMIC_SKY.day;
   }
 
-  // Feed the current sky/weather to the mesh (colours + solid base + ink).
-  applyBloomAccents(sky);
+  // Feed the time-of-day sky and the current condition to the mesh; time owns
+  // the hue/brightness, the condition modulates vividness and depth.
+  applyMeshColors(sky, main);
 }
 
 function startDynamicTheme() {

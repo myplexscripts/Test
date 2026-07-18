@@ -126,10 +126,10 @@
 <div class="wrap">
   <header>
     <h1>Weather palette preview</h1>
-    <p>Every background is computed live, not picked from a fixed per-condition palette. This page runs the exact pipeline from <code>app.js</code>: a time-of-day base gradient (<code>DYNAMIC_SKY</code>) is tinted by a condition veil (<code>WEATHER_VEIL</code>), the result is hue-matched to a <code>TINT_FAMILIES</code> family, and its accent is deepened into the two colours that paint the CSS radial mesh.</p>
+    <p>Every background is computed live, not picked from a fixed per-condition palette. This page runs the exact pipeline from <code>app.js</code>. It is a two-layer model: the time of day (<code>DYNAMIC_SKY</code>) owns the mesh's hue and brightness so night always reads as night, while the condition (<code>CONDITION_MOD</code>) only modulates how vivid and how deep it is. Hues come from the matched <code>TINT_FAMILIES</code> family, painting the two colours of the CSS radial mesh.</p>
   </header>
 
-  <h2>Playground <span class="tag">sky x condition x cloud</span></h2>
+  <h2>Playground <span class="tag">time x condition</span></h2>
   <p class="sub">Pick a time of day and a condition to see the real rotating radial mesh, with the exact hex values it produces.</p>
   <div class="play">
     <div class="stage" id="stage">
@@ -146,12 +146,8 @@
         <div class="chips" id="phaseChips"></div>
       </div>
       <div class="field">
-        <label>Condition (WEATHER_VEIL)</label>
+        <label>Condition (CONDITION_MOD)</label>
         <div class="chips" id="condChips"></div>
-      </div>
-      <div class="field">
-        <label>Cloud cover <span class="cloudval" id="cloudVal">50%</span> <span class="note" id="cloudNote"></span></label>
-        <input type="range" id="cloud" min="0" max="100" value="50">
       </div>
       <label class="toggle"><input type="checkbox" id="spinToggle" checked> animate rotation</label>
       <div class="readout" id="readout"></div>
@@ -159,19 +155,19 @@
   </div>
 
   <h2>All conditions x times <span class="tag">click to load</span></h2>
-  <p class="sub">Rows are conditions, columns are the six sky phases (cloud cover 50%). Click any cell to open it in the playground.</p>
+  <p class="sub">Rows are conditions, columns are the six sky phases. Notice each column (a time of day) keeps its identity while the condition shifts vividness and depth down the rows. Click any cell to open it in the playground.</p>
   <div class="matrix"><table class="mx" id="matrix"></table></div>
 
   <h2>Base sky gradients <span class="tag">DYNAMIC_SKY</span></h2>
-  <p class="sub">The six time-of-day gradients, before any weather veil. The app interpolates between adjacent phases as the sun moves.</p>
+  <p class="sub">The six time-of-day gradients. These own the mesh hue and brightness. The app interpolates between adjacent phases as the sun moves.</p>
   <div class="grid g-sky" id="skyGrid"></div>
 
-  <h2>Condition veils <span class="tag">WEATHER_VEIL</span></h2>
-  <p class="sub">Each condition's tint colour, mix strength and darken amount, shown applied to the Day sky. Final stop = darken(lerp(sky, veil, mix), darken).</p>
+  <h2>Condition modulation <span class="tag">CONDITION_MOD</span></h2>
+  <p class="sub">Each condition is just two numbers: a saturation multiplier (how vivid) and a lightness delta (how deep). Shown here applied to the Day sky so you can compare, but the same modulation rides on every time of day.</p>
   <div class="grid g-veil" id="veilGrid"></div>
 
   <h2>Tint families <span class="tag">TINT_FAMILIES</span></h2>
-  <p class="sub">The matched sky colour selects a family. Its dark-fg (dfg) is deepened into the actual mesh accent (rightmost swatch). Light bg/fg are used for tiles/icons in light contexts.</p>
+  <p class="sub">The matched sky colour selects a family; its hue paints the mesh accent (rightmost swatch, shown at a vivid sky). Light bg/fg are used for tiles/icons in light contexts.</p>
   <div class="grid g-fam" id="famGrid"></div>
 
   <footer>
@@ -189,14 +185,14 @@ const DYNAMIC_SKY = {
   golden:   { top: "#5f86cf", bottom: "#ffb27a" },
   day:      { top: "#4fa3e8", bottom: "#bfe6f7" }
 };
-const WEATHER_VEIL = {
-  Clear:        { color: "#9aa3b4" },
-  Clouds:       { color: "#8f96a6", darken: 0.05 },
-  Mist:         { color: "#c9cdd6", mix: 0.7 },
-  Drizzle:      { color: "#69738a", mix: 0.55, darken: 0.05 },
-  Rain:         { color: "#5b6478", mix: 0.68, darken: 0.08 },
-  Snow:         { color: "#dfe6ee", mix: 0.55, darken: -0.06 },
-  Thunderstorm: { color: "#332c40", mix: 0.72, darken: 0.18 }
+const CONDITION_MOD = {
+  Clear:        { sat: 1.00, light:  0.00 },
+  Clouds:       { sat: 0.66, light: -0.02 },
+  Mist:         { sat: 0.34, light:  0.03 },
+  Drizzle:      { sat: 0.54, light: -0.03 },
+  Rain:         { sat: 0.48, light: -0.05 },
+  Snow:         { sat: 0.82, light:  0.05 },
+  Thunderstorm: { sat: 0.56, light: -0.08 }
 };
 const TINT_FAMILIES = {
   red:    { lbg: "#FCEAEC", lfg: "#E63946", dbg: "#3A0D12", dfg: "#FF6A77" },
@@ -258,13 +254,18 @@ function hslToRgb(h, s, l) {
   return [hue(h + 1 / 3) * 255, hue(h) * 255, hue(h - 1 / 3) * 255];
 }
 function rgbaZero(hex) { const [r, g, b] = hexToRgb(hex); return `rgba(${r | 0},${g | 0},${b | 0},0)`; }
-// Hue from the family (stays in palette), saturation from the live sky (so the
-// mesh reflects how vivid or muted the weather actually is), deep lightness.
-function deepenAccent(skyHex, dfgHex) {
+// Hue from the family (stays in palette), lightness from the time of day (night
+// deep, day bright, capped for white text), saturation from the sky scaled by
+// the condition (clear bold, rain/mist muted).
+function meshLightness(skyL) {
+  return 0.20 + Math.max(0, Math.min(0.65, skyL)) / 0.65 * 0.22;
+}
+function meshAccent(skyHex, dfgHex, mod) {
   const fh = rgbToHsl(hexToRgb(dfgHex))[0];
-  const ss = rgbToHsl(hexToRgb(skyHex))[1];
-  const s = ss < 0.12 ? 0 : Math.min(0.92, ss * 1.0 + 0.14);
-  return rgbToHex(hslToRgb(fh, s, 0.42));
+  const [, ss, sl] = rgbToHsl(hexToRgb(skyHex));
+  const l = Math.max(0.08, Math.min(0.44, meshLightness(sl) + mod.light));
+  const s = ss < 0.12 ? 0 : Math.min(0.9, ss * mod.sat * 1.15 + 0.08);
+  return rgbToHex(hslToRgb(fh, s, l));
 }
 const TINT_HUES = Object.entries(TINT_FAMILIES).map(([name, f]) => [name, rgbToHsl(hexToRgb(f.lfg))[0] * 360]);
 function skyFamilyName(hex) {
@@ -279,30 +280,15 @@ function skyFamilyName(hex) {
   return best;
 }
 function familyByName(name) { return name === "neutral" ? TINT_NEUTRAL : TINT_FAMILIES[name]; }
-function weatherVeil(main, cloudPct) {
-  const v = WEATHER_VEIL[main] || WEATHER_VEIL.Clouds;
-  let mix = v.mix;
-  if (mix == null) {
-    const c = Number.isFinite(cloudPct) ? cloudPct : 40;
-    mix = main === "Clear" ? Math.max(0, Math.min(0.2, (c / 100) * 0.25)) : Math.max(0.15, Math.min(0.7, 0.1 + (c / 100) * 0.6));
-  }
-  return { color: v.color, mix, darken: v.darken || 0 };
-}
-function applyWeatherVeil(sky, main, cloudPct) {
-  const v = weatherVeil(main, cloudPct);
-  return {
-    top: darkenHex(lerpHex(sky.top, v.color, v.mix), v.darken),
-    bottom: darkenHex(lerpHex(sky.bottom, v.color, v.mix), v.darken)
-  };
-}
 
-/* ===== The full pipeline: (phase, condition, cloud) -> mesh colours ===== */
-function computeMesh(phaseKey, condKey, cloudPct) {
-  let sky = { ...DYNAMIC_SKY[phaseKey] };
-  if (condKey && condKey !== "None") sky = applyWeatherVeil(sky, condKey, cloudPct);
+/* ===== The two-layer pipeline: time of day owns hue+brightness, the
+   condition modulates vividness+depth -> mesh colours ===== */
+function computeMesh(phaseKey, condKey) {
+  const sky = DYNAMIC_SKY[phaseKey];
+  const mod = (condKey && condKey !== "None") ? CONDITION_MOD[condKey] : CONDITION_MOD.Clear;
   const faName = skyFamilyName(sky.top), fbName = skyFamilyName(sky.bottom);
   const fa = familyByName(faName), fb = familyByName(fbName);
-  const a1 = deepenAccent(sky.top, fa.dfg), a2 = deepenAccent(sky.bottom, fb.dfg);
+  const a1 = meshAccent(sky.top, fa.dfg, mod), a2 = meshAccent(sky.bottom, fb.dfg, mod);
   const base = darkenHex(a1, 0.42);
   return { sky, faName, fbName, a1, a2, base };
 }
@@ -334,15 +320,12 @@ const PHASES = [
 ];
 const CONDS = ["None", "Clear", "Clouds", "Mist", "Drizzle", "Rain", "Snow", "Thunderstorm"];
 
-const state = { phase: "day", cond: "Clear", cloud: 50, spin: true };
+const state = { phase: "day", cond: "Clear", spin: true };
 
 /* ---- Playground ---- */
 const stage = document.getElementById("stage");
 const stageMesh = document.getElementById("stageMesh");
 const readout = document.getElementById("readout");
-const cloudInput = document.getElementById("cloud");
-const cloudVal = document.getElementById("cloudVal");
-const cloudNote = document.getElementById("cloudNote");
 
 function chip(text, on, onClick) {
   const b = document.createElement("button");
@@ -361,26 +344,21 @@ function readRow(k, hex, extra) {
   return `<div class="readrow"><span class="k">${k}</span>${hex ? `<span class="sw" style="background:${hex}"></span>` : ""}<span class="v">${hex || ""}${extra ? " " + extra : ""}</span></div>`;
 }
 function render() {
-  const m = computeMesh(state.phase, state.cond, state.cloud);
+  const m = computeMesh(state.phase, state.cond);
   applyMesh(stageMesh, m);
   stage.classList.toggle("paused", !state.spin);
   document.getElementById("tPhase").textContent = PHASES.find((p) => p[0] === state.phase)[1];
   document.getElementById("tCond").textContent = state.cond === "None" ? "Raw sky" : state.cond;
-  cloudVal.textContent = state.cloud + "%";
-  const cloudMatters = state.cond === "Clear" || state.cond === "Clouds";
-  cloudNote.textContent = cloudMatters ? "(drives veil mix)" : "(no effect for this condition)";
-  cloudInput.style.opacity = cloudMatters ? 1 : 0.4;
-  const v = state.cond !== "None" ? weatherVeil(state.cond, state.cloud) : null;
+  const mod = (state.cond !== "None") ? CONDITION_MOD[state.cond] : CONDITION_MOD.Clear;
   readout.innerHTML =
     readRow("sky top", m.sky.top, `&rarr; ${m.faName}`) +
     readRow("sky bottom", m.sky.bottom, `&rarr; ${m.fbName}`) +
-    (v ? readRow("veil", v.color, `mix ${v.mix.toFixed(2)} / darken ${v.darken}`) : "") +
+    `<div class="readrow"><span class="k">condition</span><span class="v">sat x${mod.sat.toFixed(2)} / light ${mod.light >= 0 ? "+" : ""}${mod.light.toFixed(2)}</span></div>` +
     `<div class="readrow" style="margin-top:6px"><span class="k">mesh-base</span><span class="sw" style="background:${m.base}"></span><span class="v">${m.base}</span></div>` +
     readRow("mesh-a", m.a1) +
     readRow("mesh-b", m.a2);
   buildChips();
 }
-cloudInput.addEventListener("input", () => { state.cloud = +cloudInput.value; render(); });
 document.getElementById("spinToggle").addEventListener("change", (e) => { state.spin = e.target.checked; render(); });
 
 /* ---- Matrix ---- */
@@ -389,7 +367,7 @@ function buildMatrix() {
   let head = "<tr><th class='row'></th>" + PHASES.map(([, l]) => `<th>${l}</th>`).join("") + "</tr>";
   let rows = CONDS.filter((c) => c !== "None").map((cond) => {
     const cells = PHASES.map(([pk]) => {
-      const m = computeMesh(pk, cond, 50);
+      const m = computeMesh(pk, cond);
       const bg = meshBackground(m);
       return `<td><div class="cell" data-p="${pk}" data-c="${cond}" style="background-color:${bg.backgroundColor};background-image:${bg.backgroundImage}"></div></td>`;
     }).join("");
@@ -418,24 +396,22 @@ function buildSky() {
   }).join("");
 }
 
-/* ---- WEATHER_VEIL cards ---- */
+/* ---- CONDITION_MOD cards ---- */
 function buildVeil() {
   const g = document.getElementById("veilGrid");
-  const daySky = DYNAMIC_SKY.day;
-  g.innerHTML = Object.keys(WEATHER_VEIL).map((cond) => {
-    const v = weatherVeil(cond, 50);
-    const res = applyWeatherVeil(daySky, cond, 50);
-    const mixLabel = (WEATHER_VEIL[cond].mix == null) ? v.mix.toFixed(2) + "*" : v.mix.toFixed(2);
+  g.innerHTML = Object.keys(CONDITION_MOD).map((cond) => {
+    const day = computeMesh("day", cond), night = computeMesh("night", cond);
+    const mod = CONDITION_MOD[cond];
+    const dayBg = meshBackground(day), nightBg = meshBackground(night);
     return `<div class="card">
-      <div class="bar" style="background:linear-gradient(180deg, ${res.top}, ${res.bottom})"></div>
-      <div class="head"><b>${cond}</b><span class="tag">mix ${mixLabel} / dk ${v.darken}</span></div>
-      <div class="hexrow">
-        <div style="background:${v.color};color:#000">veil ${v.color}</div>
-        <div style="background:${res.top};color:#fff">${res.top}</div>
-        <div style="background:${res.bottom};color:#fff">${res.bottom}</div>
+      <div class="head"><b>${cond}</b><span class="tag">sat x${mod.sat.toFixed(2)} / light ${mod.light >= 0 ? "+" : ""}${mod.light.toFixed(2)}</span></div>
+      <div style="display:flex;height:64px">
+        <div style="flex:1;overflow:hidden;background-color:${dayBg.backgroundColor};background-image:${dayBg.backgroundImage}"></div>
+        <div style="flex:1;overflow:hidden;background-color:${nightBg.backgroundColor};background-image:${nightBg.backgroundImage}"></div>
       </div>
+      <div class="fam-foot" style="justify-content:space-between"><span>day &rarr; ${day.a1}</span><span>night &rarr; ${night.a1}</span></div>
     </div>`;
-  }).join("") + `<p class="note" style="grid-column:1/-1">* Clear and Clouds have no fixed mix; shown at 50% cloud. Clear = clamp((clouds/100)x0.25, 0..0.2); Clouds = clamp(0.1 + (clouds/100)x0.6, 0.15..0.7).</p>`;
+  }).join("");
 }
 
 /* ---- TINT_FAMILIES cards ---- */
@@ -443,10 +419,10 @@ function buildFamilies() {
   const g = document.getElementById("famGrid");
   const entries = [...Object.entries(TINT_FAMILIES), ["neutral", TINT_NEUTRAL]];
   g.innerHTML = entries.map(([name, f]) => {
-    // The mesh accent now keeps this family's hue but takes its saturation from
-    // the live sky, so there is no single fixed accent per family. Illustrate
-    // the hue at a vivid sky (using dfg as the sky proxy) as the boldest case.
-    const accent = deepenAccent(f.dfg, f.dfg);
+    // The mesh accent keeps this family's hue but takes brightness and vividness
+    // from the sky+condition, so there is no single fixed accent per family.
+    // Illustrate the hue at a vivid clear sky (dfg as the sky proxy).
+    const accent = meshAccent(f.dfg, f.dfg, CONDITION_MOD.Clear);
     return `<div class="card">
       <div class="head"><b>${name}</b><span class="tag">hue ${(rgbToHsl(hexToRgb(f.lfg))[0] * 360).toFixed(0)}deg</span></div>
       <div class="fam-sws">
