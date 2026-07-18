@@ -592,17 +592,28 @@ function newsGroupLabel(ts) {
   return `${wd}, ${mo} ${d.getUTCDate()}`;
 }
 
+// Phosphor duotone number-square glyphs, one to nine, for the Home news
+// tiles' rank badge (index 0 -> "one" ... 8 -> "nine").
+const NEWS_NUM_WORDS = ["one", "two", "three", "four", "five", "six", "seven", "eight", "nine"];
+
 // One article card. `cls` swaps the frame: news-item on Home, news-tile inside
-// the news-screen folders. Always links straight out to the source.
-function newsCardHtml(a, cls) {
+// the news-screen folders. Always links straight out to the source. `idx`
+// (Home only) renders a duotone number badge to the left, top-aligned, where
+// the article's lead image used to sit.
+function newsCardHtml(a, cls, idx) {
   const meta = [a.source, a.ts ? fmtClock(a.ts, state.tz || 0) : ""].filter(Boolean).map(escapeHTML).join(" · ");
   const tN = (a.title || "").toLowerCase(), sN = (a.summary || "").toLowerCase();
   const redundant = !sN || (tN && (sN.startsWith(tN.slice(0, 40)) || tN.startsWith(sN.slice(0, 40))));
   const summary = redundant ? "" : newsTruncate(a.summary, 150);
+  const word = Number.isInteger(idx) ? NEWS_NUM_WORDS[idx] : null;
+  const numIc = word ? `<i class="ph-duotone ph-number-square-${word} news-num" aria-hidden="true"></i>` : "";
   return `<a class="${cls}" href="${escapeHTML(a.link)}" target="_blank" rel="noopener noreferrer">
-    <span class="news-title">${escapeHTML(a.title)}</span>
-    ${summary ? `<span class="news-summary">${escapeHTML(summary)}</span>` : ""}
-    <span class="news-foot"><span class="news-meta">${meta}</span><i class="ph ph-arrow-up-right news-go" aria-hidden="true"></i></span>
+    ${numIc}
+    <span class="news-body">
+      <span class="news-title">${escapeHTML(a.title)}</span>
+      ${summary ? `<span class="news-summary">${escapeHTML(summary)}</span>` : ""}
+      <span class="news-foot"><span class="news-meta">${meta}</span><i class="ph ph-arrow-up-right news-go" aria-hidden="true"></i></span>
+    </span>
   </a>`;
 }
 
@@ -620,7 +631,7 @@ function renderHomeNews(articles) {
   if (!el.homeNews || !el.homeNewsList) return;
   const list = newsSorted(articles).slice(0, 5);
   if (!list.length) { el.homeNews.hidden = true; return; }
-  el.homeNewsList.innerHTML = list.map((a) => newsCardHtml(a, "news-item")).join("");
+  el.homeNewsList.innerHTML = list.map((a, i) => newsCardHtml(a, "news-item", i)).join("");
   el.homeNews.hidden = false;
 }
 
