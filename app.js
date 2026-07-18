@@ -2620,7 +2620,9 @@ function skyFamily(hex) {
 const BLOOM_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--hairline",
   "--base", "--acc", "--acc0"];
 
-// 24-hour palette (GradientWeather): [base, accent] per hour, midnight first.
+// 24-hour palette (GradientWeather), midnight first. Each pair is [a, b]; we
+// use the SECOND colour as the sky base and the FIRST as the drifting radial
+// accent (base = sky, radial = accent).
 const HOUR_GRADS = [
   ["#012459", "#001322"], ["#003972", "#001322"], ["#003972", "#001322"], ["#004372", "#00182b"],
   ["#004372", "#011d34"], ["#016792", "#00182b"], ["#07729f", "#042c47"], ["#12a1c0", "#07506e"],
@@ -2667,8 +2669,9 @@ function applyMeshColors(h) {
     return;
   }
   const i0 = Math.floor(h) % 24, i1 = (i0 + 1) % 24, t = h - Math.floor(h);
-  const base = lerpHex(HOUR_GRADS[i0][0], HOUR_GRADS[i1][0], t);
-  const acc = lerpHex(HOUR_GRADS[i0][1], HOUR_GRADS[i1][1], t);
+  // Base = sky (the cooler second colour); accent = the warmer first colour.
+  const base = lerpHex(HOUR_GRADS[i0][1], HOUR_GRADS[i1][1], t);
+  const acc = lerpHex(HOUR_GRADS[i0][0], HOUR_GRADS[i1][0], t);
   r.setProperty("--base", base);
   r.setProperty("--acc", acc); r.setProperty("--acc0", rgbaZero(acc));
   // Solid page colour = the base, so the first-viewport blobs sit over it and

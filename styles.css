@@ -219,15 +219,18 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
   animation-timing-function: ease-in-out;
   animation-iteration-count: infinite;
 }
-.blob.l1 { left: -14vmin; width: 58vmin; height: 58vmin; animation-name: drift-a; animation-duration: 26s; }
-.blob.l2 { left:   3vmin; width: 34vmin; height: 34vmin; animation-name: drift-b; animation-duration: 32s; animation-delay: -7s; }
-.blob.l3 { left:  -6vmin; width: 44vmin; height: 44vmin; animation-name: drift-c; animation-duration: 38s; animation-delay: -15s; }
-.blob.r1 { right:-14vmin; width: 62vmin; height: 62vmin; animation-name: drift-b; animation-duration: 28s; animation-delay: -10s; }
-.blob.r2 { right:  5vmin; width: 32vmin; height: 32vmin; animation-name: drift-a; animation-duration: 34s; animation-delay: -18s; }
-.blob.r3 { right: -4vmin; width: 46vmin; height: 46vmin; animation-name: drift-c; animation-duration: 40s; animation-delay: -5s; }
-@keyframes drift-a { 0% { transform: translateY(-9vh) scale(0.93); } 50% { transform: translateY(12vh) scale(1.08); } 100% { transform: translateY(-9vh) scale(0.93); } }
-@keyframes drift-b { 0% { transform: translateY(11vh) scale(1.07); } 50% { transform: translateY(-7vh) scale(0.92); } 100% { transform: translateY(11vh) scale(1.07); } }
-@keyframes drift-c { 0% { transform: translateY(3vh) scale(0.96); } 45% { transform: translateY(-10vh) scale(1.05); } 100% { transform: translateY(3vh) scale(0.96); } }
+/* Two columns hugging the left and right edges. Each blob travels only along
+   the Y axis (up and down its own side) at its own speed, flexing size as it
+   goes - like slow breathing. Different durations so no two are in sync. */
+.blob.l1 { left: -12vmin; top: -8vh;  width: 52vmin; height: 52vmin; animation-name: breathe-a; animation-duration: 15s; }
+.blob.l2 { left:  -2vmin; top: 34vh;  width: 34vmin; height: 34vmin; animation-name: breathe-b; animation-duration: 19s; animation-delay: -6s; }
+.blob.l3 { left:  -8vmin; top: 66vh;  width: 44vmin; height: 44vmin; animation-name: breathe-c; animation-duration: 23s; animation-delay: -13s; }
+.blob.r1 { right:-12vmin; top:  6vh;  width: 56vmin; height: 56vmin; animation-name: breathe-b; animation-duration: 17s; animation-delay: -9s; }
+.blob.r2 { right: -2vmin; top: 42vh;  width: 32vmin; height: 32vmin; animation-name: breathe-a; animation-duration: 21s; animation-delay: -15s; }
+.blob.r3 { right: -6vmin; top: 72vh;  width: 46vmin; height: 46vmin; animation-name: breathe-c; animation-duration: 26s; animation-delay: -3s; }
+@keyframes breathe-a { 0% { transform: translateY(-17vh) scale(0.82); } 50% { transform: translateY(19vh) scale(1.18); } 100% { transform: translateY(-17vh) scale(0.82); } }
+@keyframes breathe-b { 0% { transform: translateY(20vh) scale(1.16); } 50% { transform: translateY(-15vh) scale(0.84); } 100% { transform: translateY(20vh) scale(1.16); } }
+@keyframes breathe-c { 0% { transform: translateY(5vh) scale(0.9); } 45% { transform: translateY(-19vh) scale(1.12); } 100% { transform: translateY(5vh) scale(0.9); } }
 @media (prefers-reduced-motion: reduce) { .blob { animation: none !important; } }
 :root[data-anim="off"] .blob { animation: none !important; }
 :root[data-tint="on"] .mesh-wrap { opacity: 1; }
