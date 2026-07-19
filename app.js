@@ -103,11 +103,6 @@ const ECCC_WMS          = "https://geo.weather.gc.ca/geomet";
 const ECCC_LAYER_RAIN = "RADAR_1KM_RRAI";
 const ECCC_LAYER_SNOW = "RADAR_1KM_RSNO";
 const ECCC_LAYER_LIGHTNING = "Lightning_2.5km_Density";
-// WAQI gives us the live station readings; we interpolate them ourselves into a
-// smooth heat field on a canvas (their own tiles are just numbered station
-// signs, not a heat map). US EPA AQI colour scale.
-const WAQI_TOKEN = "fee808c4710e3e7a5a0d4fce036a1e84221e43ff";
-const WAQI_BOUNDS = "https://api.waqi.info/map/bounds/";
 const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed & direction", air_quality: "Air quality", lightning: "Lightning density, Environment Canada, Canada only" };
 
 function ecccLayer() {
@@ -3219,8 +3214,7 @@ const CREDITS = [
   ]],
   ["Radar", [
     ["RainViewer", "Global precipitation radar imagery.", "https://www.rainviewer.com"],
-    ["Environment and Climate Change Canada", "Canadian radar via the MSC GeoMet service.", "https://eccc-msc.github.io/open-data/"],
-    ["World Air Quality Index project", "Live station readings behind the air-quality heat map.", "https://waqi.info"]
+    ["Environment and Climate Change Canada", "Canadian radar via the MSC GeoMet service.", "https://eccc-msc.github.io/open-data/"]
   ]],
   ["Maps", [
     ["Leaflet", "The interactive map library.", "https://leafletjs.com"],
@@ -4231,9 +4225,9 @@ function windArrowIcon(speed, dir) {
 }
 
 // ---- Air-quality heat map ---------------------------------------------------
-// WAQI serves live station readings, not a heat map, so we build the heat map:
-// pull every station in view, then paint a smooth inverse-distance-weighted
-// field onto a canvas that fades out where no station is near. US EPA AQI scale.
+// Sample US AQI on a fixed lattice from Open-Meteo, then paint a smooth inverse-
+// distance-weighted field onto a canvas overlay for a continuous Apple-style
+// heat map (no markers, no numbers). US EPA AQI colour scale.
 const AQI_RAMP = [
   [0,   [16, 185, 129]],   // good
   [50,  [242, 233, 0]],    // moderate
@@ -4262,16 +4256,17 @@ function enableAirQuality() {
   radar.aqiCanvas = cvs;
   radar.map.getContainer().appendChild(cvs);
   radar.aqiHidden = false;
-  // Reproject the cached stations on every pan so the field tracks the map, but
-  // hide it through zoom animations (the canvas is pinned to the screen, not the
-  // map pane) and repaint once the zoom settles.
+  radar.aqiCache = new Map();   // fresh readings each time the layer opens
+  // Reproject the sampled field on every pan so it tracks the map, but hide it
+  // through zoom animations (the canvas is pinned to the screen, not the map
+  // pane) and repaint once the zoom settles.
   const onMove = () => scheduleAqiRedraw();
   const onZoomStart = () => { radar.aqiHidden = true; if (radar.aqiCanvas) radar.aqiCanvas.style.opacity = "0"; };
   const onZoomEnd = () => { radar.aqiHidden = false; if (radar.aqiCanvas) radar.aqiCanvas.style.opacity = ""; scheduleAqiFetch(); scheduleAqiRedraw(); };
   const onMoveEnd = () => scheduleAqiFetch();
   radar.aqiHandlers = { move: onMove, zoomstart: onZoomStart, zoomend: onZoomEnd, moveend: onMoveEnd, resize: onMove };
   radar.map.on(radar.aqiHandlers);
-  fetchAqiStations();
+  fetchAqiField();
 }
 
 function disableAirQuality() {
@@ -4286,31 +4281,61 @@ function disableAirQuality() {
 
 function scheduleAqiFetch() {
   if (radar.aqiFetchTimer) clearTimeout(radar.aqiFetchTimer);
-  radar.aqiFetchTimer = setTimeout(fetchAqiStations, 320);
+  radar.aqiFetchTimer = setTimeout(fetchAqiField, 320);
 }
 function scheduleAqiRedraw() {
   if (radar.aqiRaf) return;
   radar.aqiRaf = requestAnimationFrame(() => { radar.aqiRaf = null; redrawAqiHeat(); });
 }
 
-// Every monitoring station inside the padded viewport, in one WAQI request.
-async function fetchAqiStations() {
+// "Nice" lattice steps in degrees; sampling snaps to whichever keeps ~13 rows in
+// view, so the same geographic points recur as you pan and their readings stay
+// put (and cached) instead of re-rolling on every move.
+const AQI_STEPS = [0.1, 0.15, 0.2, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6];
+function aqiStep(rough) { for (const s of AQI_STEPS) if (rough <= s) return s; return 8; }
+const AQI_STALE_MS = 20 * 60 * 1000;   // reading good for ~20 min
+const AQI_MAX_FETCH = 220;             // cap points per request (URL length)
+
+// Sample US AQI on a fixed geographic lattice from Open-Meteo (keyless and
+// CORS-friendly), cache each point, and hand the filled lattice to the heat
+// renderer to interpolate into a smooth field.
+async function fetchAqiField() {
   if (!radar.map || radar.mode !== "air_quality") return;
   const req = ++radar.aqiReq;
-  const b = radar.map.getBounds().pad(0.4);
-  const latlng = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
-  const url = `${WAQI_BOUNDS}?latlng=${latlng}&token=${WAQI_TOKEN}`;
-  const j = await fetchJSON(url).catch(() => null);
-  if (!j || j.status !== "ok" || !Array.isArray(j.data) || req !== radar.aqiReq || radar.mode !== "air_quality") return;
-  radar.aqiStations = j.data
-    .map((d) => ({ lat: +d.lat, lon: +d.lon, aqi: parseFloat(d.aqi) }))
-    .filter((s) => Number.isFinite(s.aqi) && Number.isFinite(s.lat) && Number.isFinite(s.lon));
+  const cache = radar.aqiCache || (radar.aqiCache = new Map());
+  const now = Date.now();
+  const b = radar.map.getBounds().pad(0.35);
+  const north = b.getNorth(), south = b.getSouth(), west = b.getWest(), east = b.getEast();
+  const step = aqiStep((north - south) / 13);
+  const pts = [];
+  for (let ia = Math.floor(south / step); ia <= Math.ceil(north / step); ia++)
+    for (let io = Math.floor(west / step); io <= Math.ceil(east / step); io++)
+      pts.push({ lat: ia * step, lon: io * step, k: `${ia},${io}` });
+  const need = pts.filter((p) => { const e = cache.get(p.k); return !e || now - e.at > AQI_STALE_MS; }).slice(0, AQI_MAX_FETCH);
+  if (need.length) {
+    const vals = await fetchAqiUsGrid(need).catch(() => null);
+    if (req !== radar.aqiReq || radar.mode !== "air_quality") return;
+    if (vals) need.forEach((p, i) => cache.set(p.k, { v: vals[i], at: now }));
+  }
+  radar.aqiStations = pts
+    .map((p) => { const e = cache.get(p.k); return e && e.v != null ? { lat: p.lat, lon: p.lon, aqi: e.v } : null; })
+    .filter(Boolean);
   scheduleAqiRedraw();
 }
 
+// One Open-Meteo air-quality request returns the US AQI at every lattice point.
+async function fetchAqiUsGrid(pts) {
+  const lat = pts.map((p) => p.lat.toFixed(3)).join(",");
+  const lon = pts.map((p) => p.lon.toFixed(3)).join(",");
+  const url = `${AIR_BASE}?latitude=${lat}&longitude=${lon}&current=us_aqi&timeformat=unixtime`;
+  const j = await fetchJSON(url);
+  const arr = Array.isArray(j) ? j : [j];
+  return arr.map((o) => (o.current && o.current.us_aqi != null ? o.current.us_aqi : null));
+}
+
 // Paint the interpolated field. A low-resolution grid is filled by inverse-
-// distance weighting the stations, then scaled up with smoothing so it reads as
-// a soft, continuous heat map; alpha fades out beyond the nearest station.
+// distance weighting the sampled points, then scaled up with smoothing so it
+// reads as a soft, continuous heat map; alpha fades where no sample is near.
 function redrawAqiHeat() {
   const map = radar.map, cvs = radar.aqiCanvas;
   if (!map || radar.mode !== "air_quality" || !cvs || radar.aqiHidden) return;
@@ -4591,7 +4616,7 @@ function toggleRadarPlay() { radar.playing ? stopRadarPlay() : startRadarPlay();
 function updateRadarNote() {
   const place = state.placeName || "your area";
   if (radar.mode === "lightning") { el.radarNote.textContent = "Lightning density from Environment Canada. Canada coverage only."; return; }
-  if (radar.mode === "air_quality") { el.radarNote.textContent = `Real-time air quality near ${place}, interpolated from monitoring stations (US AQI · World Air Quality Index project).`; return; }
+  if (radar.mode === "air_quality") { el.radarNote.textContent = `Air quality near ${place} on the US AQI scale, from Open-Meteo's modelled pollutants.`; return; }
   let name = LAYER_NAMES[radar.mode] || "Weather";
   let suffix = "";
   if (radar.mode === "radar") {
