@@ -4244,6 +4244,16 @@ function aqhiColor(index) {
 
 function enableAirQuality() {
   if (!radar.map) return;
+  // A dedicated pane, blurred in CSS, turns the grid of coloured cells into a
+  // smooth heat field instead of a mosaic - sitting above the basemap but below
+  // the location pin and any radar overlay.
+  if (!radar.map.getPane("aqiHeat")) {
+    radar.map.createPane("aqiHeat");
+    const p = radar.map.getPane("aqiHeat");
+    p.style.zIndex = 350;
+    p.style.pointerEvents = "none";
+    p.classList.add("aqi-heat-pane");
+  }
   if (!radar.aqiLayer) radar.aqiLayer = L.layerGroup().addTo(radar.map);
   if (!radar.aqiMoveHandler) {
     radar.aqiMoveHandler = () => scheduleAirQuality();
@@ -4269,9 +4279,11 @@ function scheduleAirQuality() {
 async function drawAirQuality() {
   if (!radar.map || radar.mode !== "air_quality" || !radar.aqiLayer) return;
   const req = ++radar.aqiReq;
-  const b = radar.map.getBounds(), size = radar.map.getSize();
-  const cols = Math.max(3, Math.min(7, Math.round(size.x / 96)));
-  const rows = Math.max(4, Math.min(9, Math.round(size.y / 96)));
+  // Pad past the viewport so the pane blur fades off-screen instead of leaving a
+  // hard rim at the map edge.
+  const b = radar.map.getBounds().pad(0.2), size = radar.map.getSize();
+  const cols = Math.max(4, Math.min(9, Math.round(size.x / 74)));
+  const rows = Math.max(5, Math.min(12, Math.round(size.y / 74)));
   const north = b.getNorth(), south = b.getSouth(), west = b.getWest(), east = b.getEast();
   const dLat = (north - south) / rows, dLon = (east - west) / cols;
   const cells = [];
@@ -4285,15 +4297,14 @@ async function drawAirQuality() {
   const data = await fetchAqiGrid(cells).catch(() => null);
   if (!data || req !== radar.aqiReq || radar.mode !== "air_quality" || !radar.aqiLayer) return;
   radar.aqiLayer.clearLayers();
+  // Overlap each cell a touch so neighbours meet under the blur and read as one
+  // continuous field rather than tiles.
   cells.forEach((cell, i) => {
     const idx = data[i];
     if (idx == null) return;
-    const color = aqhiColor(idx);
-    radar.aqiLayer.addLayer(L.rectangle(cell.bounds, {
-      stroke: false, fill: true, fillColor: color, fillOpacity: 0.32, interactive: false, className: "aqi-cell"
-    }));
-    radar.aqiLayer.addLayer(L.marker([cell.lat, cell.lon], {
-      icon: aqiCellIcon(idx, color), interactive: false, keyboard: false
+    radar.aqiLayer.addLayer(L.rectangle(L.latLngBounds(cell.bounds).pad(0.12), {
+      stroke: false, fill: true, fillColor: aqhiColor(idx), fillOpacity: 0.5,
+      interactive: false, pane: "aqiHeat", className: "aqi-cell"
     }));
   });
 }
@@ -4312,37 +4323,46 @@ async function fetchAqiGrid(cells) {
   });
 }
 
-function aqiCellIcon(index, color) {
-  const S = 40, c = S / 2;
-  const label = `<text x="${c}" y="${c + 6}" class="aqi-cell-val" fill="${color}">${aqhiLabel(index)}</text>`;
-  const svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">${label}</svg>`;
-  return L.divIcon({ className: "aqi-cell-icon", html: svg, iconSize: [S, S], iconAnchor: [c, c] });
-}
-
 function inCanada(lat, lon) {
   return lat >= 41 && lat <= 84 && lon >= -141 && lon <= -52;
 }
 
-async function ensureFrames() {
+// One RainViewer fetch, cached, split into observed past frames and the ~30 min
+// nowcast forecast. Each frame carries its own source so timelines can mix (the
+// Canadian path pairs ECCC's past with RainViewer's forecast). Pure loader - it
+// does not touch the active timeline (radar.frames / idx / source).
+async function loadRainviewer() {
   if (!radar.loaded) {
     const j = await (await fetch(RAINVIEWER_API, { cache: "no-store" })).json();
     radar.host = j.host;
-    const past = (j.radar?.past || []).map((f) => ({ t: f.time, path: f.path, kind: "past" }));
-    const soon = (j.radar?.nowcast || []).map((f) => ({ t: f.time, path: f.path, kind: "forecast" }));
-    radar.rvFrames = [...past, ...soon];
+    radar.rvPast = (j.radar?.past || []).map((f) => ({ t: f.time, path: f.path, kind: "past", source: "rainviewer" }));
+    radar.rvForecast = (j.radar?.nowcast || []).map((f) => ({ t: f.time, path: f.path, kind: "forecast", source: "rainviewer" }));
     radar.loaded = true;
   }
+  return { past: radar.rvPast || [], forecast: radar.rvForecast || [] };
+}
+
+async function ensureFrames() {
+  const { past, forecast } = await loadRainviewer();
   radar.source = "rainviewer";
-  radar.frames = radar.rvFrames || [];
+  radar.frames = [...past, ...forecast];
   const lastPast = radar.frames.map((f) => f.kind).lastIndexOf("past");
   radar.idx = lastPast >= 0 ? lastPast : Math.max(0, radar.frames.length - 1);
   return radar.frames;
 }
 
+// Just the forecast tail, for stitching onto a past-only source like ECCC.
+async function rvForecastFrames() {
+  const { forecast } = await loadRainviewer();
+  return forecast;
+}
+
+// Returns the ECCC observed frames only, cached in its own field so callers can
+// stitch a forecast onto the end without the cache re-appending it next time.
 async function ensureEccc() {
   const now = Date.now();
   const layer = ecccLayer();
-  if (radar.source === "eccc" && radar.ecccLayerName === layer && radar.frames.length && now - radar.ecccAt < 300000) return radar.frames;
+  if (radar.ecccLayerName === layer && radar.ecccFrames && radar.ecccFrames.length && now - radar.ecccAt < 300000) return radar.ecccFrames;
   const url = `${ECCC_WMS}?lang=en&SERVICE=WMS&VERSION=1.3.0&REQUEST=GetCapabilities&LAYER=${layer}`;
   const text = await (await fetch(url, { cache: "no-store" })).text();
   const doc = new DOMParser().parseFromString(text, "text/xml");
@@ -4353,11 +4373,10 @@ async function ensureEccc() {
   }
   const frames = ecccFrames(dimText);
   if (!frames.length) throw new Error("ECCC: no time frames");
-  radar.frames = frames;
+  radar.ecccFrames = frames;
   radar.source = "eccc";
   radar.ecccLayerName = layer;
   radar.ecccAt = now;
-  radar.idx = frames.length - 1;
   return frames;
 }
 
@@ -4370,11 +4389,11 @@ function ecccFrames(dimText) {
     const t0 = Date.parse(start), t1 = Date.parse(end);
     if (!Number.isFinite(t0) || !Number.isFinite(t1)) return [];
     const out = [];
-    for (let t = t0; t <= t1 + 1000; t += stepMin * 60000) out.push({ t: Math.floor(t / 1000), iso: iso(t), kind: "past" });
+    for (let t = t0; t <= t1 + 1000; t += stepMin * 60000) out.push({ t: Math.floor(t / 1000), iso: iso(t), kind: "past", source: "eccc" });
     return out.slice(-13);
   }
   return dimText.split(",").map((s) => s.trim()).filter(Boolean).slice(-13)
-    .map((s) => ({ t: Math.floor(Date.parse(s) / 1000), iso: iso(Date.parse(s)), kind: "past" }))
+    .map((s) => ({ t: Math.floor(Date.parse(s) / 1000), iso: iso(Date.parse(s)), kind: "past", source: "eccc" }))
     .filter((f) => Number.isFinite(f.t));
 }
 
@@ -4383,7 +4402,18 @@ async function loadRadar() {
   try {
     const c = state.center;
     let frames = null;
-    if (inCanada(c.lat, c.lon)) frames = await ensureEccc().catch(() => null);
+    if (inCanada(c.lat, c.lon)) {
+      const eccc = await ensureEccc().catch(() => null);
+      if (eccc && eccc.length) {
+        // ECCC is observation-only, so bolt RainViewer's nowcast onto the end for
+        // a short-term forecast. Keep the "now" cursor at the last observed frame
+        // so playback runs observed -> forecast, then loops.
+        const fc = await rvForecastFrames().catch(() => []);
+        frames = fc.length ? [...eccc, ...fc] : eccc;
+        radar.frames = frames;
+        radar.idx = eccc.length - 1;
+      }
+    }
     if (!frames || !frames.length) frames = await ensureFrames();
     if (!frames.length || !radar.map || radar.mode !== "radar") { el.radarTimeline.style.display = "none"; return; }
     el.radarTimeline.style.display = "";
@@ -4400,8 +4430,11 @@ async function loadRadar() {
 function buildRadarLayers() {
   removeRadarLayers();
   radar.layers = radar.frames.map((f) => {
+    // Per-frame source lets one timeline mix providers (ECCC past + RainViewer
+    // forecast), falling back to the timeline's source for older untagged frames.
+    const src = f.source || radar.source;
     let layer;
-    if (radar.source === "eccc") {
+    if (src === "eccc") {
       layer = L.tileLayer.wms(ECCC_WMS, {
         layers: ecccLayer(), format: "image/png", transparent: true, version: "1.3.0",
         crs: L.CRS.EPSG3857, time: f.iso,
@@ -4418,7 +4451,7 @@ function buildRadarLayers() {
     const c = layer.getContainer && layer.getContainer();
     if (c) {
       c.style.transition = "none";
-      if (radar.source === "eccc") c.style.filter = ECCC_FILTER;
+      if (src === "eccc") c.style.filter = ECCC_FILTER;
     }
     return layer;
   });
@@ -4536,6 +4569,7 @@ function updateRadarNote() {
   if (radar.mode === "lightning") { el.radarNote.textContent = "Lightning density from Environment Canada. Canada coverage only."; return; }
   if (radar.mode === "air_quality") { el.radarNote.textContent = `Air Quality Health Index near ${place}. Estimated from modelled pollutants; pan or zoom to refresh.`; return; }
   let name = LAYER_NAMES[radar.mode] || "Weather";
+  let suffix = "";
   if (radar.mode === "radar") {
     if (radar.source === "eccc") {
       name = ecccLayer() === ECCC_LAYER_SNOW
@@ -4544,8 +4578,11 @@ function updateRadarNote() {
     } else {
       name = "Live precipitation radar";
     }
+    // Playback now runs past observations straight into the nowcast, so call out
+    // that the tail of the timeline is a short-term forecast.
+    if (radar.frames.some((f) => f.kind === "forecast")) suffix = " Plays through to a short-term forecast.";
   }
-  el.radarNote.textContent = `${name} near ${place}.`;
+  el.radarNote.textContent = `${name} near ${place}.${suffix}`;
 }
 
 function syncMaps() {

@@ -1609,18 +1609,9 @@ body:has(.sheet.is-full) .bottomnav {
   stroke-width: 2.4px;
   stroke-linejoin: round;
 }
-.aqi-cell-icon { pointer-events: none; background: none; border: 0; }
-.aqi-cell-icon svg { display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.65)); }
-.aqi-cell-val {
-  font-family: Rubik, Inter, sans-serif;
-  font-weight: 800;
-  font-size: 15px;
-  text-anchor: middle;
-  paint-order: stroke;
-  stroke: rgba(0,0,0,0.55);
-  stroke-width: 2.6px;
-  stroke-linejoin: round;
-}
+/* Blur the whole air-quality pane so the grid of cells melts into one smooth
+   heat field. The pane holds only the coloured cells, so nothing else softens. */
+.aqi-heat-pane { filter: blur(22px); opacity: 0.85; }
 .map-fallback {
   display: grid;
   place-items: center;
