@@ -82,7 +82,7 @@ const radar = {
   layers: [], shown: new Map(), raf: null, t0: 0, gateTimer: null, ready: false, warmScheduled: false,
   mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, ecccLayerName: "", themeDark: null,
   windLayer: null, windMoveHandler: null, windDebounce: null, windReq: 0,
-  aqiCanvas: null, aqiOff: null, aqiStations: [], aqiHandlers: null, aqiFetchTimer: null, aqiRaf: null, aqiReq: 0, aqiHidden: false
+  aqiCanvas: null, aqiOff: null, aqiStations: [], aqiHandlers: null, aqiFetchTimer: null, aqiRaf: null, aqiReq: 0
 };
 const FRAME_MS = 620;
 const END_HOLD_MS = 1100;
@@ -4251,20 +4251,26 @@ function aqiRGB(v) {
 
 function enableAirQuality() {
   if (!radar.map) return;
+  // A real Leaflet pane (child of the map pane) so the z-index sits correctly
+  // between the base tiles (200) and the location pin (600) - and so the canvas
+  // rides with the map during a drag instead of being covered by it.
+  if (!radar.map.getPane("aqiHeat")) {
+    radar.map.createPane("aqiHeat");
+    const pane = radar.map.getPane("aqiHeat");
+    pane.style.zIndex = 350;
+    pane.style.pointerEvents = "none";
+  }
   const cvs = radar.aqiCanvas || document.createElement("canvas");
   cvs.className = "aqi-heat-canvas";
   radar.aqiCanvas = cvs;
-  radar.map.getContainer().appendChild(cvs);
-  radar.aqiHidden = false;
+  radar.map.getPane("aqiHeat").appendChild(cvs);
   radar.aqiCache = new Map();   // fresh readings each time the layer opens
-  // Reproject the sampled field on every pan so it tracks the map, but hide it
-  // through zoom animations (the canvas is pinned to the screen, not the map
-  // pane) and repaint once the zoom settles.
-  const onMove = () => scheduleAqiRedraw();
-  const onZoomStart = () => { radar.aqiHidden = true; if (radar.aqiCanvas) radar.aqiCanvas.style.opacity = "0"; };
-  const onZoomEnd = () => { radar.aqiHidden = false; if (radar.aqiCanvas) radar.aqiCanvas.style.opacity = ""; scheduleAqiFetch(); scheduleAqiRedraw(); };
-  const onMoveEnd = () => scheduleAqiFetch();
-  radar.aqiHandlers = { move: onMove, zoomstart: onZoomStart, zoomend: onZoomEnd, moveend: onMoveEnd, resize: onMove };
+  // The canvas moves with the pane during a drag; hide it through the zoom
+  // animation (projection is mid-flight) and realign + repaint once it settles.
+  const onEnd = () => { scheduleAqiFetch(); scheduleAqiRedraw(); };
+  const onZoomStart = () => { if (radar.aqiCanvas) radar.aqiCanvas.style.visibility = "hidden"; };
+  const onZoomEnd = () => { if (radar.aqiCanvas) radar.aqiCanvas.style.visibility = ""; onEnd(); };
+  radar.aqiHandlers = { moveend: onEnd, zoomstart: onZoomStart, zoomend: onZoomEnd, resize: onEnd };
   radar.map.on(radar.aqiHandlers);
   fetchAqiField();
 }
@@ -4338,9 +4344,12 @@ async function fetchAqiUsGrid(pts) {
 // reads as a soft, continuous heat map; alpha fades where no sample is near.
 function redrawAqiHeat() {
   const map = radar.map, cvs = radar.aqiCanvas;
-  if (!map || radar.mode !== "air_quality" || !cvs || radar.aqiHidden) return;
+  if (!map || radar.mode !== "air_quality" || !cvs) return;
   const size = map.getSize();
   if (cvs.width !== size.x || cvs.height !== size.y) { cvs.width = size.x; cvs.height = size.y; }
+  // Pin the canvas's (0,0) to the map's top-left corner within the pane so we
+  // can draw in container-point space and stay aligned after the pane moves.
+  L.DomUtil.setPosition(cvs, map.containerPointToLayerPoint([0, 0]));
   const ctx = cvs.getContext("2d");
   ctx.clearRect(0, 0, size.x, size.y);
   const stations = radar.aqiStations || [];
