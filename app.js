@@ -2563,10 +2563,6 @@ function lerpHex(hexA, hexB, t) {
   const a = hexToRgb(hexA), b = hexToRgb(hexB);
   return rgbToHex(a.map((v, i) => v + (b[i] - v) * t));
 }
-function darkenHex(hex, amt) {
-  if (!amt) return hex;
-  return lerpHex(hex, amt > 0 ? "#000000" : "#ffffff", Math.min(1, Math.abs(amt)));
-}
 function rgbToHsl([r, g, b]) {
   r /= 255; g /= 255; b /= 255;
   const max = Math.max(r, g, b), min = Math.min(r, g, b), dd = max - min;
@@ -2851,10 +2847,10 @@ function applyMeshColors(h) {
   const time = phaseForHour(h);
   Sky.set(time, currentSkyCond());
   const sky = Sky.skyStops(time);
-  // Below the fold and behind sheets sits a deep, hue-matched solid so the white
-  // chrome holds. The sky is always deep enough at the top for white text, so
-  // the chrome stays one consistent dark-glass / warm-white ink treatment.
-  r.setProperty("--bg", darkenHex(sky[0], 0.34));
+  // The page background continues the sky's *bottom* stop (the horizon), so the
+  // hero dissolves seamlessly into the rest of the page instead of cropping to a
+  // mismatched dark band, and that lower colour carries on below the fold.
+  r.setProperty("--bg", sky[3]);
   r.setProperty("--ink", "#f7f5f0");
   r.setProperty("--icon", "#f7f5f0");
   r.setProperty("--on-surface", "#f7f5f0");
