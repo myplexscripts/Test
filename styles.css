@@ -1594,8 +1594,10 @@ body:has(.sheet.is-full) .bottomnav {
 .wind-bar {
   background: linear-gradient(to right, #7db8e8, #63d9c8, #7fe38a, #ffd23f, #ff9f43, #ff5a5a);
 }
+/* US EPA AQI scale used by the WAQI heat tiles: good -> moderate -> unhealthy
+   (sensitive) -> unhealthy -> very unhealthy -> hazardous. */
 .aqi-bar {
-  background: linear-gradient(to right, #3db8a6, #f0c23c, #ff8a3d, #e0555f);
+  background: linear-gradient(to right, #10b981, #f2e900, #ff9933, #cc0033, #8b3fb0, #7e0023);
 }
 .wind-arrow { pointer-events: none; background: none; border: 0; }
 .wind-arrow svg { display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.65)); }
@@ -1609,9 +1611,6 @@ body:has(.sheet.is-full) .bottomnav {
   stroke-width: 2.4px;
   stroke-linejoin: round;
 }
-/* Blur the whole air-quality pane so the grid of cells melts into one smooth
-   heat field. The pane holds only the coloured cells, so nothing else softens. */
-.aqi-heat-pane { filter: blur(22px); opacity: 0.85; }
 .map-fallback {
   display: grid;
   place-items: center;

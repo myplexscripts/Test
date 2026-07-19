@@ -81,8 +81,7 @@ const radar = {
   map: null, base: null, owm: null, marker: null, preview: null, previewBase: null, previewMarker: null,
   layers: [], shown: new Map(), raf: null, t0: 0, gateTimer: null, ready: false, warmScheduled: false,
   mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, ecccLayerName: "", themeDark: null,
-  windLayer: null, windMoveHandler: null, windDebounce: null, windReq: 0,
-  aqiLayer: null, aqiMoveHandler: null, aqiDebounce: null, aqiReq: 0
+  windLayer: null, windMoveHandler: null, windDebounce: null, windReq: 0
 };
 const FRAME_MS = 620;
 const END_HOLD_MS = 1100;
@@ -103,7 +102,11 @@ const ECCC_WMS          = "https://geo.weather.gc.ca/geomet";
 const ECCC_LAYER_RAIN = "RADAR_1KM_RRAI";
 const ECCC_LAYER_SNOW = "RADAR_1KM_RSNO";
 const ECCC_LAYER_LIGHTNING = "Lightning_2.5km_Density";
-const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed & direction", air_quality: "Air Quality Health Index", lightning: "Lightning density, Environment Canada, Canada only" };
+// WAQI's interpolated air-quality heat tiles (US EPA AQI colour scale) - a
+// baked raster layer, so it stays sharp and pinned to the map at every zoom
+// instead of the point grid we sampled before.
+const WAQI_TILES = "https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=fee808c4710e3e7a5a0d4fce036a1e84221e43ff";
+const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed & direction", air_quality: "Air quality", lightning: "Lightning density, Environment Canada, Canada only" };
 
 function ecccLayer() {
   const main = (state.data?.current?.weather?.[0]?.main || "").toLowerCase();
@@ -3214,7 +3217,8 @@ const CREDITS = [
   ]],
   ["Radar", [
     ["RainViewer", "Global precipitation radar imagery.", "https://www.rainviewer.com"],
-    ["Environment and Climate Change Canada", "Canadian radar via the MSC GeoMet service.", "https://eccc-msc.github.io/open-data/"]
+    ["Environment and Climate Change Canada", "Canadian radar via the MSC GeoMet service.", "https://eccc-msc.github.io/open-data/"],
+    ["World Air Quality Index project", "The air-quality heat-map tiles.", "https://waqi.info"]
   ]],
   ["Maps", [
     ["Leaflet", "The interactive map library.", "https://leafletjs.com"],
@@ -4095,7 +4099,6 @@ function closeRadar() {
   if (radarHintTimer) { clearTimeout(radarHintTimer); radarHintTimer = null; }
   stopRadarPlay();
   disableWindArrows();
-  disableAirQuality();
   setMapFull(el.radarSheet, el.radarFull, () => radar.map, false);
   el.radarSheet.classList.remove("is-open");
   el.radarSheet.setAttribute("aria-hidden", "true");
@@ -4114,7 +4117,6 @@ function applyMode(mode) {
   removeRadarLayers();
   if (radar.owm) { radar.map.removeLayer(radar.owm); radar.owm = null; }
   disableWindArrows();
-  disableAirQuality();
   const isRadar = mode === "radar";
   const isWind = mode === "wind_new";
   const isAir = mode === "air_quality";
@@ -4126,7 +4128,7 @@ function applyMode(mode) {
   if (isRadar) {
     loadRadar();
   } else if (isAir) {
-    enableAirQuality();
+    radar.owm = L.tileLayer(WAQI_TILES, { opacity: 0.7, maxZoom: 12, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; World Air Quality Index Project" }).addTo(radar.map);
   } else if (isLightning) {
     radar.owm = L.tileLayer.wms(ECCC_WMS, { layers: ECCC_LAYER_LIGHTNING, format: "image/png", transparent: true, version: "1.3.0", opacity: 0.85, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; Environment Canada" }).addTo(radar.map);
   } else {
@@ -4222,123 +4224,6 @@ function windArrowIcon(speed, dir) {
   const label = `<text x="${c}" y="${S - 2}" class="wind-arrow-val" fill="${color}">${val}</text>`;
   const svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">${arrow}${label}</svg>`;
   return L.divIcon({ className: "wind-arrow", html: svg, iconSize: [S, S], iconAnchor: [c, c] });
-}
-
-// ---- Air Quality overlay ----------------------------------------------------
-// A gridded Air Quality Health Index layer. Open-Meteo has no AQHI field, so we
-// fetch the modelled pollutants on a viewport grid (one free request, no key)
-// and run each cell through the same Environment Canada formula the rest of the
-// app uses, then paint a translucent heat cell + index number per point. The
-// enable/disable/schedule/draw shape mirrors the wind-arrow overlay above.
-
-// AQHI health-risk bands as map colours, in the app's own palette family:
-// teal (low) -> amber (moderate) -> orange (high) -> red (very high), matching
-// aqhiBand() so the map and the Air Quality sheet tell the same story.
-const AQHI_STOPS = [[1, "#3db8a6"], [4, "#f0c23c"], [7, "#ff8a3d"], [11, "#e0555f"]];
-function aqhiColor(index) {
-  if (index == null) return null;
-  let c = AQHI_STOPS[0][1];
-  for (const [t, col] of AQHI_STOPS) { if (index >= t) c = col; else break; }
-  return c;
-}
-
-const AQI_STALE_MS = 20 * 60 * 1000;   // pollutant snapshot is good for ~20 min
-const AQI_MAX_FETCH = 200;             // cap points per request (URL length)
-// "Nice" grid steps in degrees. drawAirQuality snaps sampling to whichever step
-// keeps ~13 rows in view, so the same geographic points recur no matter how you
-// pan - the field stays put instead of re-rolling every move.
-const AQI_STEPS = [0.1, 0.15, 0.2, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6];
-function aqiStep(rough) {
-  for (const s of AQI_STEPS) if (rough <= s) return s;
-  return 8;
-}
-
-function enableAirQuality() {
-  if (!radar.map) return;
-  // A dedicated pane, blurred in CSS, turns the grid of coloured cells into a
-  // smooth heat field instead of a mosaic - sitting above the basemap but below
-  // the location pin and any radar overlay.
-  if (!radar.map.getPane("aqiHeat")) {
-    radar.map.createPane("aqiHeat");
-    const p = radar.map.getPane("aqiHeat");
-    p.style.zIndex = 350;
-    p.style.pointerEvents = "none";
-    p.classList.add("aqi-heat-pane");
-  }
-  radar.aqiCache = new Map();   // fresh readings each time the layer opens
-  if (!radar.aqiLayer) radar.aqiLayer = L.layerGroup().addTo(radar.map);
-  if (!radar.aqiMoveHandler) {
-    radar.aqiMoveHandler = () => scheduleAirQuality();
-    radar.map.on("moveend zoomend", radar.aqiMoveHandler);
-  }
-  drawAirQuality();
-}
-
-function disableAirQuality() {
-  if (radar.map && radar.aqiMoveHandler) { radar.map.off("moveend zoomend", radar.aqiMoveHandler); }
-  radar.aqiMoveHandler = null;
-  if (radar.aqiDebounce) { clearTimeout(radar.aqiDebounce); radar.aqiDebounce = null; }
-  if (radar.map && radar.aqiLayer) { radar.map.removeLayer(radar.aqiLayer); }
-  radar.aqiLayer = null;
-  radar.aqiReq++;
-}
-
-function scheduleAirQuality() {
-  if (radar.aqiDebounce) clearTimeout(radar.aqiDebounce);
-  radar.aqiDebounce = setTimeout(drawAirQuality, 260);
-}
-
-async function drawAirQuality() {
-  if (!radar.map || radar.mode !== "air_quality" || !radar.aqiLayer) return;
-  const req = ++radar.aqiReq;
-  const cache = radar.aqiCache || (radar.aqiCache = new Map());
-  const now = Date.now();
-  // Pad past the viewport so the blur fades off-screen, then snap sampling to an
-  // absolute lat/lon lattice (integer multiples of `step`) so panning reuses the
-  // exact same points - the reason the field no longer jumps around.
-  const b = radar.map.getBounds().pad(0.25);
-  const north = b.getNorth(), south = b.getSouth(), west = b.getWest(), east = b.getEast();
-  const step = aqiStep((north - south) / 13);
-  const key = (la, lo) => `${la},${lo}`;   // integer lattice indices, drift-free
-  const pts = [];
-  for (let ia = Math.floor(south / step); ia <= Math.ceil(north / step); ia++) {
-    for (let io = Math.floor(west / step); io <= Math.ceil(east / step); io++) {
-      pts.push({ ia, io, lat: ia * step, lon: io * step, k: key(ia, io) });
-    }
-  }
-  // Fetch only points we don't already have fresh - cached values keep a place's
-  // reading identical across pans and cheap to redraw.
-  const need = pts.filter((p) => { const e = cache.get(p.k); return !e || now - e.at > AQI_STALE_MS; })
-                  .slice(0, AQI_MAX_FETCH);
-  if (need.length) {
-    const vals = await fetchAqiGrid(need).catch(() => null);
-    if (req !== radar.aqiReq || radar.mode !== "air_quality" || !radar.aqiLayer) return;
-    if (vals) need.forEach((p, i) => cache.set(p.k, { v: vals[i], at: now }));
-  }
-  radar.aqiLayer.clearLayers();
-  const half = step * 0.62;   // cells overlap slightly so they merge under blur
-  pts.forEach((p) => {
-    const e = cache.get(p.k);
-    if (!e || e.v == null) return;
-    radar.aqiLayer.addLayer(L.rectangle([[p.lat - half, p.lon - half], [p.lat + half, p.lon + half]], {
-      stroke: false, fill: true, fillColor: aqhiColor(e.v), fillOpacity: 0.5,
-      interactive: false, pane: "aqiHeat", className: "aqi-cell"
-    }));
-  });
-}
-
-// One Open-Meteo air-quality request covers a batch of lattice points, then each
-// point's modelled ozone/NO2/PM2.5 becomes an AQHI on the app's shared formula.
-async function fetchAqiGrid(pts) {
-  const lat = pts.map((p) => p.lat.toFixed(3)).join(",");
-  const lon = pts.map((p) => p.lon.toFixed(3)).join(",");
-  const url = `${AIR_BASE}?latitude=${lat}&longitude=${lon}&current=ozone,nitrogen_dioxide,pm2_5&timeformat=unixtime`;
-  const j = await fetchJSON(url);
-  const arr = Array.isArray(j) ? j : [j];
-  return arr.map((o) => {
-    const c = o.current; if (!c) return null;
-    return aqhiValue((c.ozone ?? 0) * UGM3_TO_PPB.ozone, (c.nitrogen_dioxide ?? 0) * UGM3_TO_PPB.nitrogen_dioxide, c.pm2_5 ?? 0);
-  });
 }
 
 function inCanada(lat, lon) {
@@ -4585,7 +4470,7 @@ function toggleRadarPlay() { radar.playing ? stopRadarPlay() : startRadarPlay();
 function updateRadarNote() {
   const place = state.placeName || "your area";
   if (radar.mode === "lightning") { el.radarNote.textContent = "Lightning density from Environment Canada. Canada coverage only."; return; }
-  if (radar.mode === "air_quality") { el.radarNote.textContent = `Air Quality Health Index near ${place}. Modelled pollutants on a fixed grid; zoom in for finer detail.`; return; }
+  if (radar.mode === "air_quality") { el.radarNote.textContent = `Real-time air quality near ${place}, interpolated from monitoring stations (US AQI · World Air Quality Index project).`; return; }
   let name = LAYER_NAMES[radar.mode] || "Weather";
   let suffix = "";
   if (radar.mode === "radar") {
