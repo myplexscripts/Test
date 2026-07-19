@@ -409,28 +409,38 @@ function parseWhen(s) {
 // so callers fall back to the modelled estimate. Never throws.
 async function fetchEcccAqhi(lat, lon) {
   if (lat < 41 || lat > 84 || lon < -142 || lon > -52) return null; // Canada only
-  const bbox = `${lon - 2},${lat - 2},${lon + 2},${lat + 2}`;
-  const url = `${AQHI_BASE}/collections/aqhi-observations-realtime/items?f=json&bbox=${bbox}&limit=200`;
-  let json;
-  try { json = await fetchJSON(url, 8000); } catch { return null; }
-  const feats = json && Array.isArray(json.features) ? json.features : [];
-  let best = null, bestD = Infinity, bestT = -Infinity;
-  for (const f of feats) {
-    const p = f.properties || {};
-    let raw = p.aqhi;
-    if (raw == null) { const k = Object.keys(p).find((k) => /aqhi/i.test(k)); if (k) raw = p[k]; }
-    const v = (typeof raw === "string" && raw.includes("+")) ? 11 : Number(raw);
-    if (!Number.isFinite(v)) continue;
-    const c = f.geometry && f.geometry.coordinates;
-    if (!c || c.length < 2) continue;
-    const d = (c[1] - lat) ** 2 + (c[0] - lon) ** 2;
-    const t = Date.parse(p.observation_datetime || p.datetime || p.date || "") || 0;
-    if (d < bestD - 1e-9 || (Math.abs(d - bestD) <= 1e-9 && t > bestT)) {
-      best = { aqhi: v, station: p.location_name_en || p.location_name || p.name || null, time: p.observation_datetime || p.datetime || null };
-      bestD = d; bestT = t;
+  // Longitude degrees shrink toward the poles; scale the box and the distance by
+  // cos(lat) so "nearest" is true ground distance, not raw degrees.
+  const coslat = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+  // Widen the search in rings. Cities resolve on the first, tight ring; rural
+  // areas fall through to the wider ones and still find their community station,
+  // instead of coming up empty and dropping to the over-reading modelled value.
+  for (const r of [2.5, 6, 12]) {
+    const bbox = `${lon - r / coslat},${lat - r},${lon + r / coslat},${lat + r}`;
+    const url = `${AQHI_BASE}/collections/aqhi-observations-realtime/items?f=json&bbox=${bbox}&limit=1000`;
+    let json;
+    try { json = await fetchJSON(url, 8000); } catch { return null; }
+    const feats = json && Array.isArray(json.features) ? json.features : [];
+    let best = null, bestD = Infinity, bestT = -Infinity;
+    for (const f of feats) {
+      const p = f.properties || {};
+      let raw = p.aqhi;
+      if (raw == null) { const k = Object.keys(p).find((k) => /aqhi/i.test(k)); if (k) raw = p[k]; }
+      const v = (typeof raw === "string" && raw.includes("+")) ? 11 : Number(raw);
+      if (!Number.isFinite(v)) continue;
+      const c = f.geometry && f.geometry.coordinates;
+      if (!c || c.length < 2) continue;
+      const dLon = (c[0] - lon) * coslat, dLat = c[1] - lat;
+      const d = dLon * dLon + dLat * dLat;
+      const t = Date.parse(p.observation_datetime || p.datetime || p.date || "") || 0;
+      if (d < bestD - 1e-9 || (Math.abs(d - bestD) <= 1e-9 && t > bestT)) {
+        best = { aqhi: v, station: p.location_name_en || p.location_name || p.name || null, time: p.observation_datetime || p.datetime || null };
+        bestD = d; bestT = t;
+      }
     }
+    if (best) return best;
   }
-  return best;
+  return null;
 }
 
 async function fetchAir(lat, lon) {
