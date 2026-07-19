@@ -10,7 +10,7 @@ const NEWS_PROXY = "https://rss-proxy.davidbusch-02.workers.dev/local?_=";
 // without its own publisher is still CTV News London.
 const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const ARCHIVE_BASE = "https://archive-api.open-meteo.com/v1/archive";
-const OTD_START_YEAR = 1970;   // ERA5 reanalysis covers well past this
+const OTD_START_YEAR = 1990;   // ~35 yrs of records: plenty of notable years, a lighter/faster archive pull
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
@@ -3627,23 +3627,34 @@ function loadOnThisDay() {
   const { mmdd, label } = todayMonthDay();
   if (state.otd && state.otd.key === key && state.otd.mmdd === mmdd) { renderOnThisDay(); return; }
   const raw = loadOtdRaw();
-  if (raw && raw.key === key && Date.now() - (raw.fetchedAt || 0) < 14 * 864e5) {
+  // The raw archive only ever appends, so keep it a good while - a place's whole
+  // history is one download, then every day just re-filters it locally.
+  if (raw && raw.key === key && Date.now() - (raw.fetchedAt || 0) < 60 * 864e5) {
     state.otd = processOtd(raw, mmdd, key, label); renderOnThisDay(); return;
   }
   if (otdPendingKey === key) return;   // render runs twice on startup; fetch once
   otdPendingKey = key;
-  // Defer the (larger) archive fetch so it never competes with the live weather.
-  el.onThisDay.hidden = true;
-  (window.requestIdleCallback || ((fn) => setTimeout(fn, 800)))(() => {
+  renderOtdLoading(label);   // show a card immediately so the wait isn't a blank gap
+  setTimeout(() => {
     const c = state.center || state.loc;
     fetchOtdRaw(c.lat, c.lon).then((r) => {
-      if (!r || otdKey() !== key) return;
+      if (!r || otdKey() !== key) { if (otdKey() === key) el.onThisDay.hidden = true; return; }
       r.key = key; r.fetchedAt = Date.now(); saveOtdRaw(r);
       const td = todayMonthDay();
       state.otd = processOtd(r, td.mmdd, key, td.label);
       renderOnThisDay();
-    }).catch(() => { /* leave hidden */ }).finally(() => { if (otdPendingKey === key) otdPendingKey = null; });
-  });
+    }).catch(() => { if (otdKey() === key) el.onThisDay.hidden = true; })
+      .finally(() => { if (otdPendingKey === key) otdPendingKey = null; });
+  }, 250);
+}
+
+function renderOtdLoading(label) {
+  const host = el.onThisDay;
+  if (!host) return;
+  host.hidden = false;
+  el.otdCard.innerHTML =
+    `<div class="otd-head"><span class="otd-date">${label}</span></div>`
+    + `<p class="otd-lead otd-loading">Digging through the archive for ${label}…</p>`;
 }
 
 function otdRow(icon, label, value, year) {

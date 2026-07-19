@@ -246,6 +246,8 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
 .otd-date { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.15rem; }
 .otd-count { font-size: var(--t-cap); font-weight: 600; letter-spacing: 0.02em; color: var(--ink-soft); white-space: nowrap; }
 .otd-lead { font-size: 0.95rem; font-weight: 500; line-height: 1.4; color: var(--ink-soft); }
+.otd-loading { animation: otdPulse 1.4s var(--ease-in-out, ease-in-out) infinite; }
+@keyframes otdPulse { 0%, 100% { opacity: 0.45; } 50% { opacity: 0.85; } }
 .otd-rows { display: flex; flex-direction: column; margin-top: var(--s-1); }
 .otd-row { display: flex; align-items: center; gap: var(--s-3); padding: var(--s-3) 0; border-top: 1px solid var(--hairline); }
 .otd-row:first-child { border-top: 0; padding-top: 0; }
