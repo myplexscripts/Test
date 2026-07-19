@@ -215,6 +215,7 @@ function wireEvents() {
     state.animate = !(state.animate !== false);   // flip on/off
     syncControls();
     saveState();
+    updateSkyPlayback();
     if (state.data) render(state.data);
   };
 
@@ -278,12 +279,19 @@ function wireEvents() {
   if (el.newsBack) el.newsBack.onclick = closeNews;
 
   window.addEventListener("resize", () => {
+    Sky.resize();
     if (radar.preview) radar.preview.invalidateSize();
     if (state.data) { renderDayView(); renderNowcast(); }
     if (!state.sheetOpen) return;
     if (state.detail.metric === "uv") drawUvChart(state.data?.air?.hourly);
     else if (state.detail.metric !== "aqi") drawDetailChart();
   });
+
+  // Pause / resume the sky when the tab hides or a full sheet opens (the sky is
+  // Home-only). The style observer catches the body overflow lock every sheet
+  // sets; the class observer catches sheets toggling their .is-open state.
+  document.addEventListener("visibilitychange", updateSkyPlayback);
+  new MutationObserver(scheduleSkyPlayback).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["class", "style"] });
 
   initGestures();
 }
@@ -2617,51 +2625,212 @@ function skyFamily(hex) {
   return TINT_FAMILIES[best];
 }
 
-// ---- Colour mode: a time-of-day background with drifting accent blobs --------
-// The background is driven purely by the local hour for now (no weather
-// modulation yet). A 24-hour palette gives a [base, accent] pair per hour: the
-// base fills the page, the accent paints the soft blobs that drift up and down
-// the left and right edges. CSS vars the background drives: neutral chrome plus
-// the base and accent. Cleared when tint is off so the plain palette shows.
+// ---- Colour mode: a layered, animated weather sky on the Home first viewport.
+// Chrome CSS vars the sky drives (neutral tokens); cleared when tint is off.
 const BLOOM_VARS = ["--icon", "--card-bg", "--card-bg-hi", "--card-border", "--hairline",
-  "--on-surface", "--on-surface-soft", "--surface", "--base", "--shared", "--accent"];
+  "--on-surface", "--on-surface-soft", "--surface"];
 
-// 24-hour palette (GradientWeather), midnight first. Each pair is used as a
-// vertical sky gradient linear-gradient(top, bottom) for that hour.
-const HOUR_GRADS = [
-  ["#012459", "#001322"], ["#003972", "#001322"], ["#003972", "#001322"], ["#004372", "#00182b"],
-  ["#004372", "#011d34"], ["#016792", "#00182b"], ["#07729f", "#042c47"], ["#12a1c0", "#07506e"],
-  ["#74d4cc", "#1386a6"], ["#efeebc", "#61d0cf"], ["#fee154", "#a3dec6"], ["#fdc352", "#e8ed92"],
-  ["#ffac6f", "#ffe467"], ["#fda65a", "#ffe467"], ["#fd9e58", "#ffe467"], ["#f18448", "#ffd364"],
-  ["#f06b7e", "#f9a856"], ["#ca5a92", "#f4896b"], ["#5b2c83", "#d1628b"], ["#371a79", "#713684"],
-  ["#28166b", "#45217c"], ["#192861", "#372074"], ["#040b3c", "#233072"], ["#040b3c", "#012459"]
-];
-// Perceived luminance 0..1, used to flip chrome to dark ink over the light
-// midday hours so text and glass stay legible.
-function relLum(hex) { const [r, g, b] = hexToRgb(hex); return (0.299 * r + 0.587 * g + 0.114 * b) / 255; }
+/* =====================================================================
+   Sky engine - a layered background for the Home first viewport. Time of
+   day sets the gradient, the sun/moon and the light that paints clouds;
+   the weather condition adds cloud cover, precipitation, fog and storms.
+   Two crossfading gradient layers + a tint + two canvases. Home only.
+   ===================================================================== */
+const Sky = (() => {
+  const reduceMotion = () => matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const $ = (id) => document.getElementById(id);
 
-// ---- Ultrablur roles: expand each [colourA, colourB] pair into a 3-stop
-// palette (the two originals + their midpoint), then assign roles by
-// luminance and spread their lightness apart for depth. base grounds the page
-// (darkest, pushed darker); shared is the lightest (pushed lighter, repeated in
-// opposite corners); accent is the middle tone.
-const rbHslLum = (hex) => { const [r, g, b] = hexToRgb(hex).map((v) => v / 255); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-const rbGetL = (hex) => rgbToHsl(hexToRgb(hex))[2];
-const rbSetL = (hex, l) => { const [h, s] = rgbToHsl(hexToRgb(hex)); return rgbToHex(hslToRgb(h, s, Math.max(0, Math.min(1, l)))); };
-const threeStops = (c0, c1) => [c0, lerpHex(c0, c1, 0.5), c1];
-const RB_CONTRAST = 0.6;
-function rolesFor(pal) {
-  const [dark, mid, light] = [...pal].sort((a, b) => rbHslLum(a) - rbHslLum(b));
-  const bl = rbGetL(dark), sl = rbGetL(light);
-  return {
-    base: rbSetL(dark, bl * (1 - 0.55 * RB_CONTRAST)),
-    accent: mid,
-    shared: rbSetL(light, sl + (1 - sl) * (0.45 * RB_CONTRAST))
+  // time of day: sky (4 stops), the LIGHT painting cloud tops, cloud SHADOW,
+  // star strength, which orb, and its position.
+  const TIMES = {
+    night:   { sky:["#2f3f63","#212c4c","#151e36","#0d1526"], light:[118,134,170], shadow:[24,30,50],   starMul:1,   orb:"moon", pos:[0.76,0.20] },
+    dawn:    { sky:["#182252","#332f61","#573f6f","#835a79"], light:[168,138,166], shadow:[44,40,66],   starMul:.6,  orb:"moon", pos:[0.22,0.30] },
+    sunrise: { sky:["#2f4f8f","#5c6ea8","#c17d84","#ffb379"], light:[255,190,150], shadow:[86,74,102],  starMul:.1,  orb:"sun",  pos:[0.26,0.62] },
+    morning: { sky:["#1f74c6","#4a95dc","#82c0f0","#c4e2f7"], light:[236,244,252], shadow:[120,142,170],starMul:0,   orb:"sun",  pos:[0.40,0.34] },
+    midday:  { sky:["#1a7ad2","#3f9ce3","#73c1f3","#aedaf9"], light:[248,252,255], shadow:[150,172,196],starMul:0,   orb:"sun",  pos:[0.52,0.16] },
+    golden:  { sky:["#3b4a88","#7e6a9c","#dd8b67","#ffc169"], light:[255,206,150], shadow:[108,94,122], starMul:0,   orb:"sun",  pos:[0.66,0.46] },
+    sunset:  { sky:["#231e4c","#6b3f70","#c85f6d","#ff8d55"], light:[255,166,128], shadow:[92,68,104],  starMul:.1,  orb:"sun",  pos:[0.78,0.60] },
+    dusk:    { sky:["#121a3e","#252a54","#433a63","#5e466a"], light:[128,120,164], shadow:[38,38,64],   starMul:.55, orb:"moon", pos:[0.30,0.24] },
   };
+  // condition: cloud cover/heaviness, sky tint, precipitation, fog, storm, wind.
+  const CONDS = {
+    clear:     { cover:0,    heavy:0,   tint:"rgba(0,0,0,0)",           precip:null,                     fog:0,   storm:false, wind:1,   starMul:1   },
+    partly:    { cover:0.28, heavy:.12, tint:"rgba(0,0,0,0)",           precip:null,                     fog:0,   storm:false, wind:1,   starMul:.55 },
+    mostly:    { cover:0.55, heavy:.3,  tint:"rgba(96,104,122,0.12)",   precip:null,                     fog:0,   storm:false, wind:1,   starMul:.2  },
+    overcast:  { cover:0.92, heavy:.5,  tint:"rgba(92,100,116,0.30)",   precip:null,                     fog:.12, storm:false, wind:1,   starMul:0   },
+    fog:       { cover:0.1,  heavy:.2,  tint:"rgba(150,156,166,0.12)",  precip:null,                     fog:1,   storm:false, wind:.5,  starMul:0   },
+    haze:      { cover:0.16, heavy:.12, tint:"rgba(210,196,168,0.14)",  precip:null,                     fog:.5,  storm:false, wind:.5,  starMul:.12 },
+    drizzle:   { cover:0.6,  heavy:.42, tint:"rgba(64,76,96,0.20)",     precip:{t:"rain",rate:2,sp:.75}, fog:.28, storm:false, wind:1,   starMul:0   },
+    rain:      { cover:0.78, heavy:.58, tint:"rgba(44,56,74,0.30)",     precip:{t:"rain",rate:5,sp:1},   fog:.1,  storm:false, wind:1.1, starMul:0   },
+    heavyRain: { cover:0.95, heavy:.74, tint:"rgba(30,40,56,0.40)",     precip:{t:"rain",rate:10,sp:1.3},fog:.16, storm:false, wind:1.5, starMul:0   },
+    storm:     { cover:0.98, heavy:.86, tint:"rgba(14,18,28,0.46)",     precip:{t:"rain",rate:9,sp:1.4}, fog:.1,  storm:true,  wind:1.7, starMul:0   },
+    flurries:  { cover:0.45, heavy:.26, tint:"rgba(186,198,216,0.08)",  precip:{t:"snow",rate:1.3},      fog:.12, storm:false, wind:1,   starMul:.15 },
+    snow:      { cover:0.72, heavy:.4,  tint:"rgba(190,202,220,0.14)",  precip:{t:"snow",rate:2.6},      fog:.22, storm:false, wind:1,   starMul:0   },
+    blizzard:  { cover:0.95, heavy:.55, tint:"rgba(176,188,206,0.24)",  precip:{t:"snow",rate:6},        fog:.5,  storm:false, wind:2.4, starMul:0   },
+    windy:     { cover:0.4,  heavy:.18, tint:"rgba(0,0,0,0)",           precip:null,                     fog:0,   storm:false, wind:2.8, starMul:.4  },
+  };
+
+  const OKLAB = !!(window.CSS && CSS.supports && CSS.supports("background-image", "linear-gradient(in oklab, red, blue)"));
+  const gradCss = (sky) => `linear-gradient(180deg${OKLAB ? " in oklab" : ""}, ${sky[0]} 0%, ${sky[1]} 38%, ${sky[2]} 72%, ${sky[3]} 100%)`;
+  const mix = (a, b, t) => [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+  const scl = (a, s) => [a[0] * s, a[1] * s, a[2] * s];
+  const rgba = (a, al) => `rgba(${a[0] | 0},${a[1] | 0},${a[2] | 0},${al})`;
+
+  const cur = { time: "night", cond: "clear" };
+  let activeSky = "A", stormMode = false;
+  const anim = { cover:0, heavy:0, star:0, orbSun:0, orbMoon:0, fog:0, wind:1, rain:0, rainSp:1, snow:0, light:[118,134,170], shadow:[24,30,50], orbX:0.76, orbY:0.20, init:false };
+  const tgt = JSON.parse(JSON.stringify(anim));
+  const NUMKEYS = ["cover","heavy","star","orbSun","orbMoon","fog","wind","rain","rainSp","snow","orbX","orbY"];
+
+  let bg, bx, fx, fxx, wrap, dpr = Math.min(window.devicePixelRatio || 1, 2), W = 0, H = 0;
+  let stars = [], drops = [], flakes = [], fogBanks = [], cloudField = [];
+  let cloudFlash = [], cloudStrike = [], lastFlash = -1, cloudBuf = null, cbx = null;
+
+  function ensure() {
+    if (bg) return true;
+    bg = $("skyBg"); fx = $("skyFx"); wrap = $("meshWrap");
+    if (!bg || !fx || !wrap) return false;
+    bx = bg.getContext("2d"); fxx = fx.getContext("2d");
+    return true;
+  }
+  function sizeCanvas() {
+    if (!ensure()) return;
+    W = wrap.clientWidth || window.innerWidth; H = wrap.clientHeight || window.innerHeight;
+    [bg, fx].forEach(c => { c.width = W * dpr; c.height = H * dpr; c.style.width = W + "px"; c.style.height = H + "px"; });
+    bx.setTransform(dpr, 0, 0, dpr, 0, 0); fxx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    if (!cloudBuf) { cloudBuf = document.createElement("canvas"); cbx = cloudBuf.getContext("2d"); }
+    cloudBuf.width = W * dpr; cloudBuf.height = H * dpr; cbx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    stars = []; const ns = Math.round(W * H / 8500);
+    for (let i = 0; i < ns; i++) stars.push({ x: Math.random() * W, y: Math.random() * H * 0.72, r: Math.random() * 1.2 + .3, tw: Math.random() * 6.28, sp: .5 + Math.random() * 1.4 });
+    cloudField = []; const base = Math.max(W, H);
+    for (let i = 0; i < 9; i++) {
+      const depth = Math.random(), cs = (0.5 + depth * 0.9) * base * 0.14, puffs = [], np = 6 + Math.round(Math.random() * 5);
+      for (let p = 0; p < np; p++) { const ang = Math.random() * Math.PI * 2, rad = Math.random(), dx = Math.cos(ang) * rad * 1.5, dy = Math.sin(ang) * rad * 0.55 - 0.1;
+        puffs.push({ dx, dy, r: (0.55 + Math.random() * 0.75), lit: Math.min(1, Math.max(0, 0.5 - dy * 0.9)), rnd: Math.random() }); }
+      cloudField.push({ bx: Math.random(), by: 0.06 + Math.random() * 0.34, depth, cs, puffs });
+    }
+    cloudFlash = new Array(cloudField.length).fill(0);
+    cloudStrike = cloudField.map(() => ({ dx: 0, dy: -0.1 }));
+    fogBanks = [];
+    for (let i = 0; i < 5; i++) fogBanks.push({ x: Math.random(), y: 0.55 + Math.random() * 0.4, r: base * (0.28 + Math.random() * 0.22), sp: 0.006 + Math.random() * 0.01, ph: Math.random() });
+  }
+  function puff(ctx, x, y, r, col, a) { const g = ctx.createRadialGradient(x, y, 0, x, y, r); g.addColorStop(0, rgba(col, a)); g.addColorStop(0.55, rgba(col, a * 0.5)); g.addColorStop(1, rgba(col, 0)); ctx.fillStyle = g; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); }
+  function drawStars(dt) { if (anim.star < 0.01) return; bx.fillStyle = "#fff"; for (const s of stars) { s.tw += dt * 0.0016 * s.sp; bx.globalAlpha = (0.84 + 0.16 * Math.sin(s.tw)) * anim.star; bx.beginPath(); bx.arc(s.x, s.y, s.r, 0, 7); bx.fill(); } bx.globalAlpha = 1; }
+  function drawSun(cx, cy, a) { if (a < 0.01) return; const R = Math.min(W, H) * 0.48, glow = mix(anim.light, [255,214,150], 0.5); bx.globalCompositeOperation = "lighter";
+    let g = bx.createRadialGradient(cx, cy, 0, cx, cy, R); g.addColorStop(0, rgba([255,250,236], .85*a)); g.addColorStop(0.12, rgba(mix([255,250,236], glow, .6), .5*a)); g.addColorStop(0.4, rgba(glow, .16*a)); g.addColorStop(1, rgba(glow, 0)); bx.fillStyle = g; bx.beginPath(); bx.arc(cx, cy, R, 0, 7); bx.fill();
+    g = bx.createRadialGradient(cx, cy, 0, cx, cy, R * 0.14); g.addColorStop(0, rgba([255,252,244], .95*a)); g.addColorStop(1, rgba([255,244,214], 0)); bx.fillStyle = g; bx.beginPath(); bx.arc(cx, cy, R * 0.14, 0, 7); bx.fill(); bx.globalCompositeOperation = "source-over"; }
+  function drawMoon(cx, cy, a) { if (a < 0.01) return; const R = Math.min(W, H) * 0.052; bx.globalCompositeOperation = "lighter";
+    let g = bx.createRadialGradient(cx, cy, R*0.6, cx, cy, R*3.2); g.addColorStop(0, rgba([180,196,230], .28*a)); g.addColorStop(1, rgba([180,196,230], 0)); bx.fillStyle = g; bx.beginPath(); bx.arc(cx, cy, R*3.2, 0, 7); bx.fill(); bx.globalCompositeOperation = "source-over";
+    bx.save(); bx.beginPath(); bx.arc(cx, cy, R, 0, 7); bx.clip();
+    g = bx.createRadialGradient(cx-R*0.4, cy-R*0.4, R*0.1, cx-R*0.4, cy-R*0.4, R*1.9); g.addColorStop(0, rgba([240,244,252], a)); g.addColorStop(1, rgba([150,162,190], a)); bx.fillStyle = g; bx.fillRect(cx-R, cy-R, R*2, R*2);
+    g = bx.createRadialGradient(cx+R*0.55, cy+R*0.45, 0, cx+R*0.55, cy+R*0.45, R*1.7); g.addColorStop(0, rgba([16,22,40], .6*a)); g.addColorStop(0.7, rgba([16,22,40], .18*a)); g.addColorStop(1, rgba([16,22,40], 0)); bx.fillStyle = g; bx.fillRect(cx-R, cy-R, R*2, R*2); bx.restore(); }
+  function drawClouds(tsec) { cbx.clearRect(0, 0, W, H); if (anim.cover < 0.02) return false; const nC = Math.max(0, Math.round(anim.cover * 9)), heavy = anim.heavy;
+    for (let i = 0; i < nC; i++) { const cl = cloudField[i], driftPx = 9 * anim.wind * (0.4 + cl.depth); let x = ((cl.bx * W + tsec * driftPx) % (W*1.4)) - W*0.2; const y = cl.by * H, sc = cl.cs * (0.75 + anim.cover * 0.4);
+      for (const p of cl.puffs) { const px = x+p.dx*sc, py = y+p.dy*sc, pr = p.r*sc, lit = p.lit*(1-heavy*0.55); let col = mix(anim.shadow, anim.light, lit); col = scl(col, 1-heavy*0.4); puff(cbx, px, py, pr, col, (0.05+anim.cover*0.11)*(0.7+cl.depth*0.45)); }
+      if (stormMode && cloudFlash[i] > 0.01) { const fi = cloudFlash[i], st = cloudStrike[i]||{dx:0,dy:-0.1}, sx = x+st.dx*sc, sy = y+st.dy*sc, R = sc*2.3; cbx.globalCompositeOperation = "lighter";
+        let g = cbx.createRadialGradient(sx, sy, 0, sx, sy, R*1.15); g.addColorStop(0, rgba([168,190,242], 0.05*fi)); g.addColorStop(1, rgba([168,190,242], 0)); cbx.fillStyle = g; cbx.beginPath(); cbx.arc(sx, sy, R*1.15, 0, 7); cbx.fill();
+        for (const p of cl.puffs) { const px = x+p.dx*sc, py = y+p.dy*sc, pr = p.r*sc, gf = Math.max(0, 1 - Math.hypot(px-sx, py-sy)/R); if (gf > 0.02) { const m = gf*gf*(0.45+0.55*p.rnd)*(0.5+0.5*p.lit); puff(cbx, px, py, pr*(0.82+0.3*p.rnd), [216,228,255], m*fi*0.42); } }
+        cbx.globalCompositeOperation = "source-over"; } }
+    return true; }
+  function drawFogBanks(tsec) { if (anim.fog < 0.05) return; const lit = mix(mix(anim.shadow, anim.light, .75), [255,255,255], .15); for (const b of fogBanks) { const x = ((b.x + tsec*b.sp*anim.wind) % 1.3 - 0.15)*W, y = b.y*H; puff(bx, x, y, b.r, lit, 0.10*anim.fog); puff(bx, x+b.r*0.4, y+b.r*0.15, b.r*0.8, lit, 0.08*anim.fog); } }
+  function drawRain(dt) { if (anim.rain < 0.05) { if (drops.length) drops.length = 0; return; } const ang = 0.34 + (anim.wind-1)*0.26, margin = Math.abs(ang)*H, n = anim.rain*(W/760);
+    for (let i = 0; i < n; i++) drops.push({ x: Math.random()*(W+margin)-margin, y: -14, len: 11+Math.random()*16, v: (9+Math.random()*7)*anim.rainSp, o: .05+Math.random()*.14, w: .6+Math.random()*.6 });
+    for (let i = drops.length-1; i >= 0; i--) { const d = drops[i]; d.x += ang*d.v*dt/16; d.y += d.v*dt/16; fxx.strokeStyle = `rgba(194,210,240,${d.o})`; fxx.lineWidth = d.w; fxx.beginPath(); fxx.moveTo(d.x, d.y); fxx.lineTo(d.x-ang*d.len, d.y-d.len); fxx.stroke(); if (d.y > H+16) drops.splice(i, 1); } }
+  function drawSnow(dt) { if (anim.snow < 0.05) { if (flakes.length) flakes.length = 0; return; } const drift = (anim.wind-1), n = anim.snow*(W/560);
+    for (let i = 0; i < n; i++) { const depth = Math.random(); flakes.push({ x: Math.random()*W, y: -10, r: 0.8+depth*3, v: (.5+depth*1.4), ph: Math.random()*6.28, o: (.35+depth*.55), soft: depth > 0.55 }); }
+    for (let i = flakes.length-1; i >= 0; i--) { const f = flakes[i]; f.ph += 0.02; f.x += Math.sin(f.ph)*(0.5+f.r*0.2)+drift*1.5; f.y += f.v*dt/16*1.6; if (f.soft) { puff(fxx, f.x, f.y, f.r*1.8, [255,255,255], f.o*0.5); } else { fxx.fillStyle = `rgba(255,255,255,${f.o})`; fxx.beginPath(); fxx.arc(f.x, f.y, f.r, 0, 7); fxx.fill(); } if (f.y > H+10) flakes.splice(i, 1); } }
+  function drawFrame(dt, tsec, motion) {
+    for (let i = 0; i < cloudFlash.length; i++) if (cloudFlash[i] > 0) cloudFlash[i] = Math.max(0, cloudFlash[i] - dt/220);
+    bx.clearRect(0, 0, W, H);
+    drawStars(dt);
+    const ox = anim.orbX*W, oy = anim.orbY*H;
+    drawSun(ox, oy, anim.orbSun); drawMoon(ox, oy, anim.orbMoon);
+    if (drawClouds(motion ? tsec : 0)) { bx.save(); bx.filter = "blur(5px)"; bx.drawImage(cloudBuf, 0, 0, W, H); bx.restore(); }
+    drawFogBanks(motion ? tsec : 0);
+    fxx.clearRect(0, 0, W, H);
+    if (motion) { drawRain(dt); drawSnow(dt); }
+  }
+  function ease(k) { for (const key of NUMKEYS) anim[key] += (tgt[key] - anim[key]) * k; for (let i = 0; i < 3; i++) { anim.light[i] += (tgt.light[i] - anim.light[i]) * k; anim.shadow[i] += (tgt.shadow[i] - anim.shadow[i]) * k; } }
+  function snap() { for (const key of NUMKEYS) anim[key] = tgt[key]; anim.light = tgt.light.slice(); anim.shadow = tgt.shadow.slice(); }
+
+  let last = performance.now(), raf = 0, playing = false, ltTimer = null;
+  function loop(now) { if (!playing) return; const dt = Math.min(50, now-last); last = now; ease(1 - Math.pow(0.001, dt/1000)); drawFrame(dt, now/1000, true); raf = requestAnimationFrame(loop); }
+  function snapDraw() { if (!ensure()) return; if (!W) sizeCanvas(); if (!W) return; snap(); drawFrame(16, performance.now()/1000, false); }
+  function lightningLoop() { clearTimeout(ltTimer); const tick = () => { if (playing && stormMode && !reduceMotion()) triggerFlash(); ltTimer = setTimeout(tick, 4000 + Math.random()*9000); }; ltTimer = setTimeout(tick, 2600); }
+  function triggerFlash() { const nC = Math.min(cloudFlash.length, Math.max(1, Math.round(anim.cover*9))); if (nC < 1) return; let idx = Math.floor(Math.random()*nC); if (idx === lastFlash) idx = (idx+1)%nC; lastFlash = idx; cloudFlash[idx] = 1; cloudStrike[idx] = { dx: Math.random()*1.2-0.6, dy: Math.random()*0.5-0.35 };
+    if (Math.random() < 0.4) setTimeout(() => { cloudFlash[idx] = Math.max(cloudFlash[idx], 0.6); }, 80+Math.random()*90);
+    if (Math.random() < 0.18) { const j = (idx+1)%nC; cloudStrike[j] = { dx: Math.random()*1.2-0.6, dy: Math.random()*0.5-0.35 }; setTimeout(() => { cloudFlash[j] = Math.max(cloudFlash[j], 0.75); }, 160+Math.random()*200); } }
+
+  function applyCss() {
+    if (!ensure()) return;
+    const T = TIMES[cur.time], C = CONDS[cur.cond];
+    const a = activeSky === "A" ? $("skyA") : $("skyB"), b = activeSky === "A" ? $("skyB") : $("skyA");
+    b.style.background = gradCss(T.sky); b.style.opacity = "1"; a.style.opacity = "0"; activeSky = activeSky === "A" ? "B" : "A";
+    $("skyTint").style.backgroundColor = C.tint;
+    const fog = $("skyFog");
+    fog.style.opacity = C.fog > 0 ? String(Math.min(1, C.fog*0.9)) : "0";
+    const fogLit = mix(T.shadow, T.light, .7);
+    fog.style.background = `linear-gradient(180deg, ${rgba(mix(fogLit, [255,255,255], .1), 0)} 0%, ${rgba(fogLit, .5)} 46%, ${rgba(fogLit, .62)} 100%)`;
+  }
+  function setTargets() {
+    const T = TIMES[cur.time], C = CONDS[cur.cond];
+    tgt.light = T.light.slice(); tgt.shadow = T.shadow.slice();
+    tgt.cover = C.cover; tgt.heavy = C.heavy; tgt.fog = C.fog; tgt.wind = C.wind;
+    const vis = Math.max(0, 1 - C.cover/0.4) * ((C.precip||C.storm) ? 0 : 1) * (C.fog > 0.5 ? 0 : 1);
+    tgt.orbSun = T.orb === "sun" ? vis : 0; tgt.orbMoon = T.orb === "moon" ? vis : 0; tgt.orbX = T.pos[0]; tgt.orbY = T.pos[1];
+    tgt.star = T.starMul * C.starMul;
+    tgt.rain = (C.precip && C.precip.t === "rain") ? C.precip.rate : 0;
+    tgt.rainSp = (C.precip && C.precip.t === "rain") ? C.precip.sp : 1;
+    tgt.snow = (C.precip && C.precip.t === "snow") ? C.precip.rate : 0;
+    stormMode = C.storm;
+    if (!anim.init) { snap(); anim.init = true; }
+  }
+
+  function play() { if (!ensure()) return; if (!W) sizeCanvas(); if (!W || playing) return; playing = true; last = performance.now(); lightningLoop(); raf = requestAnimationFrame(loop); }
+  function stopPlay() { playing = false; if (raf) cancelAnimationFrame(raf); raf = 0; clearTimeout(ltTimer); }
+  return {
+    set(time, cond) { if (!TIMES[time]) time = "midday"; if (!CONDS[cond]) cond = "clear"; if (time === cur.time && cond === cur.cond && anim.init) return; cur.time = time; cur.cond = cond; applyCss(); setTargets(); if (!playing) snapDraw(); },
+    resize() { dpr = Math.min(window.devicePixelRatio || 1, 2); sizeCanvas(); if (!playing) snapDraw(); },
+    play, stopPlay,
+    still() { stopPlay(); snapDraw(); },
+    skyStops(time) { return (TIMES[time] || TIMES.midday).sky; }
+  };
+})();
+
+// Local hour (0..24) -> Sky time-of-day phase.
+function phaseForHour(h) {
+  if (h < 4.5) return "night";
+  if (h < 6) return "dawn";
+  if (h < 7.5) return "sunrise";
+  if (h < 11) return "morning";
+  if (h < 15.5) return "midday";
+  if (h < 18.5) return "golden";
+  if (h < 20) return "sunset";
+  if (h < 21.5) return "dusk";
+  return "night";
+}
+// Current weather -> Sky condition key (from OpenWeather main/description, cloud
+// cover and wind). Defaults to clear when there is no data yet.
+function currentSkyCond() {
+  const cw = state.data?.current, w = cw?.weather?.[0] || {};
+  const main = (w.main || "").toLowerCase(), desc = (w.description || "").toLowerCase();
+  const clouds = Number.isFinite(cw?.clouds?.all) ? cw.clouds.all : (Number.isFinite(cw?.clouds) ? cw.clouds : null);
+  const windKph = windKmh(cw?.wind?.speed);   // unit-agnostic km/h
+  if (main.includes("thunder")) return "storm";
+  if (main.includes("drizzle")) return "drizzle";
+  if (main.includes("rain")) { if (desc.includes("heavy") || desc.includes("extreme")) return "heavyRain"; if (desc.includes("light")) return "drizzle"; return "rain"; }
+  if (main.includes("snow") || main.includes("sleet")) { if (desc.includes("heavy") || desc.includes("blizzard")) return "blizzard"; if (desc.includes("light") || desc.includes("flurr")) return "flurries"; return "snow"; }
+  if (main.includes("fog") || main.includes("mist")) return "fog";
+  if (main.includes("haze") || main.includes("smoke") || main.includes("dust") || main.includes("sand") || main.includes("ash")) return "haze";
+  if (windKph >= 35 && (main.includes("clear") || (clouds != null && clouds < 40))) return "windy";
+  if (main.includes("cloud")) { if (clouds != null) { if (clouds < 30) return "partly"; if (clouds < 65) return "mostly"; return "overcast"; } return "mostly"; }
+  if (main.includes("clear")) return (clouds != null && clouds >= 15) ? "partly" : "clear";
+  if (clouds != null) { if (clouds < 15) return "clear"; if (clouds < 40) return "partly"; if (clouds < 70) return "mostly"; return "overcast"; }
+  return "clear";
 }
 
-// h = local hour as a float in [0, 24), or null to clear the tint. Interpolates
-// the hourly palette so the background glides smoothly through the day.
+// h = local hour as a float in [0, 24), or null to clear the tint. Drives the
+// Sky engine (time of day + current condition) and the chrome tokens.
 function applyMeshColors(h) {
   const r = document.documentElement.style;
   if (!state.tinted || h == null) {
@@ -2671,38 +2840,42 @@ function applyMeshColors(h) {
       r.setProperty("--ink", base.ink); r.setProperty("--bg", base.bg);
       r.setProperty("--surface", base.surface); r.setProperty("--on-surface", base.onSurface);
     }
+    updateSkyPlayback();
     return;
   }
-  const i0 = Math.floor(h) % 24, i1 = (i0 + 1) % 24, t = h - Math.floor(h);
-  // Interpolate the source pair for the current moment, then derive the three
-  // ultrablur roles (base solid + two radial colours).
-  const cA = lerpHex(HOUR_GRADS[i0][0], HOUR_GRADS[i1][0], t);
-  const cB = lerpHex(HOUR_GRADS[i0][1], HOUR_GRADS[i1][1], t);
-  const roles = rolesFor(threeStops(cA, cB));
-  r.setProperty("--base", roles.base);
-  r.setProperty("--shared", roles.shared);
-  r.setProperty("--accent", roles.accent);
-  // Solid page colour below the fold = the base, so the blooms dissolve into it.
-  r.setProperty("--bg", roles.base);
-  // One decision drives ALL chrome from the hour's luminance, so every element
-  // that flips light<->dark (cards, nav bar, settings menu, the radar toolbar,
-  // switches, buttons) shares one material and one ink - like Apple's consistent
-  // toolbar materials. Foreground (ink / on-surface) contrasts the background;
-  // the frosted glass is a white veil whose strength scales with the mode; the
-  // "surface" tone is the inverse of the ink for filled/selected bits.
-  const light = (relLum(cA) + relLum(cB)) / 2 > 0.6;
-  const ink = light ? "#12202e" : "#f7f5f0";
-  const surface = light ? "#eef1f4" : "#161c26";
-  r.setProperty("--ink", ink);
-  r.setProperty("--icon", ink);
-  r.setProperty("--on-surface", ink);
-  r.setProperty("--on-surface-soft", light ? "rgba(18,32,46,0.58)" : "rgba(247,245,240,0.60)");
-  r.setProperty("--surface", surface);
-  r.setProperty("--card-bg", light ? "rgba(255,255,255,0.30)" : "rgba(255,255,255,0.09)");
-  r.setProperty("--card-bg-hi", light ? "rgba(255,255,255,0.44)" : "rgba(255,255,255,0.15)");
+  const time = phaseForHour(h);
+  Sky.set(time, currentSkyCond());
+  const sky = Sky.skyStops(time);
+  // Below the fold and behind sheets sits a deep, hue-matched solid so the white
+  // chrome holds. The sky is always deep enough at the top for white text, so
+  // the chrome stays one consistent dark-glass / warm-white ink treatment.
+  r.setProperty("--bg", darkenHex(sky[0], 0.34));
+  r.setProperty("--ink", "#f7f5f0");
+  r.setProperty("--icon", "#f7f5f0");
+  r.setProperty("--on-surface", "#f7f5f0");
+  r.setProperty("--on-surface-soft", "rgba(247,245,240,0.60)");
+  r.setProperty("--surface", "#161c26");
+  r.setProperty("--card-bg", "rgba(255,255,255,0.09)");
+  r.setProperty("--card-bg-hi", "rgba(255,255,255,0.15)");
   r.setProperty("--card-border", "transparent");
-  r.setProperty("--hairline", light ? "rgba(18,32,46,0.14)" : "rgba(255,255,255,0.20)");
+  r.setProperty("--hairline", "rgba(255,255,255,0.20)");
+  updateSkyPlayback();
 }
+
+// Decide whether the sky should animate, draw a static frame, or stop entirely:
+// only on Home (no full sheet / modal open), while the tab is visible, tint is
+// on, and animation is enabled (else a single static frame).
+function updateSkyPlayback() {
+  if (!state.tinted) { Sky.stopPlay(); return; }
+  const hidden = document.visibilityState === "hidden"
+    || !!document.querySelector(".sheet.is-open")
+    || !!(el.alertOverlay && el.alertOverlay.classList.contains("is-open"));
+  if (hidden) { Sky.stopPlay(); return; }
+  const animate = state.animate !== false && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (animate) Sky.play(); else Sky.still();
+}
+let skyPbRaf = 0;
+function scheduleSkyPlayback() { if (skyPbRaf) return; skyPbRaf = requestAnimationFrame(() => { skyPbRaf = 0; updateSkyPlayback(); }); }
 function skyGradientAt(bands, nowH) {
   const anchors = bands.map((b) => ({ h: (b[0] + b[1]) / 2, key: b[2] }));
   if (!anchors.length) return DYNAMIC_SKY.day;
@@ -2755,6 +2928,7 @@ function updateDynamicBackground() {
 
 function startDynamicTheme() {
   if (dynamicTimer) clearInterval(dynamicTimer);
+  Sky.resize();
   updateDynamicBackground();
   dynamicTimer = setInterval(updateDynamicBackground, 120000);
 }

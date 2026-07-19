@@ -194,53 +194,29 @@ body.booting .app *, body.booting .foot { animation-play-state: paused !importan
 }
 
 /* ===== Weather background (Colour mode) ================================
-   An "ultrablur" for the current hour: a solid base colour (--base) with three
-   soft radial blooms (--shared x2 in opposite corners, --accent) blended over
-   it and breathing. JS derives the three role colours from the hourly palette.
-   The wrapper lives in the first viewport and scrolls away, its bottom masked
-   so the blooms dissolve into the solid page colour (--bg, = --base). */
+   A layered sky for the current time of day and condition: a CSS 4-stop sky
+   gradient (two crossfading layers), a condition tint, a canvas that paints
+   stars / sun or moon / clouds / fog, a fog veil, and a second canvas for
+   precipitation. JS (the Sky engine) drives it all. Lives in the first
+   viewport and scrolls away, its bottom masked so it dissolves into the solid
+   page colour (--bg) below the fold; weather effects show on Home only. */
 .mesh-wrap {
   position: absolute; top: 0; left: 0; width: 100%; height: 100svh;
   z-index: -1; pointer-events: none; overflow: hidden; will-change: transform;
   opacity: 0; transition: opacity 0.8s var(--ease-out);
-  isolation: isolate;
-  /* Solid darkest-role colour grounds the page; the radial blooms sit over it
-     and dissolve into --bg (= --base) below the fold via the bottom mask. */
-  background: var(--base);
-  -webkit-mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
-  mask-image: linear-gradient(to bottom, #000 62%, transparent 100%);
+  background: var(--bg);
+  -webkit-mask-image: linear-gradient(to bottom, #000 68%, transparent 100%);
+  mask-image: linear-gradient(to bottom, #000 68%, transparent 100%);
 }
-:root {
-  --base: #001322;
-  --shared: #3a6ea0;
-  --accent: #012459;
-}
-/* Three soft radial blooms - two "shared" in opposite corners, one accent -
-   blended over the base and softly blurred, each breathing on its own clock. */
-.radial-group { position: absolute; inset: 0; filter: blur(40px); }
-/* Screen (not overlay) so light blooms stay visible - they glow over the deep
-   night base instead of being multiplied away. */
-.radial-group.overlay { mix-blend-mode: screen; }
-.radial {
-  position: absolute; inset: 0;
-  transform-origin: center center;
-  animation: breathe var(--dur, 6s) ease-in-out infinite;
-  animation-delay: var(--delay, 0s);
-}
-.radial.r1 { --dur: 6s;   --delay: 0s;    background: radial-gradient(58% 58% at 84% 16%, var(--shared) 0%, transparent 62%); }
-.radial.r2 { --dur: 7.5s; --delay: -3.4s; background: radial-gradient(58% 58% at 16% 84%, var(--shared) 0%, transparent 62%); }
-.radial.r3 { --dur: 5s;   --delay: -1.6s; background: radial-gradient(64% 64% at 18% 22%, var(--accent) 0%, transparent 66%); }
-@keyframes breathe {
-  0%, 100% { transform: scale(0.78); opacity: 0.72; }
-  50%      { transform: scale(1.5);  opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) { .radial { animation: none; } }
-:root[data-anim="off"] .radial { animation: none; }
+.mesh-wrap .sky { position: absolute; inset: 0; z-index: 0; transition: opacity 1.2s ease; will-change: opacity; }
+.mesh-wrap .sky-tint { position: absolute; inset: 0; z-index: 1; background-color: transparent; transition: background-color 1.2s ease; pointer-events: none; }
+.mesh-wrap #skyBg { position: absolute; inset: 0; z-index: 2; width: 100%; height: 100%; pointer-events: none; }
+.mesh-wrap .sky-fog { position: absolute; inset: 0; z-index: 3; opacity: 0; pointer-events: none; transition: opacity 1.2s ease; }
+.mesh-wrap #skyFx { position: absolute; inset: 0; z-index: 4; width: 100%; height: 100%; pointer-events: none; }
 :root[data-tint="on"] .mesh-wrap { opacity: 1; }
-/* Home screen only: on any open sheet hide the blooms so those screens sit on
-   the flat solid colour (--bg) behind them, and pause the breathing. */
+/* Home screen only: on any open sheet hide the sky so those screens sit on the
+   flat solid colour (--bg) behind them. */
 body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
-body:has(.sheet.is-open) .radial { animation-play-state: paused; }
 /* In Colour mode the mesh is the background; hide the plain top-bloom layers. */
 :root[data-tint="on"] .bg::before,
 :root[data-tint="on"] .bg::after { opacity: 0; }

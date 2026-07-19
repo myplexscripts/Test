@@ -37,11 +37,12 @@
   </div>
   <div class="bg" aria-hidden="true"></div>
   <div class="mesh-wrap" id="meshWrap" aria-hidden="true">
-    <div class="radial-group overlay">
-      <div class="radial r1"></div>
-      <div class="radial r2"></div>
-      <div class="radial r3"></div>
-    </div>
+    <div class="sky" id="skyA"></div>
+    <div class="sky" id="skyB" style="opacity:0"></div>
+    <div class="sky-tint" id="skyTint"></div>
+    <canvas id="skyBg"></canvas>
+    <div class="sky-fog" id="skyFog"></div>
+    <canvas id="skyFx"></canvas>
   </div>
   <div class="status-fade" id="statusFade" aria-hidden="true"></div>
 
