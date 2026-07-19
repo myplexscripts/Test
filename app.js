@@ -49,7 +49,7 @@ const el = {
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
-  radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"), radarLegend: $("radarLegend"), windLegend: $("windLegend"),
+  radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"), radarLegend: $("radarLegend"), windLegend: $("windLegend"), aqiLegend: $("aqiLegend"),
   hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
   sheet: $("sheet"), sheetScroll: $("sheetScroll"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"), sheetHeadAux: $("sheetHeadAux"),
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList"), dayStats: $("dayStats")
@@ -81,7 +81,8 @@ const radar = {
   map: null, base: null, owm: null, marker: null, preview: null, previewBase: null, previewMarker: null,
   layers: [], shown: new Map(), raf: null, t0: 0, gateTimer: null, ready: false, warmScheduled: false,
   mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, ecccLayerName: "", themeDark: null,
-  windLayer: null, windMoveHandler: null, windDebounce: null, windReq: 0
+  windLayer: null, windMoveHandler: null, windDebounce: null, windReq: 0,
+  aqiLayer: null, aqiMoveHandler: null, aqiDebounce: null, aqiReq: 0
 };
 const FRAME_MS = 620;
 const END_HOLD_MS = 1100;
@@ -92,13 +93,17 @@ const ECCC_FILTER = "hue-rotate(140deg) saturate(2) brightness(1.1)";
 function radarEase(t) { return t < 0.5 ? 2 * t * t : 1 - ((-2 * t + 2) ** 2) / 2; }
 const RAINVIEWER_API = "https://api.rainviewer.com/public/weather-maps.json";
 const RV_COLOR = 7;
+// options are `smooth_snow`: smoothed pixels (1) and a distinct snow colour (1)
+// give the crisper, less blocky radar look at the larger 512px tile size below.
 const RV_OPTS = "1_1";
-const RV_SIZE = 256;
+// 512px RainViewer tiles carry four times the detail of the 256px default, so
+// the precipitation edges stay sharp instead of pixelating as you zoom in.
+const RV_SIZE = 512;
 const ECCC_WMS          = "https://geo.weather.gc.ca/geomet";
 const ECCC_LAYER_RAIN = "RADAR_1KM_RRAI";
 const ECCC_LAYER_SNOW = "RADAR_1KM_RSNO";
 const ECCC_LAYER_LIGHTNING = "Lightning_2.5km_Density";
-const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed & direction", lightning: "Lightning density, Environment Canada, Canada only" };
+const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed & direction", air_quality: "Air Quality Health Index", lightning: "Lightning density, Environment Canada, Canada only" };
 
 function ecccLayer() {
   const main = (state.data?.current?.weather?.[0]?.main || "").toLowerCase();
@@ -4090,6 +4095,7 @@ function closeRadar() {
   if (radarHintTimer) { clearTimeout(radarHintTimer); radarHintTimer = null; }
   stopRadarPlay();
   disableWindArrows();
+  disableAirQuality();
   setMapFull(el.radarSheet, el.radarFull, () => radar.map, false);
   el.radarSheet.classList.remove("is-open");
   el.radarSheet.setAttribute("aria-hidden", "true");
@@ -4108,14 +4114,19 @@ function applyMode(mode) {
   removeRadarLayers();
   if (radar.owm) { radar.map.removeLayer(radar.owm); radar.owm = null; }
   disableWindArrows();
+  disableAirQuality();
   const isRadar = mode === "radar";
   const isWind = mode === "wind_new";
+  const isAir = mode === "air_quality";
   const isLightning = mode === "lightning";
   el.radarTimeline.style.display = isRadar ? "" : "none";
   if (el.radarLegend) el.radarLegend.style.display = isRadar ? "" : "none";
   if (el.windLegend) el.windLegend.style.display = isWind ? "" : "none";
+  if (el.aqiLegend) el.aqiLegend.style.display = isAir ? "" : "none";
   if (isRadar) {
     loadRadar();
+  } else if (isAir) {
+    enableAirQuality();
   } else if (isLightning) {
     radar.owm = L.tileLayer.wms(ECCC_WMS, { layers: ECCC_LAYER_LIGHTNING, format: "image/png", transparent: true, version: "1.3.0", opacity: 0.85, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; Environment Canada" }).addTo(radar.map);
   } else {
@@ -4211,6 +4222,101 @@ function windArrowIcon(speed, dir) {
   const label = `<text x="${c}" y="${S - 2}" class="wind-arrow-val" fill="${color}">${val}</text>`;
   const svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">${arrow}${label}</svg>`;
   return L.divIcon({ className: "wind-arrow", html: svg, iconSize: [S, S], iconAnchor: [c, c] });
+}
+
+// ---- Air Quality overlay ----------------------------------------------------
+// A gridded Air Quality Health Index layer. Open-Meteo has no AQHI field, so we
+// fetch the modelled pollutants on a viewport grid (one free request, no key)
+// and run each cell through the same Environment Canada formula the rest of the
+// app uses, then paint a translucent heat cell + index number per point. The
+// enable/disable/schedule/draw shape mirrors the wind-arrow overlay above.
+
+// AQHI health-risk bands as map colours, in the app's own palette family:
+// teal (low) -> amber (moderate) -> orange (high) -> red (very high), matching
+// aqhiBand() so the map and the Air Quality sheet tell the same story.
+const AQHI_STOPS = [[1, "#3db8a6"], [4, "#f0c23c"], [7, "#ff8a3d"], [11, "#e0555f"]];
+function aqhiColor(index) {
+  if (index == null) return null;
+  let c = AQHI_STOPS[0][1];
+  for (const [t, col] of AQHI_STOPS) { if (index >= t) c = col; else break; }
+  return c;
+}
+
+function enableAirQuality() {
+  if (!radar.map) return;
+  if (!radar.aqiLayer) radar.aqiLayer = L.layerGroup().addTo(radar.map);
+  if (!radar.aqiMoveHandler) {
+    radar.aqiMoveHandler = () => scheduleAirQuality();
+    radar.map.on("moveend zoomend", radar.aqiMoveHandler);
+  }
+  drawAirQuality();
+}
+
+function disableAirQuality() {
+  if (radar.map && radar.aqiMoveHandler) { radar.map.off("moveend zoomend", radar.aqiMoveHandler); }
+  radar.aqiMoveHandler = null;
+  if (radar.aqiDebounce) { clearTimeout(radar.aqiDebounce); radar.aqiDebounce = null; }
+  if (radar.map && radar.aqiLayer) { radar.map.removeLayer(radar.aqiLayer); }
+  radar.aqiLayer = null;
+  radar.aqiReq++;
+}
+
+function scheduleAirQuality() {
+  if (radar.aqiDebounce) clearTimeout(radar.aqiDebounce);
+  radar.aqiDebounce = setTimeout(drawAirQuality, 260);
+}
+
+async function drawAirQuality() {
+  if (!radar.map || radar.mode !== "air_quality" || !radar.aqiLayer) return;
+  const req = ++radar.aqiReq;
+  const b = radar.map.getBounds(), size = radar.map.getSize();
+  const cols = Math.max(3, Math.min(7, Math.round(size.x / 96)));
+  const rows = Math.max(4, Math.min(9, Math.round(size.y / 96)));
+  const north = b.getNorth(), south = b.getSouth(), west = b.getWest(), east = b.getEast();
+  const dLat = (north - south) / rows, dLon = (east - west) / cols;
+  const cells = [];
+  for (let r = 0; r < rows; r++) {
+    const lat = north - (r + 0.5) * dLat;
+    for (let cc = 0; cc < cols; cc++) {
+      cells.push({ lat, lon: west + (cc + 0.5) * dLon,
+        bounds: [[north - r * dLat, west + cc * dLon], [north - (r + 1) * dLat, west + (cc + 1) * dLon]] });
+    }
+  }
+  const data = await fetchAqiGrid(cells).catch(() => null);
+  if (!data || req !== radar.aqiReq || radar.mode !== "air_quality" || !radar.aqiLayer) return;
+  radar.aqiLayer.clearLayers();
+  cells.forEach((cell, i) => {
+    const idx = data[i];
+    if (idx == null) return;
+    const color = aqhiColor(idx);
+    radar.aqiLayer.addLayer(L.rectangle(cell.bounds, {
+      stroke: false, fill: true, fillColor: color, fillOpacity: 0.32, interactive: false, className: "aqi-cell"
+    }));
+    radar.aqiLayer.addLayer(L.marker([cell.lat, cell.lon], {
+      icon: aqiCellIcon(idx, color), interactive: false, keyboard: false
+    }));
+  });
+}
+
+// One Open-Meteo air-quality request covers the whole grid (comma-joined
+// coordinates), then each point's modelled ozone/NO2/PM2.5 becomes an AQHI.
+async function fetchAqiGrid(cells) {
+  const lat = cells.map((c) => c.lat.toFixed(3)).join(",");
+  const lon = cells.map((c) => c.lon.toFixed(3)).join(",");
+  const url = `${AIR_BASE}?latitude=${lat}&longitude=${lon}&current=ozone,nitrogen_dioxide,pm2_5&timeformat=unixtime`;
+  const j = await fetchJSON(url);
+  const arr = Array.isArray(j) ? j : [j];
+  return arr.map((o) => {
+    const c = o.current; if (!c) return null;
+    return aqhiValue((c.ozone ?? 0) * UGM3_TO_PPB.ozone, (c.nitrogen_dioxide ?? 0) * UGM3_TO_PPB.nitrogen_dioxide, c.pm2_5 ?? 0);
+  });
+}
+
+function aqiCellIcon(index, color) {
+  const S = 40, c = S / 2;
+  const label = `<text x="${c}" y="${c + 6}" class="aqi-cell-val" fill="${color}">${aqhiLabel(index)}</text>`;
+  const svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">${label}</svg>`;
+  return L.divIcon({ className: "aqi-cell-icon", html: svg, iconSize: [S, S], iconAnchor: [c, c] });
 }
 
 function inCanada(lat, lon) {
@@ -4428,6 +4534,7 @@ function toggleRadarPlay() { radar.playing ? stopRadarPlay() : startRadarPlay();
 function updateRadarNote() {
   const place = state.placeName || "your area";
   if (radar.mode === "lightning") { el.radarNote.textContent = "Lightning density from Environment Canada. Canada coverage only."; return; }
+  if (radar.mode === "air_quality") { el.radarNote.textContent = `Air Quality Health Index near ${place}. Estimated from modelled pollutants; pan or zoom to refresh.`; return; }
   let name = LAYER_NAMES[radar.mode] || "Weather";
   if (radar.mode === "radar") {
     if (radar.source === "eccc") {

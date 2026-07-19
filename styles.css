@@ -1594,6 +1594,9 @@ body:has(.sheet.is-full) .bottomnav {
 .wind-bar {
   background: linear-gradient(to right, #7db8e8, #63d9c8, #7fe38a, #ffd23f, #ff9f43, #ff5a5a);
 }
+.aqi-bar {
+  background: linear-gradient(to right, #3db8a6, #f0c23c, #ff8a3d, #e0555f);
+}
 .wind-arrow { pointer-events: none; background: none; border: 0; }
 .wind-arrow svg { display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.65)); }
 .wind-arrow-val {
@@ -1604,6 +1607,18 @@ body:has(.sheet.is-full) .bottomnav {
   paint-order: stroke;
   stroke: rgba(0,0,0,0.55);
   stroke-width: 2.4px;
+  stroke-linejoin: round;
+}
+.aqi-cell-icon { pointer-events: none; background: none; border: 0; }
+.aqi-cell-icon svg { display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.65)); }
+.aqi-cell-val {
+  font-family: Rubik, Inter, sans-serif;
+  font-weight: 800;
+  font-size: 15px;
+  text-anchor: middle;
+  paint-order: stroke;
+  stroke: rgba(0,0,0,0.55);
+  stroke-width: 2.6px;
   stroke-linejoin: round;
 }
 .map-fallback {
