@@ -3591,13 +3591,13 @@ function otdKey() { const c = state.center || state.loc; return `${(+c.lat).toFi
 
 async function fetchOtdRaw(lat, lon) {
   const tu = state.units === "imperial" ? "fahrenheit" : "celsius";
-  const pu = state.units === "imperial" ? "inch" : "mm";
   // The archive lags several days and 400s if end_date runs past what's ready.
   // We only need past years anyway (the newest relevant day is a year ago), so
-  // pull the end back a safe week.
+  // pull the end back a safe week. Precip stays in mm and is converted at render
+  // to keep the request minimal.
   const end = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   const url = `${ARCHIVE_BASE}?latitude=${lat}&longitude=${lon}&start_date=${OTD_START_YEAR}-01-01&end_date=${end}`
-    + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=${tu}&precipitation_unit=${pu}&timezone=auto`;
+    + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=${tu}&timezone=auto`;
   // Read the body even on error so Open-Meteo's `reason` surfaces instead of a
   // bare status, and so failures are diagnosable rather than silent.
   const ctl = new AbortController();
@@ -3692,8 +3692,8 @@ function renderOnThisDay() {
     return;
   }
   host.hidden = false;
-  const punit = state.units === "imperial" ? "in" : "mm";
-  const wetVal = o.wet ? (state.units === "imperial" ? o.wet.v.toFixed(2) : Math.round(o.wet.v)) : null;
+  const punit = state.units === "imperial" ? "in" : "mm";   // archive precip is mm
+  const wetVal = o.wet ? (state.units === "imperial" ? (o.wet.v / 25.4).toFixed(2) : Math.round(o.wet.v)) : null;
   const todayHigh = state.daily?.[0]?.max;
   let lead;
   if (todayHigh != null && o.avgHigh != null) {
