@@ -4242,6 +4242,17 @@ function aqhiColor(index) {
   return c;
 }
 
+const AQI_STALE_MS = 20 * 60 * 1000;   // pollutant snapshot is good for ~20 min
+const AQI_MAX_FETCH = 200;             // cap points per request (URL length)
+// "Nice" grid steps in degrees. drawAirQuality snaps sampling to whichever step
+// keeps ~13 rows in view, so the same geographic points recur no matter how you
+// pan - the field stays put instead of re-rolling every move.
+const AQI_STEPS = [0.1, 0.15, 0.2, 0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4, 6];
+function aqiStep(rough) {
+  for (const s of AQI_STEPS) if (rough <= s) return s;
+  return 8;
+}
+
 function enableAirQuality() {
   if (!radar.map) return;
   // A dedicated pane, blurred in CSS, turns the grid of coloured cells into a
@@ -4254,6 +4265,7 @@ function enableAirQuality() {
     p.style.pointerEvents = "none";
     p.classList.add("aqi-heat-pane");
   }
+  radar.aqiCache = new Map();   // fresh readings each time the layer opens
   if (!radar.aqiLayer) radar.aqiLayer = L.layerGroup().addTo(radar.map);
   if (!radar.aqiMoveHandler) {
     radar.aqiMoveHandler = () => scheduleAirQuality();
@@ -4279,41 +4291,47 @@ function scheduleAirQuality() {
 async function drawAirQuality() {
   if (!radar.map || radar.mode !== "air_quality" || !radar.aqiLayer) return;
   const req = ++radar.aqiReq;
-  // Pad past the viewport so the pane blur fades off-screen instead of leaving a
-  // hard rim at the map edge.
-  const b = radar.map.getBounds().pad(0.2), size = radar.map.getSize();
-  const cols = Math.max(4, Math.min(9, Math.round(size.x / 74)));
-  const rows = Math.max(5, Math.min(12, Math.round(size.y / 74)));
+  const cache = radar.aqiCache || (radar.aqiCache = new Map());
+  const now = Date.now();
+  // Pad past the viewport so the blur fades off-screen, then snap sampling to an
+  // absolute lat/lon lattice (integer multiples of `step`) so panning reuses the
+  // exact same points - the reason the field no longer jumps around.
+  const b = radar.map.getBounds().pad(0.25);
   const north = b.getNorth(), south = b.getSouth(), west = b.getWest(), east = b.getEast();
-  const dLat = (north - south) / rows, dLon = (east - west) / cols;
-  const cells = [];
-  for (let r = 0; r < rows; r++) {
-    const lat = north - (r + 0.5) * dLat;
-    for (let cc = 0; cc < cols; cc++) {
-      cells.push({ lat, lon: west + (cc + 0.5) * dLon,
-        bounds: [[north - r * dLat, west + cc * dLon], [north - (r + 1) * dLat, west + (cc + 1) * dLon]] });
+  const step = aqiStep((north - south) / 13);
+  const key = (la, lo) => `${la},${lo}`;   // integer lattice indices, drift-free
+  const pts = [];
+  for (let ia = Math.floor(south / step); ia <= Math.ceil(north / step); ia++) {
+    for (let io = Math.floor(west / step); io <= Math.ceil(east / step); io++) {
+      pts.push({ ia, io, lat: ia * step, lon: io * step, k: key(ia, io) });
     }
   }
-  const data = await fetchAqiGrid(cells).catch(() => null);
-  if (!data || req !== radar.aqiReq || radar.mode !== "air_quality" || !radar.aqiLayer) return;
+  // Fetch only points we don't already have fresh - cached values keep a place's
+  // reading identical across pans and cheap to redraw.
+  const need = pts.filter((p) => { const e = cache.get(p.k); return !e || now - e.at > AQI_STALE_MS; })
+                  .slice(0, AQI_MAX_FETCH);
+  if (need.length) {
+    const vals = await fetchAqiGrid(need).catch(() => null);
+    if (req !== radar.aqiReq || radar.mode !== "air_quality" || !radar.aqiLayer) return;
+    if (vals) need.forEach((p, i) => cache.set(p.k, { v: vals[i], at: now }));
+  }
   radar.aqiLayer.clearLayers();
-  // Overlap each cell a touch so neighbours meet under the blur and read as one
-  // continuous field rather than tiles.
-  cells.forEach((cell, i) => {
-    const idx = data[i];
-    if (idx == null) return;
-    radar.aqiLayer.addLayer(L.rectangle(L.latLngBounds(cell.bounds).pad(0.12), {
-      stroke: false, fill: true, fillColor: aqhiColor(idx), fillOpacity: 0.5,
+  const half = step * 0.62;   // cells overlap slightly so they merge under blur
+  pts.forEach((p) => {
+    const e = cache.get(p.k);
+    if (!e || e.v == null) return;
+    radar.aqiLayer.addLayer(L.rectangle([[p.lat - half, p.lon - half], [p.lat + half, p.lon + half]], {
+      stroke: false, fill: true, fillColor: aqhiColor(e.v), fillOpacity: 0.5,
       interactive: false, pane: "aqiHeat", className: "aqi-cell"
     }));
   });
 }
 
-// One Open-Meteo air-quality request covers the whole grid (comma-joined
-// coordinates), then each point's modelled ozone/NO2/PM2.5 becomes an AQHI.
-async function fetchAqiGrid(cells) {
-  const lat = cells.map((c) => c.lat.toFixed(3)).join(",");
-  const lon = cells.map((c) => c.lon.toFixed(3)).join(",");
+// One Open-Meteo air-quality request covers a batch of lattice points, then each
+// point's modelled ozone/NO2/PM2.5 becomes an AQHI on the app's shared formula.
+async function fetchAqiGrid(pts) {
+  const lat = pts.map((p) => p.lat.toFixed(3)).join(",");
+  const lon = pts.map((p) => p.lon.toFixed(3)).join(",");
   const url = `${AIR_BASE}?latitude=${lat}&longitude=${lon}&current=ozone,nitrogen_dioxide,pm2_5&timeformat=unixtime`;
   const j = await fetchJSON(url);
   const arr = Array.isArray(j) ? j : [j];
@@ -4567,7 +4585,7 @@ function toggleRadarPlay() { radar.playing ? stopRadarPlay() : startRadarPlay();
 function updateRadarNote() {
   const place = state.placeName || "your area";
   if (radar.mode === "lightning") { el.radarNote.textContent = "Lightning density from Environment Canada. Canada coverage only."; return; }
-  if (radar.mode === "air_quality") { el.radarNote.textContent = `Air Quality Health Index near ${place}. Estimated from modelled pollutants; pan or zoom to refresh.`; return; }
+  if (radar.mode === "air_quality") { el.radarNote.textContent = `Air Quality Health Index near ${place}. Modelled pollutants on a fixed grid; zoom in for finer detail.`; return; }
   let name = LAYER_NAMES[radar.mode] || "Weather";
   let suffix = "";
   if (radar.mode === "radar") {
