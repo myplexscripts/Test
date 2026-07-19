@@ -412,29 +412,40 @@ async function fetchEcccAqhi(lat, lon) {
   // Longitude degrees shrink toward the poles; scale the box and the distance by
   // cos(lat) so "nearest" is true ground distance, not raw degrees.
   const coslat = Math.max(0.2, Math.cos((lat * Math.PI) / 180));
+  // The collection is a time series (many hourly rows per station), so we must
+  // pin the *latest* row - a stale morning peak is exactly how "10+" shows when
+  // the current reading is 3. Any date/time-ish property is the observation time.
+  const rowTime = (p) => {
+    for (const k in p) if (/date|time/i.test(k)) { const t = Date.parse(p[k]); if (Number.isFinite(t)) return t; }
+    return 0;
+  };
+  const rowTimeStr = (p) => { for (const k in p) if (/date|time/i.test(k) && Number.isFinite(Date.parse(p[k]))) return p[k]; return null; };
   // Widen the search in rings. Cities resolve on the first, tight ring; rural
   // areas fall through to the wider ones and still find their community station,
   // instead of coming up empty and dropping to the over-reading modelled value.
   for (const r of [2.5, 6, 12]) {
     const bbox = `${lon - r / coslat},${lat - r},${lon + r / coslat},${lat + r}`;
-    const url = `${AQHI_BASE}/collections/aqhi-observations-realtime/items?f=json&bbox=${bbox}&limit=1000`;
+    const base = `${AQHI_BASE}/collections/aqhi-observations-realtime/items?f=json&bbox=${bbox}&limit=1000`;
     let json;
-    try { json = await fetchJSON(url, 8000); } catch { return null; }
+    // Ask newest-first so the current hour wins even if the timestamps don't
+    // parse; fall back to an unsorted query if the server rejects sortby.
+    try { json = await fetchJSON(`${base}&sortby=-observation_datetime`, 8000); }
+    catch { try { json = await fetchJSON(base, 8000); } catch { return null; } }
     const feats = json && Array.isArray(json.features) ? json.features : [];
     let best = null, bestD = Infinity, bestT = -Infinity;
     for (const f of feats) {
       const p = f.properties || {};
       let raw = p.aqhi;
-      if (raw == null) { const k = Object.keys(p).find((k) => /aqhi/i.test(k)); if (k) raw = p[k]; }
+      if (raw == null) { const k = Object.keys(p).find((k) => /^aqhi/i.test(k)); if (k) raw = p[k]; }
       const v = (typeof raw === "string" && raw.includes("+")) ? 11 : Number(raw);
       if (!Number.isFinite(v)) continue;
       const c = f.geometry && f.geometry.coordinates;
       if (!c || c.length < 2) continue;
       const dLon = (c[0] - lon) * coslat, dLat = c[1] - lat;
-      const d = dLon * dLon + dLat * dLat;
-      const t = Date.parse(p.observation_datetime || p.datetime || p.date || "") || 0;
+      const d = dLon * dLon + dLat * dLat, t = rowTime(p);
+      // Nearest station wins; for the same station keep the most recent reading.
       if (d < bestD - 1e-9 || (Math.abs(d - bestD) <= 1e-9 && t > bestT)) {
-        best = { aqhi: v, station: p.location_name_en || p.location_name || p.name || null, time: p.observation_datetime || p.datetime || null };
+        best = { aqhi: v, station: p.location_name_en || p.location_name || p.name || null, time: rowTimeStr(p) };
         bestD = d; bestT = t;
       }
     }
@@ -2349,8 +2360,10 @@ function renderAqiSheet(air) {
   if (index == null) { el.sheetNote.textContent = "Air quality data is unavailable right now."; el.sheetList.innerHTML = ""; return; }
   const b = aqhiBand(index);
   const shown = aqhiLabel(index);
+  const obsT = measured && air.aqhiTime ? Date.parse(air.aqhiTime) : NaN;
+  const at = Number.isFinite(obsT) ? ` at ${fmtClock(obsT / 1000, state.tz || 0)}` : "";
   const src = measured
-    ? (air.aqhiStation ? ` Measured at ${air.aqhiStation}.` : " Measured by Environment Canada.")
+    ? (air.aqhiStation ? ` Measured at ${air.aqhiStation}${at}.` : ` Measured by Environment Canada${at}.`)
     : " Estimated from modelled pollutants.";
   el.sheetNote.textContent = `Canada's Air Quality Health Index is ${shown} - ${b.label.toLowerCase()} health risk.${src}`;
 
