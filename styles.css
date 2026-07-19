@@ -231,6 +231,7 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
 }
 
 /* On this day: historical records card. */
+.b-otd[hidden] { display: none; }   /* .block sets display:flex, which would otherwise defeat `hidden` */
 .otd-card {
   display: flex;
   flex-direction: column;

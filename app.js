@@ -3592,7 +3592,10 @@ function otdKey() { const c = state.center || state.loc; return `${(+c.lat).toFi
 async function fetchOtdRaw(lat, lon) {
   const tu = state.units === "imperial" ? "fahrenheit" : "celsius";
   const pu = state.units === "imperial" ? "inch" : "mm";
-  const end = new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10);   // archive lags a few days
+  // The archive lags several days and 400s if end_date runs past what's ready.
+  // We only need past years anyway (the newest relevant day is a year ago), so
+  // pull the end back a safe week.
+  const end = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   const url = `${ARCHIVE_BASE}?latitude=${lat}&longitude=${lon}&start_date=${OTD_START_YEAR}-01-01&end_date=${end}`
     + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=${tu}&precipitation_unit=${pu}&timezone=auto`;
   const j = await fetchJSON(url, 20000);
