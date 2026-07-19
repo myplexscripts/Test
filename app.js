@@ -9,9 +9,12 @@ const NEWS_PROXY = "https://rss-proxy.davidbusch-02.workers.dev/local?_=";
 // The /local feed is a site:ctvnews.ca/london search, so any item that arrives
 // without its own publisher is still CTV News London.
 const WX_BASE = "https://api.open-meteo.com/v1/forecast";
+const ARCHIVE_BASE = "https://archive-api.open-meteo.com/v1/archive";
+const OTD_START_YEAR = 1970;   // ERA5 reanalysis covers well past this
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
+const OTD_CACHE_KEY = "hw_otd_v1";
 const ACTIVITY_KEY = "hw_activityplan_v1";
 const NEWS_CACHE_KEY = "hw_news_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
@@ -45,6 +48,7 @@ const el = {
   hourRail: $("hourRail"), dayRail: $("dayRail"), status: $("status"),
   dayGraph: $("dayGraph"),
   nowcast: $("nowcast"), nowcastLine: $("nowcastLine"), nowcastIc: document.querySelector(".nowcast-ic"),
+  onThisDay: $("onThisDay"), otdCard: $("otdCard"),
   sunCard: $("sunCard"), moonCard: $("moonCard"), detailGrid: $("detailGrid"), windCard: $("windCard"),
   radarPreview: $("radarPreview"), radarPreviewMap: $("radarPreviewMap"), radarMore: $("radarMore"),
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
@@ -1030,6 +1034,7 @@ function render(data, opts) {
   renderSun(current);
   renderMoon(current);
   renderDetails(current, forecast);
+  loadOnThisDay();
   renderNewsAll();
 
   syncMaps();
@@ -3562,6 +3567,113 @@ function renderNowcast() {
   host.hidden = false;
   if (el.nowcastLine) el.nowcastLine.textContent = model.headline;
   if (el.nowcastIc) el.nowcastIc.className = `ph-fill ${precipWord(false) === "snow" ? "ph-snowflake" : "ph-drop"} nowcast-ic`;
+}
+
+// ---- On this day (historical records) ---------------------------------------
+// Pull the daily archive (ERA5 reanalysis, back to OTD_START_YEAR) for this
+// place, keep the rows landing on today's calendar day across the decades, and
+// surface the warmest/coldest/wettest years plus how today compares to the
+// long-run average. The full archive is cached raw for a fortnight, so it is
+// fetched rarely and just re-filtered cheaply each day.
+const MONTHS_LONG = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function todayMonthDay() {
+  const tz = state.tz || 0;
+  const d = new Date((Math.floor(Date.now() / 1000) + tz) * 1000);
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  return { mmdd: `${mm}-${dd}`, label: `${MONTHS_LONG[d.getUTCMonth()]} ${d.getUTCDate()}` };
+}
+
+function loadOtdRaw() { try { return JSON.parse(localStorage.getItem(OTD_CACHE_KEY) || "null"); } catch { return null; } }
+function saveOtdRaw(o) { try { localStorage.setItem(OTD_CACHE_KEY, JSON.stringify(o)); } catch { /* quota */ } }
+function otdKey() { const c = state.center || state.loc; return `${(+c.lat).toFixed(1)},${(+c.lon).toFixed(1)},${state.units}`; }
+
+async function fetchOtdRaw(lat, lon) {
+  const tu = state.units === "imperial" ? "fahrenheit" : "celsius";
+  const pu = state.units === "imperial" ? "inch" : "mm";
+  const end = new Date(Date.now() - 3 * 864e5).toISOString().slice(0, 10);   // archive lags a few days
+  const url = `${ARCHIVE_BASE}?latitude=${lat}&longitude=${lon}&start_date=${OTD_START_YEAR}-01-01&end_date=${end}`
+    + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=${tu}&precipitation_unit=${pu}&timezone=auto`;
+  const j = await fetchJSON(url, 20000);
+  const d = j && j.daily;
+  if (!d || !Array.isArray(d.time)) return null;
+  return { time: d.time, tmax: d.temperature_2m_max, tmin: d.temperature_2m_min, precip: d.precipitation_sum };
+}
+
+// Reduce the raw archive to the records for a given MM-DD.
+function processOtd(raw, mmdd, key, label) {
+  const { time, tmax, tmin, precip } = raw;
+  let hi = null, lo = null, wet = null, sumHi = 0, nHi = 0;
+  const years = new Set();
+  for (let i = 0; i < time.length; i++) {
+    if (String(time[i]).slice(5, 10) !== mmdd) continue;
+    const year = String(time[i]).slice(0, 4);
+    const mx = tmax ? tmax[i] : null, mn = tmin ? tmin[i] : null, pr = precip ? precip[i] : null;
+    if (Number.isFinite(mx)) { years.add(year); sumHi += mx; nHi++; if (!hi || mx > hi.v) hi = { v: mx, year }; }
+    if (Number.isFinite(mn) && (!lo || mn < lo.v)) lo = { v: mn, year };
+    if (Number.isFinite(pr) && pr > 0 && (!wet || pr > wet.v)) wet = { v: pr, year };
+  }
+  return { key, mmdd, label, count: years.size, hi, lo, wet, avgHigh: nHi ? sumHi / nHi : null };
+}
+
+let otdPendingKey = null;
+function loadOnThisDay() {
+  if (!el.onThisDay) return;
+  const key = otdKey();
+  const { mmdd, label } = todayMonthDay();
+  if (state.otd && state.otd.key === key && state.otd.mmdd === mmdd) { renderOnThisDay(); return; }
+  const raw = loadOtdRaw();
+  if (raw && raw.key === key && Date.now() - (raw.fetchedAt || 0) < 14 * 864e5) {
+    state.otd = processOtd(raw, mmdd, key, label); renderOnThisDay(); return;
+  }
+  if (otdPendingKey === key) return;   // render runs twice on startup; fetch once
+  otdPendingKey = key;
+  // Defer the (larger) archive fetch so it never competes with the live weather.
+  el.onThisDay.hidden = true;
+  (window.requestIdleCallback || ((fn) => setTimeout(fn, 800)))(() => {
+    const c = state.center || state.loc;
+    fetchOtdRaw(c.lat, c.lon).then((r) => {
+      if (!r || otdKey() !== key) return;
+      r.key = key; r.fetchedAt = Date.now(); saveOtdRaw(r);
+      const td = todayMonthDay();
+      state.otd = processOtd(r, td.mmdd, key, td.label);
+      renderOnThisDay();
+    }).catch(() => { /* leave hidden */ }).finally(() => { if (otdPendingKey === key) otdPendingKey = null; });
+  });
+}
+
+function otdRow(icon, label, value, year) {
+  return `<div class="otd-row"><i class="ph ${icon} otd-ic" aria-hidden="true"></i>`
+    + `<span class="otd-row-label">${label}</span><span class="otd-row-val">${value}</span>`
+    + `<span class="otd-row-year">${year}</span></div>`;
+}
+
+function renderOnThisDay() {
+  const o = state.otd, host = el.onThisDay;
+  if (!host) return;
+  if (!o || o.count < 5 || !o.hi || !o.lo) { host.hidden = true; return; }
+  host.hidden = false;
+  const punit = state.units === "imperial" ? "in" : "mm";
+  const wetVal = o.wet ? (state.units === "imperial" ? o.wet.v.toFixed(2) : Math.round(o.wet.v)) : null;
+  const todayHigh = state.daily?.[0]?.max;
+  let lead;
+  if (todayHigh != null && o.avgHigh != null) {
+    const diff = Math.round(todayHigh - o.avgHigh);
+    lead = Math.abs(diff) <= 1
+      ? `Today's high of ${Math.round(todayHigh)}° sits right around the ${o.label} average of ${Math.round(o.avgHigh)}°.`
+      : `Today's high of ${Math.round(todayHigh)}° is ${Math.abs(diff)}° ${diff > 0 ? "warmer" : "cooler"} than the ${o.label} average of ${Math.round(o.avgHigh)}°.`;
+  } else {
+    lead = `Weather records for ${o.label} at this spot.`;
+  }
+  const rows = [
+    otdRow("ph-thermometer-hot", "Warmest", `${Math.round(o.hi.v)}°`, o.hi.year),
+    otdRow("ph-thermometer-cold", "Coldest", `${Math.round(o.lo.v)}°`, o.lo.year)
+  ];
+  if (wetVal != null && Number(wetVal) > 0) rows.push(otdRow("ph-cloud-rain", "Wettest", `${wetVal} ${punit}`, o.wet.year));
+  el.otdCard.innerHTML =
+    `<div class="otd-head"><span class="otd-date">${o.label}</span><span class="otd-count">${o.count} years on record</span></div>`
+    + `<p class="otd-lead">${lead}</p><div class="otd-rows">${rows.join("")}</div>`;
 }
 
 // Round a data range to a clean [min, max] and step (1/2/5 x 10^n) so an axis
