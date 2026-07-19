@@ -2646,11 +2646,11 @@ const Sky = (() => {
   const TIMES = {
     night:   { sky:["#2f3f63","#212c4c","#151e36","#0d1526"], light:[118,134,170], shadow:[24,30,50],   starMul:1,   orb:"moon", pos:[0.76,0.20] },
     dawn:    { sky:["#182252","#332f61","#573f6f","#835a79"], light:[168,138,166], shadow:[44,40,66],   starMul:.6,  orb:"moon", pos:[0.22,0.30] },
-    sunrise: { sky:["#2f4f8f","#5c6ea8","#c17d84","#ffb379"], light:[255,190,150], shadow:[86,74,102],  starMul:.1,  orb:"sun",  pos:[0.26,0.62] },
-    morning: { sky:["#1f74c6","#4a95dc","#82c0f0","#c4e2f7"], light:[236,244,252], shadow:[120,142,170],starMul:0,   orb:"sun",  pos:[0.40,0.34] },
-    midday:  { sky:["#1a7ad2","#3f9ce3","#73c1f3","#aedaf9"], light:[248,252,255], shadow:[150,172,196],starMul:0,   orb:"sun",  pos:[0.52,0.16] },
-    golden:  { sky:["#3b4a88","#7e6a9c","#dd8b67","#ffc169"], light:[255,206,150], shadow:[108,94,122], starMul:0,   orb:"sun",  pos:[0.66,0.46] },
-    sunset:  { sky:["#231e4c","#6b3f70","#c85f6d","#ff8d55"], light:[255,166,128], shadow:[92,68,104],  starMul:.1,  orb:"sun",  pos:[0.78,0.60] },
+    sunrise: { sky:["#264075","#3e4b74","#8c434a","#bb5100"], light:[255,190,150], shadow:[86,74,102],  starMul:.1,  orb:"sun",  pos:[0.26,0.62] },
+    morning: { sky:["#124373","#195084","#1363a1","#1975b6"], light:[236,244,252], shadow:[120,142,170],starMul:0,   orb:"sun",  pos:[0.40,0.34] },
+    midday:  { sky:["#0e4374","#135485","#0e67a0","#0e75bd"], light:[248,252,255], shadow:[150,172,196],starMul:0,   orb:"sun",  pos:[0.52,0.16] },
+    golden:  { sky:["#323f73","#55466a","#974622","#a56100"], light:[255,206,150], shadow:[108,94,122], starMul:0,   orb:"sun",  pos:[0.66,0.46] },
+    sunset:  { sky:["#231e4c","#4d2d51","#953340","#c94200"], light:[255,166,128], shadow:[92,68,104],  starMul:.1,  orb:"sun",  pos:[0.78,0.60] },
     dusk:    { sky:["#121a3e","#252a54","#433a63","#5e466a"], light:[128,120,164], shadow:[38,38,64],   starMul:.55, orb:"moon", pos:[0.30,0.24] },
   };
   // condition: cloud cover/heaviness, sky tint, precipitation, fog, storm, wind.
