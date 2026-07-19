@@ -1594,10 +1594,19 @@ body:has(.sheet.is-full) .bottomnav {
 .wind-bar {
   background: linear-gradient(to right, #7db8e8, #63d9c8, #7fe38a, #ffd23f, #ff9f43, #ff5a5a);
 }
-/* US EPA AQI scale used by the WAQI heat tiles: good -> moderate -> unhealthy
-   (sensitive) -> unhealthy -> very unhealthy -> hazardous. */
+/* US EPA AQI scale used by the air-quality heat map: good -> moderate ->
+   unhealthy (sensitive) -> unhealthy -> very unhealthy -> hazardous. */
 .aqi-bar {
   background: linear-gradient(to right, #10b981, #f2e900, #ff9933, #cc0033, #8b3fb0, #7e0023);
+}
+/* Interpolated air-quality field: pinned to the map viewport, above the base
+   tiles but below the zoom controls and the location pin. */
+.aqi-heat-canvas {
+  position: absolute;
+  inset: 0;
+  z-index: 350;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
 }
 .wind-arrow { pointer-events: none; background: none; border: 0; }
 .wind-arrow svg { display: block; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.65)); }

@@ -81,7 +81,8 @@ const radar = {
   map: null, base: null, owm: null, marker: null, preview: null, previewBase: null, previewMarker: null,
   layers: [], shown: new Map(), raf: null, t0: 0, gateTimer: null, ready: false, warmScheduled: false,
   mode: "radar", source: "rainviewer", frames: [], idx: 0, playing: false, timer: null, host: "", loaded: false, ecccAt: 0, ecccLayerName: "", themeDark: null,
-  windLayer: null, windMoveHandler: null, windDebounce: null, windReq: 0
+  windLayer: null, windMoveHandler: null, windDebounce: null, windReq: 0,
+  aqiCanvas: null, aqiOff: null, aqiStations: [], aqiHandlers: null, aqiFetchTimer: null, aqiRaf: null, aqiReq: 0, aqiHidden: false
 };
 const FRAME_MS = 620;
 const END_HOLD_MS = 1100;
@@ -102,10 +103,11 @@ const ECCC_WMS          = "https://geo.weather.gc.ca/geomet";
 const ECCC_LAYER_RAIN = "RADAR_1KM_RRAI";
 const ECCC_LAYER_SNOW = "RADAR_1KM_RSNO";
 const ECCC_LAYER_LIGHTNING = "Lightning_2.5km_Density";
-// WAQI's interpolated air-quality heat tiles (US EPA AQI colour scale) - a
-// baked raster layer, so it stays sharp and pinned to the map at every zoom
-// instead of the point grid we sampled before.
-const WAQI_TILES = "https://tiles.waqi.info/tiles/usepa-aqi/{z}/{x}/{y}.png?token=fee808c4710e3e7a5a0d4fce036a1e84221e43ff";
+// WAQI gives us the live station readings; we interpolate them ourselves into a
+// smooth heat field on a canvas (their own tiles are just numbered station
+// signs, not a heat map). US EPA AQI colour scale.
+const WAQI_TOKEN = "fee808c4710e3e7a5a0d4fce036a1e84221e43ff";
+const WAQI_BOUNDS = "https://api.waqi.info/map/bounds/";
 const LAYER_NAMES = { radar: "Live precipitation radar", clouds_new: "Cloud cover", temp_new: "Temperature", wind_new: "Wind speed & direction", air_quality: "Air quality", lightning: "Lightning density, Environment Canada, Canada only" };
 
 function ecccLayer() {
@@ -3218,7 +3220,7 @@ const CREDITS = [
   ["Radar", [
     ["RainViewer", "Global precipitation radar imagery.", "https://www.rainviewer.com"],
     ["Environment and Climate Change Canada", "Canadian radar via the MSC GeoMet service.", "https://eccc-msc.github.io/open-data/"],
-    ["World Air Quality Index project", "The air-quality heat-map tiles.", "https://waqi.info"]
+    ["World Air Quality Index project", "Live station readings behind the air-quality heat map.", "https://waqi.info"]
   ]],
   ["Maps", [
     ["Leaflet", "The interactive map library.", "https://leafletjs.com"],
@@ -4099,6 +4101,7 @@ function closeRadar() {
   if (radarHintTimer) { clearTimeout(radarHintTimer); radarHintTimer = null; }
   stopRadarPlay();
   disableWindArrows();
+  disableAirQuality();
   setMapFull(el.radarSheet, el.radarFull, () => radar.map, false);
   el.radarSheet.classList.remove("is-open");
   el.radarSheet.setAttribute("aria-hidden", "true");
@@ -4117,6 +4120,7 @@ function applyMode(mode) {
   removeRadarLayers();
   if (radar.owm) { radar.map.removeLayer(radar.owm); radar.owm = null; }
   disableWindArrows();
+  disableAirQuality();
   const isRadar = mode === "radar";
   const isWind = mode === "wind_new";
   const isAir = mode === "air_quality";
@@ -4128,7 +4132,7 @@ function applyMode(mode) {
   if (isRadar) {
     loadRadar();
   } else if (isAir) {
-    radar.owm = L.tileLayer(WAQI_TILES, { opacity: 0.7, maxZoom: 12, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; World Air Quality Index Project" }).addTo(radar.map);
+    enableAirQuality();
   } else if (isLightning) {
     radar.owm = L.tileLayer.wms(ECCC_WMS, { layers: ECCC_LAYER_LIGHTNING, format: "image/png", transparent: true, version: "1.3.0", opacity: 0.85, updateWhenZooming: false, keepBuffer: 1, attribution: "&copy; Environment Canada" }).addTo(radar.map);
   } else {
@@ -4224,6 +4228,123 @@ function windArrowIcon(speed, dir) {
   const label = `<text x="${c}" y="${S - 2}" class="wind-arrow-val" fill="${color}">${val}</text>`;
   const svg = `<svg width="${S}" height="${S}" viewBox="0 0 ${S} ${S}">${arrow}${label}</svg>`;
   return L.divIcon({ className: "wind-arrow", html: svg, iconSize: [S, S], iconAnchor: [c, c] });
+}
+
+// ---- Air-quality heat map ---------------------------------------------------
+// WAQI serves live station readings, not a heat map, so we build the heat map:
+// pull every station in view, then paint a smooth inverse-distance-weighted
+// field onto a canvas that fades out where no station is near. US EPA AQI scale.
+const AQI_RAMP = [
+  [0,   [16, 185, 129]],   // good
+  [50,  [242, 233, 0]],    // moderate
+  [100, [255, 153, 51]],   // unhealthy for sensitive groups
+  [150, [204, 0, 51]],     // unhealthy
+  [200, [139, 63, 176]],   // very unhealthy
+  [300, [126, 0, 35]],     // hazardous
+  [500, [126, 0, 35]]
+];
+function aqiRGB(v) {
+  if (v <= 0) return AQI_RAMP[0][1];
+  for (let i = 1; i < AQI_RAMP.length; i++) {
+    const [t1, c1] = AQI_RAMP[i];
+    if (v <= t1) {
+      const [t0, c0] = AQI_RAMP[i - 1], f = (v - t0) / (t1 - t0);
+      return [c0[0] + (c1[0] - c0[0]) * f, c0[1] + (c1[1] - c0[1]) * f, c0[2] + (c1[2] - c0[2]) * f];
+    }
+  }
+  return AQI_RAMP[AQI_RAMP.length - 1][1];
+}
+
+function enableAirQuality() {
+  if (!radar.map) return;
+  const cvs = radar.aqiCanvas || document.createElement("canvas");
+  cvs.className = "aqi-heat-canvas";
+  radar.aqiCanvas = cvs;
+  radar.map.getContainer().appendChild(cvs);
+  radar.aqiHidden = false;
+  // Reproject the cached stations on every pan so the field tracks the map, but
+  // hide it through zoom animations (the canvas is pinned to the screen, not the
+  // map pane) and repaint once the zoom settles.
+  const onMove = () => scheduleAqiRedraw();
+  const onZoomStart = () => { radar.aqiHidden = true; if (radar.aqiCanvas) radar.aqiCanvas.style.opacity = "0"; };
+  const onZoomEnd = () => { radar.aqiHidden = false; if (radar.aqiCanvas) radar.aqiCanvas.style.opacity = ""; scheduleAqiFetch(); scheduleAqiRedraw(); };
+  const onMoveEnd = () => scheduleAqiFetch();
+  radar.aqiHandlers = { move: onMove, zoomstart: onZoomStart, zoomend: onZoomEnd, moveend: onMoveEnd, resize: onMove };
+  radar.map.on(radar.aqiHandlers);
+  fetchAqiStations();
+}
+
+function disableAirQuality() {
+  if (radar.map && radar.aqiHandlers) radar.map.off(radar.aqiHandlers);
+  radar.aqiHandlers = null;
+  if (radar.aqiFetchTimer) { clearTimeout(radar.aqiFetchTimer); radar.aqiFetchTimer = null; }
+  if (radar.aqiRaf) { cancelAnimationFrame(radar.aqiRaf); radar.aqiRaf = null; }
+  if (radar.aqiCanvas && radar.aqiCanvas.parentNode) radar.aqiCanvas.parentNode.removeChild(radar.aqiCanvas);
+  radar.aqiStations = [];
+  radar.aqiReq++;
+}
+
+function scheduleAqiFetch() {
+  if (radar.aqiFetchTimer) clearTimeout(radar.aqiFetchTimer);
+  radar.aqiFetchTimer = setTimeout(fetchAqiStations, 320);
+}
+function scheduleAqiRedraw() {
+  if (radar.aqiRaf) return;
+  radar.aqiRaf = requestAnimationFrame(() => { radar.aqiRaf = null; redrawAqiHeat(); });
+}
+
+// Every monitoring station inside the padded viewport, in one WAQI request.
+async function fetchAqiStations() {
+  if (!radar.map || radar.mode !== "air_quality") return;
+  const req = ++radar.aqiReq;
+  const b = radar.map.getBounds().pad(0.4);
+  const latlng = `${b.getSouth()},${b.getWest()},${b.getNorth()},${b.getEast()}`;
+  const url = `${WAQI_BOUNDS}?latlng=${latlng}&token=${WAQI_TOKEN}`;
+  const j = await fetchJSON(url).catch(() => null);
+  if (!j || j.status !== "ok" || !Array.isArray(j.data) || req !== radar.aqiReq || radar.mode !== "air_quality") return;
+  radar.aqiStations = j.data
+    .map((d) => ({ lat: +d.lat, lon: +d.lon, aqi: parseFloat(d.aqi) }))
+    .filter((s) => Number.isFinite(s.aqi) && Number.isFinite(s.lat) && Number.isFinite(s.lon));
+  scheduleAqiRedraw();
+}
+
+// Paint the interpolated field. A low-resolution grid is filled by inverse-
+// distance weighting the stations, then scaled up with smoothing so it reads as
+// a soft, continuous heat map; alpha fades out beyond the nearest station.
+function redrawAqiHeat() {
+  const map = radar.map, cvs = radar.aqiCanvas;
+  if (!map || radar.mode !== "air_quality" || !cvs || radar.aqiHidden) return;
+  const size = map.getSize();
+  if (cvs.width !== size.x || cvs.height !== size.y) { cvs.width = size.x; cvs.height = size.y; }
+  const ctx = cvs.getContext("2d");
+  ctx.clearRect(0, 0, size.x, size.y);
+  const stations = radar.aqiStations || [];
+  if (!stations.length) return;
+  const pts = stations.map((s) => { const p = map.latLngToContainerPoint([s.lat, s.lon]); return { x: p.x, y: p.y, v: s.aqi }; });
+  const D = 10, gw = Math.max(1, Math.ceil(size.x / D)), gh = Math.max(1, Math.ceil(size.y / D));
+  const off = radar.aqiOff || (radar.aqiOff = document.createElement("canvas"));
+  off.width = gw; off.height = gh;
+  const octx = off.getContext("2d"), img = octx.createImageData(gw, gh), data = img.data;
+  const K = 900, farPx = 115, fadePx = 85;   // smoothing radius; fade past nearest station
+  for (let gy = 0; gy < gh; gy++) {
+    for (let gx = 0; gx < gw; gx++) {
+      const X = gx * D, Y = gy * D;
+      let sw = 0, swv = 0, minD2 = Infinity;
+      for (let i = 0; i < pts.length; i++) {
+        const dx = X - pts[i].x, dy = Y - pts[i].y, d2 = dx * dx + dy * dy;
+        if (d2 < minD2) minD2 = d2;
+        const w = 1 / (d2 + K); sw += w; swv += w * pts[i].v;
+      }
+      const rgb = aqiRGB(swv / sw), minD = Math.sqrt(minD2);
+      let a = 0.62;
+      if (minD > farPx) a *= Math.max(0, 1 - (minD - farPx) / fadePx);
+      const idx = (gy * gw + gx) * 4;
+      data[idx] = rgb[0]; data[idx + 1] = rgb[1]; data[idx + 2] = rgb[2]; data[idx + 3] = Math.round(a * 255);
+    }
+  }
+  octx.putImageData(img, 0, 0);
+  ctx.imageSmoothingEnabled = true;
+  ctx.drawImage(off, 0, 0, gw, gh, 0, 0, size.x, size.y);
 }
 
 function inCanada(lat, lon) {
