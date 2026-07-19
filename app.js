@@ -14,7 +14,7 @@ const OTD_START_YEAR = 1990;   // ~35 yrs of records: plenty of notable years, a
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
-const OTD_CACHE_KEY = "hw_otd_v1";
+const OTD_CACHE_KEY = "hw_otd_v2";
 const ACTIVITY_KEY = "hw_activityplan_v1";
 const NEWS_CACHE_KEY = "hw_news_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
@@ -3598,9 +3598,16 @@ async function fetchOtdRaw(lat, lon) {
   const end = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
   const url = `${ARCHIVE_BASE}?latitude=${lat}&longitude=${lon}&start_date=${OTD_START_YEAR}-01-01&end_date=${end}`
     + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=${tu}&precipitation_unit=${pu}&timezone=auto`;
-  const j = await fetchJSON(url, 20000);
+  // Read the body even on error so Open-Meteo's `reason` surfaces instead of a
+  // bare status, and so failures are diagnosable rather than silent.
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), 25000);
+  let res, j;
+  try { res = await fetch(url, { signal: ctl.signal }); j = await res.json(); }
+  finally { clearTimeout(timer); }
+  if (!res.ok || (j && j.error)) throw new Error((j && j.reason) || `HTTP ${res.status}`);
   const d = j && j.daily;
-  if (!d || !Array.isArray(d.time)) return null;
+  if (!d || !Array.isArray(d.time)) throw new Error("no daily data returned");
   return { time: d.time, tmax: d.temperature_2m_max, tmin: d.temperature_2m_min, precip: d.precipitation_sum };
 }
 
@@ -3638,14 +3645,24 @@ function loadOnThisDay() {
   setTimeout(() => {
     const c = state.center || state.loc;
     fetchOtdRaw(c.lat, c.lon).then((r) => {
-      if (!r || otdKey() !== key) { if (otdKey() === key) el.onThisDay.hidden = true; return; }
+      if (otdKey() !== key) return;   // location changed mid-flight
       r.key = key; r.fetchedAt = Date.now(); saveOtdRaw(r);
       const td = todayMonthDay();
       state.otd = processOtd(r, td.mmdd, key, td.label);
       renderOnThisDay();
-    }).catch(() => { if (otdKey() === key) el.onThisDay.hidden = true; })
+    }).catch((err) => { if (otdKey() === key) renderOtdError(err && err.message); })
       .finally(() => { if (otdPendingKey === key) otdPendingKey = null; });
   }, 250);
+}
+
+function renderOtdError(msg) {
+  const host = el.onThisDay;
+  if (!host) return;
+  host.hidden = false;
+  const { label } = todayMonthDay();
+  el.otdCard.innerHTML =
+    `<div class="otd-head"><span class="otd-date">${label}</span></div>`
+    + `<p class="otd-lead">Couldn't load the archive${msg ? `: ${escapeHTML(String(msg))}` : "."}</p>`;
 }
 
 function renderOtdLoading(label) {
@@ -3666,7 +3683,14 @@ function otdRow(icon, label, value, year) {
 function renderOnThisDay() {
   const o = state.otd, host = el.onThisDay;
   if (!host) return;
-  if (!o || o.count < 5 || !o.hi || !o.lo) { host.hidden = true; return; }
+  if (!o || !o.hi || !o.lo) { host.hidden = true; return; }
+  if (o.count < 5) {   // fetch worked but almost nothing matched - say so, don't vanish
+    host.hidden = false;
+    el.otdCard.innerHTML =
+      `<div class="otd-head"><span class="otd-date">${o.label}</span></div>`
+      + `<p class="otd-lead">Only ${o.count} year${o.count === 1 ? "" : "s"} of records here so far.</p>`;
+    return;
+  }
   host.hidden = false;
   const punit = state.units === "imperial" ? "in" : "mm";
   const wetVal = o.wet ? (state.units === "imperial" ? o.wet.v.toFixed(2) : Math.round(o.wet.v)) : null;
