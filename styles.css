@@ -285,16 +285,6 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
 .otd-read-lo::before { content: "▼"; font-size: 0.62em; margin-right: 3px; opacity: 0.55; }
 .otd-read-lo { color: var(--ink-soft); }
 .otd-read-p { margin-left: auto; color: var(--ink-soft); font-weight: 600; font-size: var(--t-cap); }
-/* "Monthly averages & every year" click-through into the detail screen. */
-.otd-open {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--s-3);
-  width: 100%; min-height: 44px; margin-top: var(--s-3); padding: 0 var(--s-4);
-  border-radius: var(--r-sm); background: var(--card-bg); color: var(--ink);
-  font-weight: 700; font-size: var(--t-sm); cursor: pointer;
-  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
-}
-.otd-open:active { transform: scale(0.98); background: var(--card-bg-hi); }
-.otd-open i { font-size: 1.2rem; color: var(--ink-faint); }
 
 /* Historical detail screen: monthly-average rings in the climate-stripes style -
    twelve equal wedges, each coloured by its departure from the long-run normal
@@ -316,7 +306,7 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
 .wg-detail-body { display: flex; flex-direction: column; align-items: center; gap: var(--s-5); margin-top: var(--s-4); }
 /* The selected year's ring fills the sheet like the sun clock does. */
 .wg-detail-svg { width: min(480px, 100%); height: auto; flex: none; color: var(--ink); overflow: visible; filter: drop-shadow(0 4px 14px rgba(0, 0, 0, 0.12)); }
-.wg-chips { width: 100%; display: grid; grid-template-columns: repeat(auto-fit, minmax(72px, 1fr)); gap: var(--s-2) var(--s-3); min-width: 0; }
+.wg-chips { width: 100%; max-width: 360px; display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--s-4) var(--s-3); min-width: 0; }
 .wg-chip { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
 .wg-chip-m { font-size: var(--t-cap); font-weight: 700; color: var(--ink-soft); }
 .wg-chip strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1rem; }

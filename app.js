@@ -60,7 +60,7 @@ const el = {
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
   radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"), radarLegend: $("radarLegend"), windLegend: $("windLegend"), aqiLegend: $("aqiLegend"),
-  hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
+  hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"), otdOpen: $("otdOpen"),
   sheet: $("sheet"), sheetScroll: $("sheetScroll"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"), sheetHeadAux: $("sheetHeadAux"),
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList"), dayStats: $("dayStats")
 };
@@ -237,6 +237,7 @@ function wireEvents() {
 
   el.hourlyMore.onclick = () => openDetail("temp", "hourly");
   el.dailyMore.onclick = () => openDetail("temp", "daily");
+  if (el.otdOpen) el.otdOpen.onclick = () => openDetail("history");
   el.sheetBack.onclick = sheetBack;
   el.windCard.onclick = () => openDetail("wind");
   // Sun and moon cards are divs (their innerHTML is rebuilt each render), so
@@ -4296,11 +4297,8 @@ function renderOnThisDay() {
     `<div class="otd-head"><span class="otd-date">${o.label}</span><span class="otd-count">${o.count} years · since ${firstYear}</span></div>`
     + `<p class="otd-lead">${lead}</p><div class="otd-rows">${rows.join("")}</div>`
     + otdChart(o.series)
-    + `<button class="otd-open" type="button"><span>Monthly averages & every year</span><i class="ph ph-arrow-right" aria-hidden="true"></i></button>`
     + moreBtn;
   wireOtdChart();
-  const open = el.otdCard.querySelector(".otd-open");
-  if (open) open.onclick = () => openDetail("history");
   const btn = el.otdCard.querySelector(".otd-more");
   if (btn) btn.onclick = () => {
     // Deepen the range: new key (start year is part of it), fresh fetch.
