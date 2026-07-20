@@ -15,6 +15,10 @@ const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
 const OTD_CACHE_KEY = "hw_otd_v2";
+const OTD_RESULT_KEY = "hw_otd_result_v1";
+// Paste your deployed Worker URL here (e.g. "https://otd-weather.yourname.workers.dev").
+// Leave "" to fetch the archive directly from the browser (which some networks block).
+const OTD_PROXY = "";
 const ACTIVITY_KEY = "hw_activityplan_v1";
 const NEWS_CACHE_KEY = "hw_news_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
@@ -3587,7 +3591,24 @@ function todayMonthDay() {
 
 function loadOtdRaw() { try { return JSON.parse(localStorage.getItem(OTD_CACHE_KEY) || "null"); } catch { return null; } }
 function saveOtdRaw(o) { try { localStorage.setItem(OTD_CACHE_KEY, JSON.stringify(o)); } catch { /* quota */ } }
+function loadOtdResult() { try { return JSON.parse(localStorage.getItem(OTD_RESULT_KEY) || "null"); } catch { return null; } }
+function saveOtdResult(o) { try { localStorage.setItem(OTD_RESULT_KEY, JSON.stringify(o)); } catch { /* quota */ } }
 function otdKey() { const c = state.center || state.loc; return `${(+c.lat).toFixed(1)},${(+c.lon).toFixed(1)},${state.units}`; }
+
+// Records for a day, via the Worker when configured (server-side + edge-cached,
+// so it dodges the browser's block on the archive host), else straight from the
+// archive as a fallback.
+async function otdRecords(lat, lon, mmdd, label, key) {
+  if (OTD_PROXY) {
+    const u = `${OTD_PROXY}?lat=${(+lat).toFixed(3)}&lon=${(+lon).toFixed(3)}&unit=${state.units}&mmdd=${mmdd}`;
+    const j = await fetchJSON(u, 20000);
+    if (!j || j.error) throw new Error((j && j.error) || "proxy error");
+    return { key, mmdd, label, count: j.count, hi: j.hi, lo: j.lo, wet: j.wet, avgHigh: j.avgHigh };
+  }
+  const raw = await fetchOtdRaw(lat, lon);
+  raw.key = key; raw.fetchedAt = Date.now(); saveOtdRaw(raw);
+  return processOtd(raw, mmdd, key, label);
+}
 
 async function fetchOtdRaw(lat, lon) {
   const tu = state.units === "imperial" ? "fahrenheit" : "celsius";
@@ -3633,9 +3654,14 @@ function loadOnThisDay() {
   const key = otdKey();
   const { mmdd, label } = todayMonthDay();
   if (state.otd && state.otd.key === key && state.otd.mmdd === mmdd) { renderOnThisDay(); return; }
-  const raw = loadOtdRaw();
-  // The raw archive only ever appends, so keep it a good while - a place's whole
-  // history is one download, then every day just re-filters it locally.
+  // Small processed result, cached a couple of days so re-opens are instant.
+  const cached = loadOtdResult();
+  if (cached && cached.key === key && cached.mmdd === mmdd && Date.now() - (cached.at || 0) < 2 * 864e5) {
+    state.otd = cached; renderOnThisDay(); return;
+  }
+  // Direct-path raw archive cache (only present when the browser can reach the
+  // archive itself; the whole history is one download, re-filtered each day).
+  const raw = !OTD_PROXY && loadOtdRaw();
   if (raw && raw.key === key && Date.now() - (raw.fetchedAt || 0) < 60 * 864e5) {
     state.otd = processOtd(raw, mmdd, key, label); renderOnThisDay(); return;
   }
@@ -3644,11 +3670,10 @@ function loadOnThisDay() {
   renderOtdLoading(label);   // show a card immediately so the wait isn't a blank gap
   setTimeout(() => {
     const c = state.center || state.loc;
-    fetchOtdRaw(c.lat, c.lon).then((r) => {
+    otdRecords(c.lat, c.lon, mmdd, label, key).then((o) => {
       if (otdKey() !== key) return;   // location changed mid-flight
-      r.key = key; r.fetchedAt = Date.now(); saveOtdRaw(r);
-      const td = todayMonthDay();
-      state.otd = processOtd(r, td.mmdd, key, td.label);
+      o.at = Date.now();
+      state.otd = o; saveOtdResult(o);
       renderOnThisDay();
     }).catch((err) => { if (otdKey() === key) renderOtdError(err && err.message); })
       .finally(() => { if (otdPendingKey === key) otdPendingKey = null; });
