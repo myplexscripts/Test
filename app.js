@@ -4200,13 +4200,19 @@ function otdChart(series) {
     grid += `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" class="otd-grid"/>`;
     yLab += `<text x="${padL - 6}" y="${gy}" class="otd-axis otd-axis-y">${Math.round(v)}°</text>`;
   }
+  // Always label the first and last year once; fill in evenly spaced ticks
+  // between without duplicating the ends (which collided at small point counts).
   const xStep = Math.max(1, Math.ceil(n / 5));
+  const xIdx = new Set([0, n - 1]);
+  for (let i = xStep; i < n - 1; i += xStep) xIdx.add(i);
   let xLab = "";
-  for (let i = 0; i < n - xStep + 1; i += xStep) xLab += `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${i === 0 ? "start" : "middle"}" class="otd-axis">${pts[i].y}</text>`;
-  xLab += `<text x="${x(n - 1).toFixed(1)}" y="${H - 6}" text-anchor="end" class="otd-axis">${pts[n - 1].y}</text>`;
+  [...xIdx].sort((a, b) => a - b).forEach((i) => {
+    const anchor = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
+    xLab += `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${anchor}" class="otd-axis">${pts[i].y}</text>`;
+  });
 
   const maxP = Math.max(1, ...pts.map((d) => d.p || 0));
-  const bw = Math.max(1.4, plotW / n * 0.5);
+  const bw = Math.min(22, Math.max(1.4, plotW / n * 0.5));   // cap so few-point views don't get a giant bar
   const bars = pts.map((d, i) => {
     const h = (d.p || 0) / maxP * (plotH * 0.32);
     return h < 0.6 ? "" : `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${(padT + plotH - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="currentColor" opacity="0.13"/>`;
