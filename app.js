@@ -15,7 +15,7 @@ const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
 const OTD_CACHE_KEY = "hw_otd_v2";
-const OTD_RESULT_KEY = "hw_otd_result_v1";
+const OTD_RESULT_KEY = "hw_otd_result_v2";
 // Deployed Worker that fetches + reduces the Open-Meteo archive server-side and
 // edge-caches it (worker/on-this-day.js). Leave "" to fetch the archive directly
 // from the browser instead (which some networks block).
@@ -3606,7 +3606,7 @@ async function otdRecords(lat, lon, mmdd, label, key) {
     try { j = await fetchJSON(u, 20000); }
     catch (e) { throw new Error(`proxy ${e && e.message || e}`); }   // tag so we know this path ran
     if (!j || j.error) throw new Error(`proxy: ${(j && j.error) || "error"}`);
-    return { key, mmdd, label, count: j.count, hi: j.hi, lo: j.lo, wet: j.wet, avgHigh: j.avgHigh };
+    return { key, mmdd, label, count: j.count, hi: j.hi, lo: j.lo, wet: j.wet, avgHigh: j.avgHigh, series: j.series || [] };
   }
   const raw = await fetchOtdRaw(lat, lon);
   raw.key = key; raw.fetchedAt = Date.now(); saveOtdRaw(raw);
@@ -3640,15 +3640,19 @@ function processOtd(raw, mmdd, key, label) {
   const { time, tmax, tmin, precip } = raw;
   let hi = null, lo = null, wet = null, sumHi = 0, nHi = 0;
   const years = new Set();
+  const series = [];
   for (let i = 0; i < time.length; i++) {
     if (String(time[i]).slice(5, 10) !== mmdd) continue;
     const year = String(time[i]).slice(0, 4);
     const mx = tmax ? tmax[i] : null, mn = tmin ? tmin[i] : null, pr = precip ? precip[i] : null;
+    if (Number.isFinite(mx) || Number.isFinite(mn)) {
+      series.push({ y: Number(year), hi: Number.isFinite(mx) ? mx : null, lo: Number.isFinite(mn) ? mn : null, p: Number.isFinite(pr) ? pr : 0 });
+    }
     if (Number.isFinite(mx)) { years.add(year); sumHi += mx; nHi++; if (!hi || mx > hi.v) hi = { v: mx, year }; }
     if (Number.isFinite(mn) && (!lo || mn < lo.v)) lo = { v: mn, year };
     if (Number.isFinite(pr) && pr > 0 && (!wet || pr > wet.v)) wet = { v: pr, year };
   }
-  return { key, mmdd, label, count: years.size, hi, lo, wet, avgHigh: nHi ? sumHi / nHi : null };
+  return { key, mmdd, label, count: years.size, hi, lo, wet, avgHigh: nHi ? sumHi / nHi : null, series };
 }
 
 let otdPendingKey = null;
@@ -3703,9 +3707,47 @@ function renderOtdLoading(label) {
 }
 
 function otdRow(icon, label, value, year) {
-  return `<div class="otd-row"><i class="ph ${icon} otd-ic" aria-hidden="true"></i>`
+  return `<div class="otd-row"><i class="ph-duotone ${icon} otd-ic" aria-hidden="true"></i>`
     + `<span class="otd-row-label">${label}</span><span class="otd-row-val">${value}</span>`
     + `<span class="otd-row-year">${year}</span></div>`;
+}
+
+// Year-over-year chart of the day's high & low (lines) and precipitation (bars)
+// across every year on record. Monochrome currentColor to match the app's other
+// charts; the record high/low years get a filled dot.
+function otdChart(series) {
+  const pts = (series || []).filter((d) => Number.isFinite(d.hi) || Number.isFinite(d.lo)).sort((a, b) => a.y - b.y);
+  if (pts.length < 4) return "";
+  const W = 320, H = 128, padL = 4, padR = 4, padT = 8, padB = 16;
+  const n = pts.length;
+  const x = (i) => padL + (W - padL - padR) * (n === 1 ? 0.5 : i / (n - 1));
+  const temps = pts.flatMap((d) => [d.hi, d.lo]).filter((v) => Number.isFinite(v));
+  let tmin = Math.min(...temps), tmax = Math.max(...temps);
+  const pad = Math.max(1.5, (tmax - tmin) * 0.14); tmin -= pad; tmax += pad;
+  const y = (v) => padT + (H - padT - padB) * (1 - (v - tmin) / (tmax - tmin));
+  const maxP = Math.max(1, ...pts.map((d) => d.p || 0));
+  const bw = Math.max(1.4, (W - padL - padR) / n * 0.46);
+  const bars = pts.map((d, i) => {
+    const h = (d.p || 0) / maxP * 24;
+    return h < 0.6 ? "" : `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${(H - padB - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="currentColor" opacity="0.13"/>`;
+  }).join("");
+  const line = (key, dash) => {
+    const seg = pts.filter((d) => Number.isFinite(d[key]));
+    const pl = seg.map((d) => `${x(pts.indexOf(d)).toFixed(1)},${y(d[key]).toFixed(1)}`).join(" ");
+    return `<polyline points="${pl}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="${dash ? "0.5" : "0.92"}"${dash ? ' stroke-dasharray="3 3.5"' : ""}/>`;
+  };
+  const hiIdx = pts.reduce((a, d, i) => (Number.isFinite(d.hi) && (a < 0 || d.hi > pts[a].hi) ? i : a), -1);
+  const loIdx = pts.reduce((a, d, i) => (Number.isFinite(d.lo) && (a < 0 || d.lo < pts[a].lo) ? i : a), -1);
+  const dot = (i, key) => (i < 0 ? "" : `<circle cx="${x(i).toFixed(1)}" cy="${y(pts[i][key]).toFixed(1)}" r="3" fill="currentColor"/>`);
+  const yr = (i, anchor) => `<text x="${x(i).toFixed(1)}" y="${H - 4}" text-anchor="${anchor}" class="otd-axis">${pts[i].y}</text>`;
+  const svg = `<svg class="otd-graph" viewBox="0 0 ${W} ${H}" role="img" aria-label="Yearly high and low on this day">`
+    + bars + line("lo", true) + line("hi", false) + dot(hiIdx, "hi") + dot(loIdx, "lo")
+    + yr(0, "start") + yr(n - 1, "end") + `</svg>`;
+  const legend = `<div class="otd-legend">`
+    + `<span class="otd-leg"><span class="otd-leg-line"></span>High</span>`
+    + `<span class="otd-leg"><span class="otd-leg-line otd-leg-dash"></span>Low</span>`
+    + `<span class="otd-leg"><span class="otd-leg-bar"></span>Precip</span></div>`;
+  return `<div class="otd-graphwrap">${svg}${legend}</div>`;
 }
 
 function renderOnThisDay() {
@@ -3736,10 +3778,11 @@ function renderOnThisDay() {
     otdRow("ph-thermometer-hot", "Warmest", `${Math.round(o.hi.v)}°`, o.hi.year),
     otdRow("ph-thermometer-cold", "Coldest", `${Math.round(o.lo.v)}°`, o.lo.year)
   ];
-  if (wetVal != null && Number(wetVal) > 0) rows.push(otdRow("ph-cloud-rain", "Wettest", `${wetVal} ${punit}`, o.wet.year));
+  if (wetVal != null && Number(wetVal) > 0) rows.push(otdRow("ph-cloud-rain", "Most Precipitation", `${wetVal} ${punit}`, o.wet.year));
   el.otdCard.innerHTML =
     `<div class="otd-head"><span class="otd-date">${o.label}</span><span class="otd-count">${o.count} years on record</span></div>`
-    + `<p class="otd-lead">${lead}</p><div class="otd-rows">${rows.join("")}</div>`;
+    + `<p class="otd-lead">${lead}</p><div class="otd-rows">${rows.join("")}</div>`
+    + otdChart(o.series);
 }
 
 // Round a data range to a clean [min, max] and step (1/2/5 x 10^n) so an axis

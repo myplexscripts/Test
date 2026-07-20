@@ -68,16 +68,24 @@ export default {
       const time = d.time || [], tmax = d.temperature_2m_max || [], tmin = d.temperature_2m_min || [], pr = d.precipitation_sum || [];
       let hi = null, lo = null, wet = null, sumHi = 0, nHi = 0;
       const years = new Set();
+      const series = [];   // one point per year for the year-over-year graph
       for (let i = 0; i < time.length; i++) {
         if (String(time[i]).slice(5, 10) !== mmdd) continue;
         const year = String(time[i]).slice(0, 4);
         const mx = tmax[i], mn = tmin[i], p = pr[i];
+        if (!Number.isFinite(mx) && !Number.isFinite(mn)) continue;
+        series.push({
+          y: Number(year),
+          hi: Number.isFinite(mx) ? Math.round(mx * 10) / 10 : null,
+          lo: Number.isFinite(mn) ? Math.round(mn * 10) / 10 : null,
+          p: Number.isFinite(p) ? Math.round(p * 10) / 10 : 0,
+        });
         if (Number.isFinite(mx)) { years.add(year); sumHi += mx; nHi++; if (!hi || mx > hi.v) hi = { v: mx, year }; }
         if (Number.isFinite(mn) && (!lo || mn < lo.v)) lo = { v: mn, year };
         if (Number.isFinite(p) && p > 0 && (!wet || p > wet.v)) wet = { v: p, year };
       }
 
-      const resp = json({ mmdd, count: years.size, hi, lo, wet, avgHigh: nHi ? sumHi / nHi : null },
+      const resp = json({ mmdd, count: years.size, hi, lo, wet, avgHigh: nHi ? sumHi / nHi : null, series },
         200, { "Cache-Control": "public, max-age=86400" });
       try { if (cache) await cache.put(cacheKey, resp.clone()); } catch { /* best effort */ }
       return resp;
