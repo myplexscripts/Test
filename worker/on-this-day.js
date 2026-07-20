@@ -9,12 +9,14 @@
 // best-effort, so a Worker hiccup surfaces as a readable message in the app
 // instead of an opaque browser "NetworkError".
 //
-// Request:  GET /?lat=42.98&lon=-81.25&unit=metric&mmdd=07-20
-// Response: { "mmdd":"07-20", "count":34,
+// Request:  GET /?lat=42.98&lon=-81.25&unit=metric&mmdd=07-20&start=2000
+//   start is the first year of the range (default 2000; the app offers 1970).
+// Response: { "mmdd":"07-20", "count":24,
 //             "hi":{"v":34.1,"year":"2011"},
-//             "lo":{"v":6.2,"year":"1992"},
+//             "lo":{"v":6.2,"year":"2003"},
 //             "wet":{"v":41.3,"year":"2017"},   // precip always in mm
-//             "avgHigh":26.4 }                   // temps in the requested unit
+//             "avgHigh":26.4,                    // temps in the requested unit
+//             "series":[{"y":2000,"hi":28.1,"lo":12.3,"p":0}, …] }  // per-year points
 
 const CORS = {
   "Access-Control-Allow-Origin": "*",
@@ -34,6 +36,8 @@ export default {
       const lon = parseFloat(url.searchParams.get("lon"));
       const unit = url.searchParams.get("unit") === "imperial" ? "imperial" : "metric";
       const mmdd = (url.searchParams.get("mmdd") || "").slice(0, 5);
+      // Range start: the app defaults to 2000 (fast) and offers 1970 on demand.
+      const start = Math.min(2020, Math.max(1940, parseInt(url.searchParams.get("start"), 10) || 2000));
       if (!isFinite(lat) || !isFinite(lon) || !/^\d\d-\d\d$/.test(mmdd)) {
         return json({ error: "bad params" }, 400);
       }
@@ -43,8 +47,8 @@ export default {
       // VERSION busts the edge cache on deploys that change the response shape -
       // without it, a response cached earlier the same day by the previous code
       // keeps being served until midnight UTC.
-      const VERSION = "v2";
-      const cacheKey = new Request(`https://otd-cache.internal/${VERSION}/${latR},${lonR},${unit},${mmdd},${today}`);
+      const VERSION = "v3";
+      const cacheKey = new Request(`https://otd-cache.internal/${VERSION}/${latR},${lonR},${unit},${mmdd},${start},${today}`);
       // Cache API is a no-op on workers.dev, and shouldn't ever be fatal.
       let cache = null;
       try {
@@ -56,7 +60,7 @@ export default {
       const tu = unit === "imperial" ? "fahrenheit" : "celsius";
       const end = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
       const api = `https://archive-api.open-meteo.com/v1/archive?latitude=${latR}&longitude=${lonR}`
-        + `&start_date=1990-01-01&end_date=${end}`
+        + `&start_date=${start}-01-01&end_date=${end}`
         + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=${tu}&timezone=auto`;
 
       let j;

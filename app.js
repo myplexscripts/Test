@@ -10,7 +10,8 @@ const NEWS_PROXY = "https://rss-proxy.davidbusch-02.workers.dev/local?_=";
 // without its own publisher is still CTV News London.
 const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const ARCHIVE_BASE = "https://archive-api.open-meteo.com/v1/archive";
-const OTD_START_YEAR = 1990;   // ~35 yrs of records: plenty of notable years, a lighter/faster archive pull
+const OTD_START_DEFAULT = 2000;   // fast pull: this day each year since 2000
+const OTD_START_FULL = 1970;      // "See back to 1970" loads the deeper archive
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
@@ -3746,8 +3747,8 @@ function renderNowcast() {
 }
 
 // ---- On this day (historical records) ---------------------------------------
-// Pull the daily archive (ERA5 reanalysis, back to OTD_START_YEAR) for this
-// place, keep the rows landing on today's calendar day across the decades, and
+// Pull the daily archive (ERA5 reanalysis, from 2000 by default, 1970 on
+// request) for this place, keep the rows landing on today's calendar day, and
 // surface the warmest/coldest/wettest years plus how today compares to the
 // long-run average. The full archive is cached raw for a fortnight, so it is
 // fetched rarely and just re-filtered cheaply each day.
@@ -3765,33 +3766,37 @@ function loadOtdRaw() { try { return JSON.parse(localStorage.getItem(OTD_CACHE_K
 function saveOtdRaw(o) { try { localStorage.setItem(OTD_CACHE_KEY, JSON.stringify(o)); } catch { /* quota */ } }
 function loadOtdResult() { try { return JSON.parse(localStorage.getItem(OTD_RESULT_KEY) || "null"); } catch { return null; } }
 function saveOtdResult(o) { try { localStorage.setItem(OTD_RESULT_KEY, JSON.stringify(o)); } catch { /* quota */ } }
-function otdKey() { const c = state.center || state.loc; return `${(+c.lat).toFixed(1)},${(+c.lon).toFixed(1)},${state.units}`; }
+function otdStartYear() { return state.otdFull ? OTD_START_FULL : OTD_START_DEFAULT; }
+function otdKey() { const c = state.center || state.loc; return `${(+c.lat).toFixed(1)},${(+c.lon).toFixed(1)},${state.units},${otdStartYear()}`; }
 
-// Records for a day, via the Worker when configured (server-side + edge-cached,
-// so it dodges the browser's block on the archive host), else straight from the
-// archive as a fallback.
+// Records for a day. The Worker is the fast path (server-side, tiny payload,
+// edge-cached) but never a hard dependency: if it's unreachable, errors, or is
+// running an older build that doesn't return the per-year series, fall back to
+// fetching the archive directly and computing everything client-side.
 async function otdRecords(lat, lon, mmdd, label, key) {
+  const start = otdStartYear();
   if (OTD_PROXY) {
-    const u = `${OTD_PROXY}?lat=${(+lat).toFixed(3)}&lon=${(+lon).toFixed(3)}&unit=${state.units}&mmdd=${mmdd}`;
-    let j;
-    try { j = await fetchJSON(u, 20000); }
-    catch (e) { throw new Error(`proxy ${e && e.message || e}`); }   // tag so we know this path ran
-    if (!j || j.error) throw new Error(`proxy: ${(j && j.error) || "error"}`);
-    return { key, mmdd, label, count: j.count, hi: j.hi, lo: j.lo, wet: j.wet, avgHigh: j.avgHigh, series: j.series || [] };
+    try {
+      const u = `${OTD_PROXY}?lat=${(+lat).toFixed(3)}&lon=${(+lon).toFixed(3)}&unit=${state.units}&mmdd=${mmdd}&start=${start}`;
+      const j = await fetchJSON(u, 20000);
+      if (j && !j.error && j.hi && Array.isArray(j.series) && j.series.length >= 4) {
+        return { key, mmdd, label, count: j.count, hi: j.hi, lo: j.lo, wet: j.wet, avgHigh: j.avgHigh, series: j.series };
+      }
+    } catch { /* fall through to the direct fetch */ }
   }
-  const raw = await fetchOtdRaw(lat, lon);
+  const raw = await fetchOtdRaw(lat, lon, start);
   raw.key = key; raw.fetchedAt = Date.now(); saveOtdRaw(raw);
   return processOtd(raw, mmdd, key, label);
 }
 
-async function fetchOtdRaw(lat, lon) {
+async function fetchOtdRaw(lat, lon, startYear = OTD_START_DEFAULT) {
   const tu = state.units === "imperial" ? "fahrenheit" : "celsius";
   // The archive lags several days and 400s if end_date runs past what's ready.
   // We only need past years anyway (the newest relevant day is a year ago), so
   // pull the end back a safe week. Precip stays in mm and is converted at render
   // to keep the request minimal.
   const end = new Date(Date.now() - 7 * 864e5).toISOString().slice(0, 10);
-  const url = `${ARCHIVE_BASE}?latitude=${lat}&longitude=${lon}&start_date=${OTD_START_YEAR}-01-01&end_date=${end}`
+  const url = `${ARCHIVE_BASE}?latitude=${lat}&longitude=${lon}&start_date=${startYear}-01-01&end_date=${end}`
     + `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum&temperature_unit=${tu}&timezone=auto`;
   // Read the body even on error so Open-Meteo's `reason` surfaces instead of a
   // bare status, and so failures are diagnosable rather than silent.
@@ -3952,10 +3957,21 @@ function renderOnThisDay() {
     otdRow("ph-thermometer-cold", "Coldest", `${Math.round(o.lo.v)}°`, o.lo.year)
   ];
   if (wetVal != null && Number(wetVal) > 0) rows.push(otdRow("ph-cloud-rain", "Most Precipitation", `${wetVal} ${punit}`, o.wet.year));
+  const firstYear = (o.series && o.series.length) ? o.series[0].y : otdStartYear();
+  const moreBtn = state.otdFull ? "" :
+    `<button class="otd-more" type="button"><i class="ph-duotone ph-clock-counter-clockwise" aria-hidden="true"></i><span>See back to ${OTD_START_FULL}</span></button>`;
   el.otdCard.innerHTML =
-    `<div class="otd-head"><span class="otd-date">${o.label}</span><span class="otd-count">${o.count} years on record</span></div>`
+    `<div class="otd-head"><span class="otd-date">${o.label}</span><span class="otd-count">${o.count} years · since ${firstYear}</span></div>`
     + `<p class="otd-lead">${lead}</p><div class="otd-rows">${rows.join("")}</div>`
-    + otdChart(o.series);
+    + otdChart(o.series)
+    + moreBtn;
+  const btn = el.otdCard.querySelector(".otd-more");
+  if (btn) btn.onclick = () => {
+    // Deepen the range: new key (start year is part of it), fresh fetch.
+    state.otdFull = true;
+    state.otd = null;
+    loadOnThisDay();
+  };
 }
 
 // Round a data range to a clean [min, max] and step (1/2/5 x 10^n) so an axis

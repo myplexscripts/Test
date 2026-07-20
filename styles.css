@@ -271,6 +271,27 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
 .otd-leg-line { width: 14px; height: 0; border-top: 2px solid var(--ink); border-radius: 2px; }
 .otd-leg-dash { border-top-style: dashed; opacity: 0.6; }
 .otd-leg-bar { width: 10px; height: 10px; border-radius: 2px; background: color-mix(in srgb, var(--ink) 14%, transparent); }
+/* "See back to 1970" - a subtle full-width ghost control below the records. */
+.otd-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--s-2);
+  width: 100%;
+  min-height: 40px;
+  margin-top: var(--s-3);
+  border-radius: var(--r-sm);
+  background: var(--card-bg);
+  color: var(--ink);
+  font-family: Rubik, Inter, sans-serif;
+  font-weight: 700;
+  font-size: var(--t-cap);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease-spring), background var(--dur-fast);
+}
+.otd-more:active { transform: scale(0.98); background: var(--card-bg-hi); }
+.otd-more i { font-size: 1.15rem; }
 
 /* Local weather news: a simple list of frosted cards linking out to articles. */
 .news-list { display: flex; flex-direction: column; gap: var(--s-2); }
