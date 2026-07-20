@@ -2046,6 +2046,8 @@ function buildSummary(current, daily, yesterday) {
   else parts.push(`${lead}.`);
   const precip = precipOutlook(hrs, today, tz);
   if (precip) parts.push(precip);
+  const evening = eveningNightClause(tz);
+  if (evening) parts.push(evening);
   const compare = compareOutlook(today, yesterday, tomorrow);
   if (compare) parts.push(compare);
   for (const note of summaryNotes(current, hrs)) parts.push(note);
@@ -2108,6 +2110,47 @@ function precipOutlook(hrs, today, tz) {
   const type = snowy ? "snow" : "rain";
   if (wet.length >= hrs.length * 0.6) return `Periods of ${type} through the day.`;
   return `${cap(type)} likely from around ${fmtHour(wet[0].dt, tz)}.`;
+}
+
+// Dominant sky condition across a set of hours -> short keyword.
+function segCondition(list) {
+  const mains = list.map((h) => h.weather?.[0]?.main).filter(Boolean);
+  if (!mains.length) return null;
+  const any = (re) => mains.some((m) => re.test(m));
+  if (any(/thunder/i)) return "thunder";
+  if (any(/snow/i)) return "snow";
+  if (any(/rain|drizzle/i)) return "rain";
+  if (any(/mist|fog|haze|smoke/i)) return "fog";
+  const n = mains.length;
+  const clear = mains.filter((m) => /clear/i.test(m)).length;
+  const cloud = mains.filter((m) => /cloud/i.test(m)).length;
+  if (clear >= n * 0.6) return "clear";
+  if (cloud >= n * 0.6) return "cloud";
+  return "mixed";
+}
+
+// How the evening (5-9pm) and overnight (9pm-6am) shape up, so the summary
+// covers the whole day even once the rest-of-today lead has moved past them.
+function eveningNightClause(tz) {
+  const now = Math.floor(Date.now() / 1000);
+  const hrs = (state.hourly || []).filter((h) => h.dt >= now - 1800 && h.dt <= now + 33 * 3600);
+  if (!hrs.length) return null;
+  const H = (t) => new Date((t + tz) * 1000).getUTCHours();
+  const inSeg = (h, lo, hi) => { const x = H(h.dt); return lo <= hi ? (x >= lo && x < hi) : (x >= lo || x < hi); };
+  const evening = hrs.filter((h) => inSeg(h, 17, 21));
+  const night = hrs.filter((h) => inSeg(h, 21, 6));
+  if (!evening.length && !night.length) return null;
+  const adj = { clear: "clear", cloud: "cloudy", rain: "showery", snow: "snowy", thunder: "stormy", fog: "foggy", mixed: "part-cloudy" };
+  const eW = adj[segCondition(evening)], nW = adj[segCondition(night)];
+  const eTemp = evening.length ? Math.round(evening.reduce((s, h) => s + (h.main?.temp ?? 0), 0) / evening.length) : null;
+  const evPhrase = eW ? `${eW} in the evening${eTemp != null ? ` near ${eTemp}°` : ""}` : "";
+  if (evening.length && night.length) {
+    if (eW && nW && eW === nW) return cap(`staying ${eW} into the evening and overnight.`);
+    return cap(`${evPhrase || "unsettled in the evening"}, ${nW ? `turning ${nW}` : "changing"} overnight.`);
+  }
+  if (evening.length && eW) return cap(`${evPhrase}.`);
+  if (night.length && nW) return cap(`${nW} overnight.`);
+  return null;
 }
 
 function summaryNotes(current, hrs) {

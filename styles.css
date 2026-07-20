@@ -414,7 +414,6 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
     display: grid;
     grid-template-columns: minmax(260px, 320px) minmax(0, 1fr) minmax(0, 1fr);
     grid-template-areas:
-      "now     dayview dayview"
       "now     hourly  hourly"
       "now     daily   radar"
       "today   today   today";
@@ -426,13 +425,11 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
   .app-cols:has(.b-nowcast:not([hidden])) {
     grid-template-areas:
       "now     nowcast nowcast"
-      "now     dayview dayview"
       "now     hourly  hourly"
       "now     daily   radar"
       "today   today   today";
   }
   .b-nowcast { grid-area: nowcast; }
-  .b-dayview { grid-area: dayview; }
   .col-details { display: contents; }
   .col-now {
     grid-area: now;
@@ -467,7 +464,6 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
        graph leads the right area, then the next hours and radar stack under
        it while the week runs as a tall column; today details close out. */
     grid-template-areas:
-      "now     dayview dayview"
       "now     hourly  daily"
       "now     radar   daily"
       "today   today   today";
@@ -476,7 +472,6 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
   .app-cols:has(.b-nowcast:not([hidden])) {
     grid-template-areas:
       "now     nowcast nowcast"
-      "now     dayview dayview"
       "now     hourly  daily"
       "now     radar   daily"
       "today   today   today";
@@ -2429,9 +2424,9 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 .metrics .metric:nth-child(2) { animation: eFade 0.45s var(--ease-out) backwards 1085ms; }
 .metrics .metric:nth-child(3) { animation: eFade 0.45s var(--ease-out) backwards 1160ms; }
 
-/* Nowcast (when shown) and the day overview lead the details column. */
+[aria-label="Weather alerts"] { animation: eFade 0.55s var(--ease-out) backwards 260ms; }
+/* The nowcast (when shown) leads the details column. */
 [aria-label="Precipitation nowcast"] { animation: eFade 0.6s var(--ease-out) backwards 1200ms; }
-[aria-label="Day overview"]   { animation: eFade 0.6s var(--ease-out) backwards 1280ms; }
 
 [aria-label="Hourly forecast"] .block-head,
 [aria-label="Weekly forecast"] .block-head { animation: eFade 0.5s var(--ease-out) backwards 1360ms; }
@@ -2448,7 +2443,9 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
 
 [aria-label="Radar"]          { animation: eFade 0.6s var(--ease-out) backwards 1660ms; }
 [aria-label="Today's details"]{ animation: eFade 0.6s var(--ease-out) backwards 1760ms; }
-.foot { animation: eFade 0.6s var(--ease-out) backwards 1900ms; }
+[aria-label="Historical weather data"] { animation: eFade 0.6s var(--ease-out) backwards 1840ms; }
+[aria-label="Weather news"]   { animation: eFade 0.6s var(--ease-out) backwards 1920ms; }
+.foot { animation: eFade 0.6s var(--ease-out) backwards 2000ms; }
 
 .temp-num { display: inline-block; position: relative; z-index: 2; }
 .temp-deg { display: inline-block; position: relative; z-index: 1; }
@@ -2513,12 +2510,14 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas:
       "bt   bt"
+      "day  day"
       "wind wind"
       "sun  moon"
       "det  det";
     gap: var(--s-4);
   }
   .b-today .block-title { grid-area: bt; }
+  .b-today .dayview-card { grid-area: day; }
   .b-today .wind-card { grid-area: wind; }
   .b-today .sun-card { grid-area: sun; }
   .b-today .moon-card { grid-area: moon; }
@@ -2535,6 +2534,7 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
     grid-template-columns: repeat(3, minmax(0, 1fr));
     grid-template-areas:
       "bt   bt  bt"
+      "day  day day"
       "wind sun moon"
       "det  det det";
   }
