@@ -3952,37 +3952,60 @@ function annularWedge(cx, cy, ri, ro, a0, a1) {
   const pt = (r, a) => `${(cx + r * Math.sin(a)).toFixed(2)} ${(cy - r * Math.cos(a)).toFixed(2)}`;
   return `M${pt(ro, a0)} A${ro} ${ro} 0 0 1 ${pt(ro, a1)} L${pt(ri, a1)} A${ri} ${ri} 0 0 0 ${pt(ri, a0)} Z`;
 }
-// Value -> discrete ink shade, Sun-Clock style: six opacity steps spaced for
-// contrast (light = less, dark = more), each with its own toggleable pattern so
-// adjacent steps stay discernible without any colour.
-const HIST_SHADES = [0.10, 0.28, 0.46, 0.64, 0.82, 1.0];
-const HIST_PAT = ["", "golden", "civil", "nautical", "astro", "night"];   // level 0 has no pattern
+// Diverging anomaly ramp, built from the "Sky diverging" palette: how far a
+// month sat from its long-run normal. Cool indigo/blue below the normal, warm
+// amber/red above, through the page off-white at the normal. Input t in [-1, 1].
+const HIST_DIVERGE = [
+  [-1.00, [43, 47, 110]],    // #2b2f6e  deep indigo
+  [-0.55, [63, 127, 208]],   // #3f7fd0  blue
+  [-0.22, [104, 176, 216]],  // #68b0d8  soft cyan
+  [0.00,  [231, 229, 219]],  // #e7e5db  neutral (= at normal)
+  [0.22,  [240, 207, 134]],  // #f0cf86  gold
+  [0.50,  [232, 162, 74]],   // #e8a24a  amber
+  [0.75,  [221, 111, 44]],   // #dd6f2c  orange
+  [1.00,  [194, 58, 63]]     // #c23a3f  deep red
+];
+function rampAt(stops, t) {
+  t = Math.max(-1, Math.min(1, t));
+  if (t <= stops[0][0]) return `rgb(${stops[0][1].join(",")})`;
+  for (let i = 1; i < stops.length; i++) {
+    if (t <= stops[i][0]) {
+      const [t0, a] = stops[i - 1], [t1, b] = stops[i], f = (t - t0) / (t1 - t0);
+      return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(",")})`;
+    }
+  }
+  return `rgb(${stops[stops.length - 1][1].join(",")})`;
+}
+// Scale = each month's baseline + the largest departure from it, so the ramp
+// stretches to fill the data. sign flips precipitation so wetter reads cool.
 function histScale(monthly, metric) {
-  const vals = [];
-  monthly.years.forEach((yr) => (metric === "precip" ? yr.p : yr.t).forEach((v) => { if (Number.isFinite(v)) vals.push(v); }));
-  if (!vals.length) return { lo: 0, hi: 1 };
-  let lo = metric === "precip" ? 0 : Math.min(...vals), hi = Math.max(...vals);
-  if (hi <= lo) hi = lo + 1;
-  return { lo, hi };
+  const base = (metric === "precip" ? monthly.baseP : monthly.baseT) || [];
+  let maxAbs = 0;
+  monthly.years.forEach((yr) => {
+    const arr = metric === "precip" ? yr.p : yr.t;
+    for (let m = 0; m < 12; m++) { const b = base[m]; if (Number.isFinite(arr[m]) && Number.isFinite(b)) maxAbs = Math.max(maxAbs, Math.abs(arr[m] - b)); }
+  });
+  return { base, maxAbs: maxAbs > 0 ? maxAbs : 1, sign: metric === "precip" ? -1 : 1 };
 }
-function histLevel(v, scale) {
-  if (!Number.isFinite(v)) return -1;
-  const f = Math.max(0, Math.min(0.99999, (v - scale.lo) / (scale.hi - scale.lo)));
-  return Math.floor(f * HIST_SHADES.length);   // 0..5
+function histAnom(v, m, scale) {
+  const b = scale.base[m];
+  return (Number.isFinite(v) && Number.isFinite(b)) ? v - b : null;
 }
-// A full ring: twelve equal wedges, each shaded by its month's value, with a
-// pattern overlay (white, difference-blended so it reads on any shade).
+function histColor(v, m, scale) {
+  const a = histAnom(v, m, scale);
+  return a == null ? null : rampAt(HIST_DIVERGE, scale.sign * a / scale.maxAbs);
+}
+// A full ring: twelve equal wedges, each coloured by its month's departure from
+// the long-run normal (cool below, warm above); grey where a month has no data.
 function monthDonut(yr, metric, scale, cx, cy, ri, ro, gap) {
   const arr = metric === "precip" ? yr.p : yr.t;
-  let shade = "", pat = "";
+  let out = "";
   for (let m = 0; m < 12; m++) {
     const a0 = m * Math.PI / 6 + gap, a1 = (m + 1) * Math.PI / 6 - gap, d = annularWedge(cx, cy, ri, ro, a0, a1);
-    const lvl = histLevel(arr[m], scale);
-    if (lvl < 0) { shade += `<path d="${d}" fill="var(--ink)" opacity="0.05"/>`; continue; }
-    shade += `<path d="${d}" fill="var(--ink)" opacity="${HIST_SHADES[lvl]}"/>`;
-    if (lvl >= 1) pat += `<path d="${d}" class="hg-pat" fill="url(#scpat-${HIST_PAT[lvl]})"/>`;
+    const col = histColor(arr[m], m, scale);
+    out += col ? `<path d="${d}" fill="${col}" class="hg-wedge"/>` : `<path d="${d}" fill="var(--ink)" opacity="0.06"/>`;
   }
-  return shade + pat;
+  return out;
 }
 function yearDonut(yr, metric, scale) {
   const S = 48, c = S / 2;
@@ -3997,6 +4020,15 @@ function fmtHistVal(v, metric) {
   if (!Number.isFinite(v)) return "–";
   return metric === "precip" ? (state.units === "imperial" ? `${(v / 25.4).toFixed(1)}"` : `${Math.round(v)}mm`) : `${Math.round(v)}°`;
 }
+// A signed departure-from-normal, for the legend ends and the detail chips.
+function fmtAnom(v, metric, signed) {
+  if (!Number.isFinite(v)) return "";
+  const s = signed && v > 0 ? "+" : signed && v < 0 ? "−" : "";
+  const a = Math.abs(v);
+  if (metric === "precip") return `${s}${state.units === "imperial" ? `${(a / 25.4).toFixed(1)}"` : `${Math.round(a)}mm`}`;
+  const d = state.units === "imperial" ? a * 9 / 5 : a;   // a temperature *difference* has no +32 offset
+  return `${s}${d < 1 ? d.toFixed(1) : Math.round(d)}°`;
+}
 // Enlarged view of one year: labelled ring + a month-by-month value list.
 function histDetailHTML(yr, metric, scale) {
   const S = 184, c = S / 2, ri = 24, ro = 66, labR = 82;
@@ -4005,7 +4037,11 @@ function histDetailHTML(yr, metric, scale) {
   let lab = "";
   for (let m = 0; m < 12; m++) { const am = (m + 0.5) * Math.PI / 6; lab += `<text x="${(c + labR * Math.sin(am)).toFixed(1)}" y="${(c - labR * Math.cos(am)).toFixed(1)}" class="wg-key-lab">${ini[m]}</text>`; }
   const arr = metric === "precip" ? yr.p : yr.t;
-  const chips = full.map((mn, i) => `<span class="wg-chip"><span class="wg-chip-m">${mn}</span><strong>${fmtHistVal(arr[i], metric)}</strong></span>`).join("");
+  const chips = full.map((mn, i) => {
+    const a = histAnom(arr[i], i, scale);
+    const anom = a == null ? "" : `<span class="wg-chip-anom" style="color:${histColor(arr[i], i, scale)}">${fmtAnom(a, metric, true)}</span>`;
+    return `<span class="wg-chip"><span class="wg-chip-m">${mn}</span><strong>${fmtHistVal(arr[i], metric)}</strong>${anom}</span>`;
+  }).join("");
   const what = metric === "precip" ? "monthly precipitation" : "monthly average temperature";
   return `<div class="wg-detail">
     <div class="wg-detail-head">${yr.y}<span>${what}</span></div>
@@ -4041,49 +4077,28 @@ function renderHistorySheet(err) {
   }
   const span = `${m.years[0].y}–${m.years[m.years.length - 1].y}`;
   el.sheetNote.textContent = metric === "temp"
-    ? `Average temperature for every month, ${span}. Each ring is a year; darker months are warmer. Tap a year to open it.`
-    : `Total precipitation for every month, ${span}. Each ring is a year; darker months are wetter. Tap a year to open it.`;
+    ? `Every month's average temperature against the ${span} normal. Blue ran cooler than usual, red warmer. Each ring is a year — tap one to open it.`
+    : `Every month's precipitation against the ${span} normal. Blue was wetter than usual, warm drier. Each ring is a year — tap one to open it.`;
   const scale = histScale(m, metric);
-  const patOn = state.histPattern;
   const toggle = `<div class="segmented small seg-slide hist-toggle" role="group" aria-label="Metric" data-pos="${metric === "precip" ? 1 : 0}">`
     + `<button class="seg-item ${metric === "temp" ? "is-active" : ""}" data-hm="temp">Temperature</button>`
     + `<button class="seg-item ${metric === "precip" ? "is-active" : ""}" data-hm="precip">Precipitation</button></div>`;
-  // Shared pattern defs (referenced by url() from every ring, swatch and detail).
-  const defs = `<svg class="hg-defs" width="0" height="0" aria-hidden="true"><defs>${SUN_PATTERN_DEFS}</defs></svg>`;
-  // Pattern toggle mirrors the Sun clock: overlays are always drawn and shown/
-  // hidden with the .hg-nopat class, so the switch animates without a re-render.
-  const controls = `<div class="sc-controls"><span class="sc-controls-label">Shade patterns</span>`
-    + `<button class="switch sc-switch" id="hgPattern" type="button" role="switch" aria-checked="${patOn ? "true" : "false"}" aria-label="Shade patterns">`
-    + `<i class="ph ph-circle switch-ic switch-ic-off" aria-hidden="true"></i>`
-    + `<i class="ph ph-dots-nine switch-ic switch-ic-on" aria-hidden="true"></i>`
-    + `<span class="switch-thumb"></span></button></div>`;
-  el.sheetList.innerHTML = toggle + defs
-    + `<div class="hg-wrap${patOn ? "" : " hg-nopat"}" id="hgWrap">`
-    + `<div class="wg-detail-wrap" id="wgDetail"></div>` + warmingGrid(m, metric, scale)
-    + controls + histLegend(metric, scale) + `</div>`;
+  el.sheetList.innerHTML = toggle
+    + `<div class="wg-detail-wrap" id="wgDetail"></div>` + warmingGrid(m, metric, scale) + histLegend(metric, scale);
   el.sheetList.querySelectorAll("[data-hm]").forEach((b) => b.onclick = () => { state.otdMetric = b.dataset.hm; renderHistorySheet(); });
   el.sheetList.querySelectorAll(".wg-cell").forEach((b) => b.onclick = () => selectHistYear(Number(b.dataset.year), true));
-  const patBtn = el.sheetList.querySelector("#hgPattern");
-  if (patBtn) patBtn.addEventListener("click", () => {
-    state.histPattern = !state.histPattern;
-    saveState();
-    patBtn.setAttribute("aria-checked", state.histPattern ? "true" : "false");
-    const wrap = el.sheetList.querySelector("#hgWrap");
-    if (wrap) wrap.classList.toggle("hg-nopat", !state.histPattern);
-  });
   const init = (state.histYear && m.years.some((r) => r.y === state.histYear)) ? state.histYear : m.years[m.years.length - 1].y;
   selectHistYear(init, false);   // fill the detail without yanking the scroll on first paint
 }
 function histLegend(metric, scale) {
-  // Shade key: six ink steps light->dark, each carrying its own pattern so the
-  // steps stay discernible without colour once the pattern toggle is on.
-  let sw = "";
-  for (let i = 0; i < HIST_SHADES.length; i++) {
-    const pat = i >= 1 ? `<rect width="26" height="26" class="hg-pat" fill="url(#scpat-${HIST_PAT[i]})"/>` : "";
-    sw += `<span class="hg-swatch"><svg viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" fill="var(--ink)" opacity="${HIST_SHADES[i]}"/>${pat}</svg></span>`;
-  }
-  const lo = fmtHistVal(scale.lo, metric), hi = fmtHistVal(scale.hi, metric);
-  const more = metric === "precip" ? "wetter" : "warmer";
+  // Diverging colour key: cool below the normal, warm above, off-white at it.
+  const bar = HIST_DIVERGE.map(([t, rgb]) => `rgb(${rgb.join(",")}) ${Math.round((t + 1) / 2 * 100)}%`).join(", ");
+  const end = fmtAnom(scale.maxAbs, metric, false);
+  const coolLab = metric === "precip" ? "Wetter" : "Cooler";
+  const warmLab = metric === "precip" ? "Drier" : "Warmer";
+  const cap = metric === "precip"
+    ? "Colour is each month against the long-run normal — blue wetter, warm drier, off-white about average. Grey means no data."
+    : "Colour is each month against the long-run normal — blue cooler, red warmer, off-white about average. Grey means no data.";
   // Month-position key: which wedge is which month, clockwise from January.
   const S = 116, c = S / 2, ro = 40, ri = 19, labR = 50;
   const names = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
@@ -4095,11 +4110,11 @@ function histLegend(metric, scale) {
   }
   return `<div class="hg-legend">
     <div class="hg-scale">
-      <span class="hg-scale-end">${lo}</span>
-      <div class="hg-swatches">${sw}</div>
-      <span class="hg-scale-end">${hi}</span>
+      <span class="hg-scale-end">${coolLab}<em>−${end}</em></span>
+      <div class="hg-scale-bar" style="background:linear-gradient(90deg, ${bar})"></div>
+      <span class="hg-scale-end hg-scale-end-hi">${warmLab}<em>+${end}</em></span>
     </div>
-    <span class="hg-scale-cap">Shade shows the value — lighter is less, darker is more. A darker month is a ${more} one; flip on the patterns above to tell neighbouring shades apart.</span>
+    <span class="hg-scale-cap">${cap}</span>
     <div class="wg-key"><svg viewBox="0 0 ${S} ${S}" class="wg-key-svg">${w}${lab}</svg>`
     + `<span class="wg-key-cap">Each ring is one year. Months run clockwise from January at the top.</span></div>
   </div>`;
