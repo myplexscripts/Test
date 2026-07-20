@@ -3602,8 +3602,10 @@ function otdKey() { const c = state.center || state.loc; return `${(+c.lat).toFi
 async function otdRecords(lat, lon, mmdd, label, key) {
   if (OTD_PROXY) {
     const u = `${OTD_PROXY}?lat=${(+lat).toFixed(3)}&lon=${(+lon).toFixed(3)}&unit=${state.units}&mmdd=${mmdd}`;
-    const j = await fetchJSON(u, 20000);
-    if (!j || j.error) throw new Error((j && j.error) || "proxy error");
+    let j;
+    try { j = await fetchJSON(u, 20000); }
+    catch (e) { throw new Error(`proxy ${e && e.message || e}`); }   // tag so we know this path ran
+    if (!j || j.error) throw new Error(`proxy: ${(j && j.error) || "error"}`);
     return { key, mmdd, label, count: j.count, hi: j.hi, lo: j.lo, wet: j.wet, avgHigh: j.avgHigh };
   }
   const raw = await fetchOtdRaw(lat, lon);
