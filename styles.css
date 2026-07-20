@@ -311,6 +311,7 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
 .wg-chip-m { font-size: var(--t-cap); font-weight: 700; color: var(--ink-soft); }
 .wg-chip strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1rem; }
 .wg-chip-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 0.4em; vertical-align: 0.04em; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ink) 22%, transparent); }
+.wg-chip-anom { font-size: var(--t-cap); font-weight: 700; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
 /* Grid of every year. Cells fit the full four-digit year. */
 .wg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(54px, 1fr)); gap: var(--s-2); }
