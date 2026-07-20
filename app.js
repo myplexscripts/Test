@@ -3819,8 +3819,10 @@ function loadOnThisDay() {
   const { mmdd, label } = todayMonthDay();
   if (state.otd && state.otd.key === key && state.otd.mmdd === mmdd) { renderOnThisDay(); return; }
   // Small processed result, cached a couple of days so re-opens are instant.
+  // Require a series too, so a copy cached before the graph/series existed is
+  // treated as a miss and refetched instead of silently showing no graph.
   const cached = loadOtdResult();
-  if (cached && cached.key === key && cached.mmdd === mmdd && Date.now() - (cached.at || 0) < 2 * 864e5) {
+  if (cached && cached.key === key && cached.mmdd === mmdd && Array.isArray(cached.series) && cached.series.length >= 4 && Date.now() - (cached.at || 0) < 2 * 864e5) {
     state.otd = cached; renderOnThisDay(); return;
   }
   // Direct-path raw archive cache (only present when the browser can reach the
