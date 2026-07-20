@@ -1345,16 +1345,20 @@ function nextPrecipHour() {
 function stargazingTonight() {
   const tz = state.tz || 0;
   const now = Math.floor(Date.now() / 1000);
-  // Only count genuinely dark hours: past dusk and before dawn (with ~45-60 min
-  // of twilight trimmed off each end), so a brightening pre-dawn hour never
-  // counts as a good window. Falls back to clock hours if sun times are missing.
-  const sun = state.data?.current?.sys || {};
-  const sr = sun.sunrise, ss = sun.sunset;
+  const c = state.center || {};
+  const hasLoc = Number.isFinite(c.lat) && Number.isFinite(c.lon);
+  // Stargazing is a night-only thing: an hour only counts once real darkness has
+  // fallen. Use nautical twilight (sun 12 deg below the horizon - when the stars
+  // actually come out), falling back to civil where the sun never gets that low
+  // on short summer nights. Not "any clear hour", only genuinely dark ones.
   const darkAt = (dt) => {
-    if (!sr || !ss) { const h = new Date((dt + tz) * 1000).getUTCHours(); return h >= 21 || h <= 4; }
-    const nextRise = Math.min(Infinity, ...[sr, sr + 86400].filter((r) => r >= dt));
-    const prevSet = Math.max(-Infinity, ...[ss - 86400, ss].filter((s) => s <= dt));
-    return dt >= prevSet + 3600 && dt <= nextRise - 5400;   // 60 min past dusk … 90 min before dawn
+    if (!hasLoc) { const h = new Date((dt + tz) * 1000).getUTCHours(); return h >= 22 || h <= 4; }
+    const st = sunTimes(dt, c.lat, c.lon);
+    const duskDark = st.nautical.down ?? st.civil.down;   // evening: darkness falls
+    const dawnDark = st.nautical.up ?? st.civil.up;        // morning: darkness lifts
+    if (duskDark != null && dt >= duskDark) return true;
+    if (dawnDark != null && dt <= dawnDark && (st.sunrise.up == null || dt < st.sunrise.up)) return true;
+    return false;
   };
   const hrs = (state.hourly || []).filter((p) => p.dt >= now - 3600 && darkAt(p.dt)).slice(0, 12);
   if (hrs.length < 2) return null;
@@ -1395,7 +1399,6 @@ function stargazingTonight() {
   const clear = Math.round(win.reduce((a, b) => a + b, 0) / win.length);
 
   // A bright moon dims the rating; a nearly-new or already-set moon doesn't.
-  const c = state.center || {};
   const base = Math.floor((now + tz) / 86400) * 86400 - tz;
   const mt = Number.isFinite(c.lat) ? moonTimes(base, c.lat, c.lon) : {};
   const moonSetsInWindow = mt.set != null && mt.set > startDt && mt.set < endDt + 3600;
