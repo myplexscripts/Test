@@ -59,7 +59,7 @@ const el = {
   radarSheet: $("radarSheet"), radarBack: $("radarBack"), radarMap: $("radarMap"),
   layerSeg: $("layerSeg"), radarNote: $("radarNote"),
   radarTimeline: $("radarTimeline"), radarPlay: $("radarPlay"), radarScrub: $("radarScrub"), radarTime: $("radarTime"), radarLegend: $("radarLegend"), windLegend: $("windLegend"), aqiLegend: $("aqiLegend"),
-  hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"), otdOpen: $("otdOpen"),
+  hourlyMore: $("hourlyMore"), dailyMore: $("dailyMore"),
   sheet: $("sheet"), sheetScroll: $("sheetScroll"), sheetBack: $("sheetBack"), tabSeg: $("tabSeg"), sheetHeadAux: $("sheetHeadAux"),
   sheetTitle: $("sheetTitle"), sheetNote: $("sheetNote"), graph: $("graph"), sheetList: $("sheetList"), dayStats: $("dayStats")
 };
@@ -80,8 +80,6 @@ const state = {
   dark: false,
   clock24: false,
   clockPattern: false,
-  histPattern: false,
-  otdRange: 1,           // home history graph lookback: 1 / 5 / 10 years, or "all"
   animate: true,
   drawerOpen: false,
   sheetOpen: false,
@@ -237,7 +235,6 @@ function wireEvents() {
 
   el.hourlyMore.onclick = () => openDetail("temp", "hourly");
   el.dailyMore.onclick = () => openDetail("temp", "daily");
-  if (el.otdOpen) el.otdOpen.onclick = () => openDetail("history");
   el.sheetBack.onclick = sheetBack;
   el.windCard.onclick = () => openDetail("wind");
   // Sun and moon cards are divs (their innerHTML is rebuilt each render), so
@@ -2407,7 +2404,7 @@ function openSheetUI() {
 }
 
 function openDetail(metric, range) {
-  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "alerts" || metric === "history";
+  const isInfo = metric === "aqi" || metric === "uv" || metric === "moon" || metric === "credits" || metric === "sun" || metric === "alerts";
   if (!METRICS[metric] && !isInfo) metric = "temp";
   const view = { metric, range: (range && METRICS[metric]?.daily) ? range : "hourly" };
   state.nav = [view];
@@ -2464,7 +2461,7 @@ function syncSlide(seg) {
 function renderDetailSheet() {
   if (el.sheetHeadAux) { el.sheetHeadAux.innerHTML = ""; el.sheetHeadAux.style.display = "none"; }
   const gc = el.graph.closest(".graph-card");
-  if (["aqi", "uv", "moon", "credits", "sun", "alerts", "history"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
+  if (["aqi", "uv", "moon", "credits", "sun", "alerts"].includes(state.detail.metric)) { renderInfoSheet(state.detail.metric); return; }
   if (gc) gc.style.display = "";
   if (state.detail.metric === "day") { renderDaySheet(); return; }
   const m = METRICS[state.detail.metric];
@@ -2488,7 +2485,6 @@ function renderInfoSheet(kind) {
   else if (kind === "credits") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderCreditsSheet(); }
   else if (kind === "alerts") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAlertsSheet(); }
   else if (kind === "aqi") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; renderAqiSheet(air); }
-  else if (kind === "history") { if (gc) gc.style.display = "none"; chartGeom = null; chartRedraw = null; loadOtdMonthly(); }
   else { if (gc) gc.style.display = ""; renderUvSheet(air); }
 }
 
@@ -3882,248 +3878,6 @@ function processOtd(raw, mmdd, key, label) {
   return { key, mmdd, label, count: years.size, hi, lo, wet, avgHigh: nHi ? sumHi / nHi : null, series };
 }
 
-// ---- Monthly climatology (for the Historical detail screen) ------------------
-// Per-year, per-month mean temp + precip total, plus the long-run baseline, so
-// the grid can colour each month by its anomaly. The Worker computes it
-// server-side (tiny payload); the direct archive fetch is the fallback and the
-// aggregation is done here to match. Result is small, so we cache it.
-function otdMonthlyKey() { const c = state.center || state.loc; return `${(+c.lat).toFixed(2)},${(+c.lon).toFixed(2)},${state.units},${otdStartYear()}`; }
-function loadOtdMonthlyCache() { try { return JSON.parse(localStorage.getItem("hw_otd_monthly_v1") || "null"); } catch { return null; } }
-function saveOtdMonthlyCache(o) { try { localStorage.setItem("hw_otd_monthly_v1", JSON.stringify(o)); } catch { /* quota */ } }
-
-function aggregateMonthly(raw, start, key) {
-  const { time, tmax, tmin, precip } = raw;
-  const byYear = new Map();
-  for (let i = 0; i < time.length; i++) {
-    const y = Number(String(time[i]).slice(0, 4)), m = Number(String(time[i]).slice(5, 7)) - 1;
-    if (!(m >= 0 && m < 12)) continue;
-    let rec = byYear.get(y);
-    if (!rec) { rec = { t: Array(12).fill(0), tn: Array(12).fill(0), p: Array(12).fill(0), pn: Array(12).fill(0) }; byYear.set(y, rec); }
-    const mx = tmax ? tmax[i] : null, mn = tmin ? tmin[i] : null, p = precip ? precip[i] : null;
-    if (Number.isFinite(mx) && Number.isFinite(mn)) { rec.t[m] += (mx + mn) / 2; rec.tn[m]++; }
-    if (Number.isFinite(p)) { rec.p[m] += p; rec.pn[m]++; }
-  }
-  const rnd = (v) => Math.round(v * 10) / 10;
-  const years = [...byYear.keys()].sort((a, b) => a - b).map((y) => {
-    const rec = byYear.get(y);
-    return { y, t: rec.t.map((s, m) => rec.tn[m] ? rnd(s / rec.tn[m]) : null), p: rec.p.map((s, m) => rec.pn[m] >= 20 ? Math.round(s) : null) };
-  });
-  const base = (pick, round) => Array(12).fill(0).map((_, m) => { const v = years.map((yr) => pick(yr)[m]).filter(Number.isFinite); return v.length ? round(v.reduce((a, b) => a + b, 0) / v.length) : null; });
-  return { key, mode: "monthly", start, years, baseT: base((yr) => yr.t, rnd), baseP: base((yr) => yr.p, Math.round) };
-}
-
-async function fetchOtdMonthly(lat, lon, start, key) {
-  if (OTD_PROXY) {
-    try {
-      const u = `${OTD_PROXY}?lat=${(+lat).toFixed(3)}&lon=${(+lon).toFixed(3)}&unit=${state.units}&mode=monthly&start=${start}`;
-      const j = await fetchJSON(u, 25000);
-      if (j && !j.error && Array.isArray(j.years) && j.years.length >= 4) {
-        return { key, mode: "monthly", start, years: j.years, baseT: j.baseT, baseP: j.baseP };
-      }
-    } catch { /* fall through */ }
-  }
-  const raw = await fetchOtdRaw(lat, lon, start);
-  return aggregateMonthly(raw, start, key);
-}
-
-let otdMonthlyPending = null;
-function loadOtdMonthly() {
-  const key = otdMonthlyKey();
-  if (state.otdMonthly && state.otdMonthly.key === key) { renderHistorySheet(); return; }
-  const cached = loadOtdMonthlyCache();
-  if (cached && cached.key === key && Date.now() - (cached.at || 0) < 30 * 864e5) {
-    state.otdMonthly = cached; renderHistorySheet(); return;
-  }
-  if (otdMonthlyPending === key) return;
-  otdMonthlyPending = key;
-  renderHistorySheet();   // shows the loading state
-  const c = state.center || state.loc;
-  fetchOtdMonthly(c.lat, c.lon, otdStartYear(), key)
-    .then((o) => { if (otdMonthlyKey() !== key) return; o.at = Date.now(); state.otdMonthly = o; saveOtdMonthlyCache(o); if (state.detail?.metric === "history") renderHistorySheet(); })
-    .catch(() => { if (state.detail?.metric === "history") renderHistorySheet(true); })
-    .finally(() => { if (otdMonthlyPending === key) otdMonthlyPending = null; });
-}
-
-// ---- Warming-grid renderer (Historical detail screen) -----------------------
-// One ring per year, twelve monthly wedges, each coloured by how far that month
-// sat from the long-run normal - a diverging scale (blue↔red for temperature,
-// brown↔teal for precipitation).
-// Annular wedge path; a=0 points up, angle increases clockwise.
-function annularWedge(cx, cy, ri, ro, a0, a1) {
-  const pt = (r, a) => `${(cx + r * Math.sin(a)).toFixed(2)} ${(cy - r * Math.cos(a)).toFixed(2)}`;
-  return `M${pt(ro, a0)} A${ro} ${ro} 0 0 1 ${pt(ro, a1)} L${pt(ri, a1)} A${ri} ${ri} 0 0 0 ${pt(ri, a0)} Z`;
-}
-function rampAt(stops, t) {
-  t = Math.max(-1, Math.min(1, t));
-  if (t <= stops[0][0]) return `rgb(${stops[0][1].join(",")})`;
-  for (let i = 1; i < stops.length; i++) {
-    if (t <= stops[i][0]) {
-      const [t0, a] = stops[i - 1], [t1, b] = stops[i], f = (t - t0) / (t1 - t0);
-      return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(",")})`;
-    }
-  }
-  return `rgb(${stops[stops.length - 1][1].join(",")})`;
-}
-// Diverging anomaly ramp (Neil-Kaye climate-stripes look), built from the "Sky
-// diverging" palette: how far a month sat from its long-run normal. Cool indigo/
-// blue below, warm amber/red above, off-white at the normal. Input t in [-1, 1].
-const HIST_DIVERGE = [
-  [-1.00, [43, 47, 110]],    // #2b2f6e  deep indigo
-  [-0.55, [63, 127, 208]],   // #3f7fd0  blue
-  [-0.22, [104, 176, 216]],  // #68b0d8  soft cyan
-  [0.00,  [231, 229, 219]],  // #e7e5db  neutral (= at normal)
-  [0.22,  [240, 207, 134]],  // #f0cf86  gold
-  [0.50,  [232, 162, 74]],   // #e8a24a  amber
-  [0.75,  [221, 111, 44]],   // #dd6f2c  orange
-  [1.00,  [194, 58, 63]]     // #c23a3f  deep red
-];
-// Scale = each month's baseline + the largest departure from it, so the ramp
-// fills the data. sign flips precipitation so a wetter month reads cool/blue.
-function histScale(monthly, metric) {
-  const base = (metric === "precip" ? monthly.baseP : monthly.baseT) || [];
-  let maxAbs = 0;
-  monthly.years.forEach((yr) => {
-    const arr = metric === "precip" ? yr.p : yr.t;
-    for (let m = 0; m < 12; m++) { const b = base[m]; if (Number.isFinite(arr[m]) && Number.isFinite(b)) maxAbs = Math.max(maxAbs, Math.abs(arr[m] - b)); }
-  });
-  return { base, maxAbs: maxAbs > 0 ? maxAbs : 1, sign: metric === "precip" ? -1 : 1 };
-}
-function histAnom(v, m, scale) {
-  const b = scale.base[m];
-  return (Number.isFinite(v) && Number.isFinite(b)) ? v - b : null;
-}
-function histColor(v, m, scale) {
-  const a = histAnom(v, m, scale);
-  return a == null ? null : rampAt(HIST_DIVERGE, scale.sign * a / scale.maxAbs);
-}
-// A full ring: twelve equal wedges, each coloured by that month's departure from
-// the long-run normal (cool below, warm above); grey where a month has no data.
-function monthDonut(yr, metric, scale, cx, cy, ri, ro, gap) {
-  const arr = metric === "precip" ? yr.p : yr.t;
-  let out = "";
-  for (let m = 0; m < 12; m++) {
-    const a0 = m * Math.PI / 6 + gap, a1 = (m + 1) * Math.PI / 6 - gap, d = annularWedge(cx, cy, ri, ro, a0, a1);
-    const col = histColor(arr[m], m, scale);
-    out += col ? `<path d="${d}" fill="${col}" class="hg-wedge"/>` : `<path d="${d}" fill="var(--ink)" opacity="0.06"/>`;
-  }
-  return out;
-}
-function yearDonut(yr, metric, scale) {
-  const S = 48, c = S / 2;
-  return `<svg viewBox="0 0 ${S} ${S}" class="wg-donut" aria-hidden="true"><circle cx="${c}" cy="${c}" r="${c - 1}" class="wg-guide"/>${monthDonut(yr, metric, scale, c, c, c * 0.40, c - 1.5, 0.012)}</svg>`;
-}
-function warmingGrid(monthly, metric, scale) {
-  return `<div class="wg-grid">` + monthly.years.map((yr) =>
-    `<button class="wg-cell" type="button" data-year="${yr.y}" aria-label="${yr.y}">${yearDonut(yr, metric, scale)}<span class="wg-year">${yr.y}</span></button>`
-  ).join("") + `</div>`;
-}
-function fmtHistVal(v, metric) {
-  if (!Number.isFinite(v)) return "–";
-  return metric === "precip" ? (state.units === "imperial" ? `${(v / 25.4).toFixed(1)}"` : `${Math.round(v)}mm`) : `${Math.round(v)}°`;
-}
-// A signed departure-from-normal, for the legend ends and the detail chips.
-function fmtAnom(v, metric, signed) {
-  if (!Number.isFinite(v)) return "";
-  const s = signed && v > 0 ? "+" : signed && v < 0 ? "−" : "";
-  const a = Math.abs(v);
-  if (metric === "precip") return `${s}${state.units === "imperial" ? `${(a / 25.4).toFixed(1)}"` : `${Math.round(a)}mm`}`;
-  const d = state.units === "imperial" ? a * 9 / 5 : a;   // a temperature *difference* has no +32 offset
-  return `${s}${d < 1 ? d.toFixed(1) : Math.round(d)}°`;
-}
-// Enlarged view of one year: labelled ring + a month-by-month value list.
-function histDetailHTML(yr, metric, scale) {
-  const S = 184, c = S / 2, ri = 24, ro = 66, labR = 82;
-  const ini = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
-  const full = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
-  let lab = "";
-  for (let m = 0; m < 12; m++) { const am = (m + 0.5) * Math.PI / 6; lab += `<text x="${(c + labR * Math.sin(am)).toFixed(1)}" y="${(c - labR * Math.cos(am)).toFixed(1)}" class="wg-key-lab">${ini[m]}</text>`; }
-  const arr = metric === "precip" ? yr.p : yr.t;
-  const chips = full.map((mn, i) => {
-    const col = histColor(arr[i], i, scale);
-    const dot = col ? `<span class="wg-chip-dot" style="background:${col}"></span>` : "";
-    const a = histAnom(arr[i], i, scale);
-    const anom = a == null ? "" : `<span class="wg-chip-anom">${fmtAnom(a, metric, true)}</span>`;
-    return `<span class="wg-chip"><span class="wg-chip-m">${dot}${mn}</span><strong>${fmtHistVal(arr[i], metric)}</strong>${anom}</span>`;
-  }).join("");
-  const what = metric === "precip" ? "monthly precipitation" : "monthly average temperature";
-  return `<div class="wg-detail">
-    <div class="wg-detail-head">${yr.y}<span>${what}</span></div>
-    <div class="wg-detail-body">
-      <svg viewBox="0 0 ${S} ${S}" class="wg-detail-svg" role="img" aria-label="${yr.y} ${what}"><circle cx="${c}" cy="${c}" r="${ro + 2}" class="wg-guide"/><circle cx="${c}" cy="${c}" r="${ri}" class="wg-guide"/>${monthDonut(yr, metric, scale, c, c, ri, ro, 0.01)}${lab}</svg>
-      <div class="wg-chips">${chips}</div>
-    </div>
-  </div>`;
-}
-function selectHistYear(y, scroll) {
-  const m = state.otdMonthly; if (!m) return;
-  const yr = m.years.find((r) => r.y === y); if (!yr) return;
-  state.histYear = y;
-  const metric = state.otdMetric === "precip" ? "precip" : "temp";
-  const d = document.getElementById("wgDetail");
-  if (d) d.innerHTML = histDetailHTML(yr, metric, histScale(m, metric));
-  el.sheetList.querySelectorAll(".wg-cell").forEach((b) => b.classList.toggle("is-sel", Number(b.dataset.year) === y));
-  if (scroll && el.sheetScroll) el.sheetScroll.scrollTo({ top: 0, behavior: "smooth" });
-}
-function renderHistorySheet(err) {
-  if (!el.sheetList || state.detail?.metric !== "history") return;
-  el.sheetTitle.textContent = "Historical data";
-  el.tabSeg.style.display = "none";
-  el.dayStats.style.display = "none";
-  const key = otdMonthlyKey(), place = state.placeName || "this location";
-  const metric = state.otdMetric === "precip" ? "precip" : "temp";
-  if (err) { el.sheetNote.textContent = "Couldn't load the historical archive right now."; el.sheetList.innerHTML = ""; return; }
-  const m = state.otdMonthly;
-  if (!m || m.key !== key) {
-    el.sheetNote.textContent = `Building the monthly climate history for ${place}…`;
-    el.sheetList.innerHTML = `<p class="otd-lead otd-loading">Digging through the archive…</p>`;
-    return;
-  }
-  const span = `${m.years[0].y}–${m.years[m.years.length - 1].y}`;
-  el.sheetNote.textContent = metric === "temp"
-    ? `Every month's average temperature against the ${span} normal. Blue ran cooler than usual, red warmer. Each ring is a year — tap one to open it.`
-    : `Every month's precipitation against the ${span} normal. Blue was wetter than usual, warm drier. Each ring is a year — tap one to open it.`;
-  const scale = histScale(m, metric);
-  const toggle = `<div class="segmented small seg-slide hist-toggle" role="group" aria-label="Metric" data-pos="${metric === "precip" ? 1 : 0}">`
-    + `<button class="seg-item ${metric === "temp" ? "is-active" : ""}" data-hm="temp">Temperature</button>`
-    + `<button class="seg-item ${metric === "precip" ? "is-active" : ""}" data-hm="precip">Precipitation</button></div>`;
-  el.sheetList.innerHTML = toggle
-    + `<div class="wg-detail-wrap" id="wgDetail"></div>` + warmingGrid(m, metric, scale) + histLegend(metric, scale);
-  el.sheetList.querySelectorAll("[data-hm]").forEach((b) => b.onclick = () => { state.otdMetric = b.dataset.hm; renderHistorySheet(); });
-  el.sheetList.querySelectorAll(".wg-cell").forEach((b) => b.onclick = () => selectHistYear(Number(b.dataset.year), true));
-  const init = (state.histYear && m.years.some((r) => r.y === state.histYear)) ? state.histYear : m.years[m.years.length - 1].y;
-  selectHistYear(init, false);   // fill the detail without yanking the scroll on first paint
-}
-function histLegend(metric, scale) {
-  // Diverging colour key: each month against the long-run normal, cool below and
-  // warm above, off-white at it. The ends show the largest departure in view.
-  const bar = HIST_DIVERGE.map(([t, rgb]) => `rgb(${rgb.join(",")}) ${Math.round((t + 1) / 2 * 100)}%`).join(", ");
-  const end = fmtAnom(scale.maxAbs, metric, false);
-  const loLab = `${metric === "precip" ? "Wetter" : "Cooler"} −${end}`;
-  const hiLab = `+${end} ${metric === "precip" ? "Drier" : "Warmer"}`;
-  const cap = metric === "precip"
-    ? "Colour is each month against the long-run normal — blue wetter, warm drier, off-white about average. Grey means no data."
-    : "Colour is each month against the long-run normal — blue cooler, red warmer, off-white about average. Grey means no data.";
-  // Month-position key: which wedge is which month, clockwise from January.
-  const S = 116, c = S / 2, ro = 40, ri = 19, labR = 50;
-  const names = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
-  let w = "", lab = "";
-  for (let m = 0; m < 12; m++) {
-    const a0 = m * Math.PI / 6, a1 = (m + 1) * Math.PI / 6, am = (a0 + a1) / 2;
-    w += `<path d="${annularWedge(c, c, ri, ro, a0, a1)}" class="wg-key-wedge"/>`;
-    lab += `<text x="${(c + labR * Math.sin(am)).toFixed(1)}" y="${(c - labR * Math.cos(am)).toFixed(1)}" class="wg-key-lab">${names[m]}</text>`;
-  }
-  return `<div class="hg-legend">
-    <div class="hg-scale">
-      <span class="hg-scale-end">${loLab}</span>
-      <div class="hg-scale-bar" style="background:linear-gradient(90deg, ${bar})"></div>
-      <span class="hg-scale-end hg-scale-end-hi">${hiLab}</span>
-    </div>
-    <span class="hg-scale-cap">${cap}</span>
-    <div class="wg-key"><svg viewBox="0 0 ${S} ${S}" class="wg-key-svg">${w}${lab}</svg>`
-    + `<span class="wg-key-cap">Each ring is one year. Months run clockwise from January at the top.</span></div>
-  </div>`;
-}
-
 let otdPendingKey = null;
 function loadOnThisDay() {
   if (!el.onThisDay) return;
@@ -4183,112 +3937,6 @@ function otdRow(icon, label, value, year) {
     + `<span class="otd-row-year">${year}</span></div>`;
 }
 
-// Year-over-year chart of the day's high & low (lines) and precipitation (bars)
-// across every year on record. Labelled axes (temperature left, year bottom) on
-// a nice-stepped grid, monochrome to match the app's other charts, and it scrubs
-// like them: tap/drag anywhere to read a year. Geometry is stashed for the
-// pointer handler wired in renderOnThisDay.
-// Clip the year-over-year series to a lookback window (years back from the most
-// recent), or "all" for the full archive.
-function clipOtd(series, range) {
-  const s = (series || []).slice().sort((a, b) => a.y - b.y);
-  if (range === "all" || !s.length) return s;
-  const last = s[s.length - 1].y;
-  return s.filter((d) => d.y >= last - range);
-}
-let otdChartGeom = null;
-function otdChart(series) {
-  const pts = (series || []).filter((d) => Number.isFinite(d.hi) || Number.isFinite(d.lo)).sort((a, b) => a.y - b.y);
-  otdChartGeom = null;
-  if (pts.length < 2) return "";
-  const W = 328, H = 156, padL = 30, padR = 8, padT = 12, padB = 22;
-  const n = pts.length, plotW = W - padL - padR, plotH = H - padT - padB;
-  const x = (i) => padL + plotW * (n === 1 ? 0.5 : i / (n - 1));
-  const temps = pts.flatMap((d) => [d.hi, d.lo]).filter(Number.isFinite);
-  const sc = niceScale(Math.min(...temps), Math.max(...temps), 4);
-  const y = (v) => padT + plotH * (1 - (v - sc.min) / Math.max(1e-6, sc.max - sc.min));
-
-  let grid = "", yLab = "";
-  for (let v = sc.min; v <= sc.max + 1e-6; v += sc.step) {
-    const gy = y(v).toFixed(1);
-    grid += `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" class="otd-grid"/>`;
-    yLab += `<text x="${padL - 6}" y="${gy}" class="otd-axis otd-axis-y">${Math.round(v)}°</text>`;
-  }
-  // Always label the first and last year once; fill in evenly spaced ticks
-  // between without duplicating the ends (which collided at small point counts).
-  const xStep = Math.max(1, Math.ceil(n / 5));
-  const xIdx = new Set([0, n - 1]);
-  for (let i = xStep; i < n - 1; i += xStep) xIdx.add(i);
-  let xLab = "";
-  [...xIdx].sort((a, b) => a - b).forEach((i) => {
-    const anchor = i === 0 ? "start" : i === n - 1 ? "end" : "middle";
-    xLab += `<text x="${x(i).toFixed(1)}" y="${H - 6}" text-anchor="${anchor}" class="otd-axis">${pts[i].y}</text>`;
-  });
-
-  const maxP = Math.max(1, ...pts.map((d) => d.p || 0));
-  const bw = Math.min(22, Math.max(1.4, plotW / n * 0.5));   // cap so few-point views don't get a giant bar
-  const bars = pts.map((d, i) => {
-    const h = (d.p || 0) / maxP * (plotH * 0.32);
-    return h < 0.6 ? "" : `<rect x="${(x(i) - bw / 2).toFixed(1)}" y="${(padT + plotH - h).toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" rx="1" fill="currentColor" opacity="0.13"/>`;
-  }).join("");
-  const line = (key, dash) => {
-    const seg = pts.filter((d) => Number.isFinite(d[key]));
-    const pl = seg.map((d) => `${x(pts.indexOf(d)).toFixed(1)},${y(d[key]).toFixed(1)}`).join(" ");
-    return `<polyline points="${pl}" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" opacity="${dash ? "0.5" : "0.92"}"${dash ? ' stroke-dasharray="3 3.5"' : ""}/>`;
-  };
-  const cross = `<g class="otd-cross"><line class="otd-cross-line" x1="0" y1="${padT}" x2="0" y2="${padT + plotH}"/>`
-    + `<circle class="otd-cross-dot otd-cross-hi" r="3.4"/><circle class="otd-cross-dot otd-cross-lo" r="3.4"/></g>`;
-  const hit = `<rect class="otd-hit" x="${padL}" y="${padT}" width="${plotW}" height="${plotH}"/>`;
-  const svg = `<svg class="otd-graph" viewBox="0 0 ${W} ${H}" role="img" aria-label="Yearly high and low temperature on this day; drag to read a year">`
-    + grid + bars + line("lo", true) + line("hi", false) + cross + yLab + xLab + hit + `</svg>`;
-  const legend = `<div class="otd-legend">`
-    + `<span class="otd-leg"><span class="otd-leg-line"></span>High</span>`
-    + `<span class="otd-leg"><span class="otd-leg-line otd-leg-dash"></span>Low</span>`
-    + `<span class="otd-leg"><span class="otd-leg-bar"></span>Precip</span></div>`;
-  otdChartGeom = { pts, W, xOf: x, yOf: y };
-  return `<div class="otd-graphwrap">${svg}<div class="otd-readout" id="otdReadout" aria-live="polite"></div>${legend}</div>`;
-}
-
-// Wire the home chart's scrub: drag along it to read each year's numbers, the
-// same touch-anywhere interaction the hourly/daily charts use.
-function wireOtdChart() {
-  const g = otdChartGeom;
-  const svg = el.otdCard && el.otdCard.querySelector(".otd-graph");
-  if (!g || !svg) return;
-  const cross = svg.querySelector(".otd-cross");
-  const line = svg.querySelector(".otd-cross-line");
-  const chi = svg.querySelector(".otd-cross-hi");
-  const clo = svg.querySelector(".otd-cross-lo");
-  const readout = document.getElementById("otdReadout");
-  const punit = state.units === "imperial" ? "in" : "mm";
-  const show = (idx) => {
-    const d = g.pts[idx], px = g.xOf(idx);
-    cross.classList.add("is-on");
-    line.setAttribute("x1", px); line.setAttribute("x2", px);
-    const setDot = (c, v) => { if (Number.isFinite(v)) { c.setAttribute("cx", px); c.setAttribute("cy", g.yOf(v)); c.style.opacity = "1"; } else c.style.opacity = "0"; };
-    setDot(chi, d.hi); setDot(clo, d.lo);
-    if (readout) {
-      const pv = state.units === "imperial" ? (d.p / 25.4).toFixed(2) : Math.round(d.p || 0);
-      const hi = Number.isFinite(d.hi) ? `${Math.round(d.hi)}°` : "–", lo = Number.isFinite(d.lo) ? `${Math.round(d.lo)}°` : "–";
-      readout.innerHTML = `<strong>${d.y}</strong><span class="otd-read-hi">${hi}</span><span class="otd-read-lo">${lo}</span>${d.p > 0 ? `<span class="otd-read-p">${pv} ${punit}</span>` : ""}`;
-    }
-  };
-  const idxAt = (clientX) => {
-    const r = svg.getBoundingClientRect();
-    const vbx = (clientX - r.left) / r.width * g.W;
-    let idx = 0, best = Infinity;
-    g.pts.forEach((d, i) => { const dx = Math.abs(g.xOf(i) - vbx); if (dx < best) { best = dx; idx = i; } });
-    return idx;
-  };
-  let active = false;
-  svg.addEventListener("pointerdown", (e) => { active = true; try { svg.setPointerCapture(e.pointerId); } catch {} show(idxAt(e.clientX)); });
-  svg.addEventListener("pointermove", (e) => { if (active) show(idxAt(e.clientX)); });
-  const end = () => { active = false; };
-  svg.addEventListener("pointerup", end);
-  svg.addEventListener("pointercancel", end);
-  show(g.pts.length - 1);   // start on the most recent year so it's never blank
-}
-
 function renderOnThisDay() {
   const o = state.otd, host = el.onThisDay;
   if (!host) return;
@@ -4319,23 +3967,9 @@ function renderOnThisDay() {
   ];
   if (wetVal != null && Number(wetVal) > 0) rows.push(otdRow("ph-cloud-rain", "Most Precipitation", `${wetVal} ${punit}`, o.wet.year));
   const firstYear = (o.series && o.series.length) ? o.series[0].y : otdStartYear();
-  const shown = clipOtd(o.series, state.otdRange);
-  const ranges = [[1, "1 yr"], [5, "5 yrs"], [10, "10 yrs"], ["all", "All"]];
-  const rangeBtns = `<div class="otd-range" role="group" aria-label="History range">`
-    + ranges.map(([v, l]) => `<button class="otd-range-btn${state.otdRange === v ? " is-active" : ""}" type="button" data-range="${v}">${l}</button>`).join("")
-    + `</div>`;
   el.otdCard.innerHTML =
     `<div class="otd-head"><span class="otd-date">${o.label}</span><span class="otd-count">${o.count} years · since ${firstYear}</span></div>`
-    + `<p class="otd-lead">${lead}</p><div class="otd-rows">${rows.join("")}</div>`
-    + otdChart(shown)
-    + rangeBtns;
-  wireOtdChart();
-  el.otdCard.querySelectorAll(".otd-range-btn").forEach((b) => b.onclick = () => {
-    const r = b.dataset.range;
-    state.otdRange = r === "all" ? "all" : Number(r);
-    saveState();
-    renderOnThisDay();
-  });
+    + `<p class="otd-lead">${lead}</p><div class="otd-rows">${rows.join("")}</div>`;
 }
 
 // Round a data range to a clean [min, max] and step (1/2/5 x 10^n) so an axis
@@ -5698,7 +5332,7 @@ function fmtClock(dt, tz) {
 }
 
 function saveState() {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, tinted: state.tinted, clock24: state.clock24, clockPattern: state.clockPattern, histPattern: state.histPattern, otdRange: state.otdRange, animate: state.animate })); } catch {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, tinted: state.tinted, clock24: state.clock24, clockPattern: state.clockPattern, animate: state.animate })); } catch {}
 }
 function loadActivityPlan() { try { return JSON.parse(localStorage.getItem(ACTIVITY_KEY) || "null"); } catch { return null; } }
 function saveActivityPlan(p) { try { localStorage.setItem(ACTIVITY_KEY, JSON.stringify(p)); } catch {} }
@@ -5713,8 +5347,6 @@ function loadState() {
       state.tinted = true;
       state.clock24 = !!s.clock24;
       state.clockPattern = !!s.clockPattern;
-      state.histPattern = !!s.histPattern;
-      if (s.otdRange === "all" || [1, 5, 10].includes(s.otdRange)) state.otdRange = s.otdRange;
       state.animate = s.animate !== false;
     }
   } catch {}
