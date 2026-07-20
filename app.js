@@ -10,8 +10,7 @@ const NEWS_PROXY = "https://rss-proxy.davidbusch-02.workers.dev/local?_=";
 // without its own publisher is still CTV News London.
 const WX_BASE = "https://api.open-meteo.com/v1/forecast";
 const ARCHIVE_BASE = "https://archive-api.open-meteo.com/v1/archive";
-const OTD_START_DEFAULT = 2000;   // fast pull: this day each year since 2000
-const OTD_START_FULL = 1970;      // "See back to 1970" loads the deeper archive
+const OTD_START_MAX = 1940;       // ERA5 archive begins in 1940 - the full history
 const HOME = { lat: 42.9849, lon: -81.2453, label: "London, Ontario" };
 const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
@@ -82,6 +81,7 @@ const state = {
   clock24: false,
   clockPattern: false,
   histPattern: false,
+  otdRange: 1,           // home history graph lookback: 1 / 5 / 10 years, or "all"
   animate: true,
   drawerOpen: false,
   sheetOpen: false,
@@ -3817,7 +3817,7 @@ function loadOtdRaw() { try { return JSON.parse(localStorage.getItem(OTD_CACHE_K
 function saveOtdRaw(o) { try { localStorage.setItem(OTD_CACHE_KEY, JSON.stringify(o)); } catch { /* quota */ } }
 function loadOtdResult() { try { return JSON.parse(localStorage.getItem(OTD_RESULT_KEY) || "null"); } catch { return null; } }
 function saveOtdResult(o) { try { localStorage.setItem(OTD_RESULT_KEY, JSON.stringify(o)); } catch { /* quota */ } }
-function otdStartYear() { return state.otdFull ? OTD_START_FULL : OTD_START_DEFAULT; }
+function otdStartYear() { return OTD_START_MAX; }   // always the full archive, back to 1940
 function otdKey() { const c = state.center || state.loc; return `${(+c.lat).toFixed(1)},${(+c.lon).toFixed(1)},${state.units},${otdStartYear()}`; }
 
 // Records for a day. The Worker is the fast path (server-side, tiny payload,
@@ -3840,7 +3840,7 @@ async function otdRecords(lat, lon, mmdd, label, key) {
   return processOtd(raw, mmdd, key, label);
 }
 
-async function fetchOtdRaw(lat, lon, startYear = OTD_START_DEFAULT) {
+async function fetchOtdRaw(lat, lon, startYear = OTD_START_MAX) {
   const tu = state.units === "imperial" ? "fahrenheit" : "celsius";
   // The archive lags several days and 400s if end_date runs past what's ready.
   // We only need past years anyway (the newest relevant day is a year ago), so
@@ -4174,11 +4174,19 @@ function otdRow(icon, label, value, year) {
 // a nice-stepped grid, monochrome to match the app's other charts, and it scrubs
 // like them: tap/drag anywhere to read a year. Geometry is stashed for the
 // pointer handler wired in renderOnThisDay.
+// Clip the year-over-year series to a lookback window (years back from the most
+// recent), or "all" for the full archive.
+function clipOtd(series, range) {
+  const s = (series || []).slice().sort((a, b) => a.y - b.y);
+  if (range === "all" || !s.length) return s;
+  const last = s[s.length - 1].y;
+  return s.filter((d) => d.y >= last - range);
+}
 let otdChartGeom = null;
 function otdChart(series) {
   const pts = (series || []).filter((d) => Number.isFinite(d.hi) || Number.isFinite(d.lo)).sort((a, b) => a.y - b.y);
   otdChartGeom = null;
-  if (pts.length < 4) return "";
+  if (pts.length < 2) return "";
   const W = 328, H = 156, padL = 30, padR = 8, padT = 12, padB = 22;
   const n = pts.length, plotW = W - padL - padR, plotH = H - padT - padB;
   const x = (i) => padL + plotW * (n === 1 ? 0.5 : i / (n - 1));
@@ -4291,21 +4299,23 @@ function renderOnThisDay() {
   ];
   if (wetVal != null && Number(wetVal) > 0) rows.push(otdRow("ph-cloud-rain", "Most Precipitation", `${wetVal} ${punit}`, o.wet.year));
   const firstYear = (o.series && o.series.length) ? o.series[0].y : otdStartYear();
-  const moreBtn = state.otdFull ? "" :
-    `<button class="otd-more" type="button"><i class="ph-duotone ph-clock-counter-clockwise" aria-hidden="true"></i><span>See back to ${OTD_START_FULL}</span></button>`;
+  const shown = clipOtd(o.series, state.otdRange);
+  const ranges = [[1, "1 yr"], [5, "5 yrs"], [10, "10 yrs"], ["all", "All"]];
+  const rangeBtns = `<div class="otd-range" role="group" aria-label="History range">`
+    + ranges.map(([v, l]) => `<button class="otd-range-btn${state.otdRange === v ? " is-active" : ""}" type="button" data-range="${v}">${l}</button>`).join("")
+    + `</div>`;
   el.otdCard.innerHTML =
     `<div class="otd-head"><span class="otd-date">${o.label}</span><span class="otd-count">${o.count} years · since ${firstYear}</span></div>`
     + `<p class="otd-lead">${lead}</p><div class="otd-rows">${rows.join("")}</div>`
-    + otdChart(o.series)
-    + moreBtn;
+    + otdChart(shown)
+    + rangeBtns;
   wireOtdChart();
-  const btn = el.otdCard.querySelector(".otd-more");
-  if (btn) btn.onclick = () => {
-    // Deepen the range: new key (start year is part of it), fresh fetch.
-    state.otdFull = true;
-    state.otd = null;
-    loadOnThisDay();
-  };
+  el.otdCard.querySelectorAll(".otd-range-btn").forEach((b) => b.onclick = () => {
+    const r = b.dataset.range;
+    state.otdRange = r === "all" ? "all" : Number(r);
+    saveState();
+    renderOnThisDay();
+  });
 }
 
 // Round a data range to a clean [min, max] and step (1/2/5 x 10^n) so an axis
@@ -5668,7 +5678,7 @@ function fmtClock(dt, tz) {
 }
 
 function saveState() {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, tinted: state.tinted, clock24: state.clock24, clockPattern: state.clockPattern, histPattern: state.histPattern, animate: state.animate })); } catch {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, tinted: state.tinted, clock24: state.clock24, clockPattern: state.clockPattern, histPattern: state.histPattern, otdRange: state.otdRange, animate: state.animate })); } catch {}
 }
 function loadActivityPlan() { try { return JSON.parse(localStorage.getItem(ACTIVITY_KEY) || "null"); } catch { return null; } }
 function saveActivityPlan(p) { try { localStorage.setItem(ACTIVITY_KEY, JSON.stringify(p)); } catch {} }
@@ -5684,6 +5694,7 @@ function loadState() {
       state.clock24 = !!s.clock24;
       state.clockPattern = !!s.clockPattern;
       state.histPattern = !!s.histPattern;
+      if (s.otdRange === "all" || [1, 5, 10].includes(s.otdRange)) state.otdRange = s.otdRange;
       state.animate = s.animate !== false;
     }
   } catch {}
