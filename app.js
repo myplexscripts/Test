@@ -2906,7 +2906,7 @@ const Sky = (() => {
     sunrise: { sky:["#264075","#3e4b74","#8c434a","#bb5100"], light:[255,190,150], shadow:[86,74,102],  starMul:.1,  orb:"sun",  pos:[0.26,0.62] },
     morning: { sky:["#124373","#195084","#1363a1","#1975b6"], light:[236,244,252], shadow:[120,142,170],starMul:0,   orb:"sun",  pos:[0.40,0.34] },
     midday:  { sky:["#0e4374","#135485","#0e67a0","#0e75bd"], light:[248,252,255], shadow:[150,172,196],starMul:0,   orb:"sun",  pos:[0.52,0.16] },
-    golden:  { sky:["#323f73","#55466a","#974622","#a56100"], light:[255,206,150], shadow:[108,94,122], starMul:0,   orb:"sun",  pos:[0.66,0.46] },
+    golden:  { sky:["#35407a","#6b4a74","#b85a52","#cb7538"], light:[255,206,150], shadow:[108,94,122], starMul:0,   orb:"sun",  pos:[0.66,0.46] },
     sunset:  { sky:["#231e4c","#4d2d51","#953340","#c94200"], light:[255,166,128], shadow:[92,68,104],  starMul:.1,  orb:"sun",  pos:[0.78,0.60] },
     dusk:    { sky:["#121a3e","#252a54","#433a63","#5e466a"], light:[128,120,164], shadow:[38,38,64],   starMul:.55, orb:"moon", pos:[0.30,0.24] },
   };
