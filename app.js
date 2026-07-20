@@ -16,9 +16,10 @@ const STATE_KEY = "hw_state_v1";
 const CACHE_KEY = "hw_cache_v1";
 const OTD_CACHE_KEY = "hw_otd_v2";
 const OTD_RESULT_KEY = "hw_otd_result_v1";
-// Paste your deployed Worker URL here (e.g. "https://otd-weather.yourname.workers.dev").
-// Leave "" to fetch the archive directly from the browser (which some networks block).
-const OTD_PROXY = "";
+// Deployed Worker that fetches + reduces the Open-Meteo archive server-side and
+// edge-caches it (worker/on-this-day.js). Leave "" to fetch the archive directly
+// from the browser instead (which some networks block).
+const OTD_PROXY = "https://otd-weather.contactdavidbusch.workers.dev";
 const ACTIVITY_KEY = "hw_activityplan_v1";
 const NEWS_CACHE_KEY = "hw_news_v1";
 const MOON_RAD = Math.PI / 180, ECL = MOON_RAD * 23.4397;
