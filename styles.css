@@ -297,11 +297,15 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
 .otd-open i { font-size: 1.2rem; color: var(--ink-faint); }
 
 /* Historical detail screen: monochrome monthly-average roses (Sun-Clock language:
-   ink petals whose length encodes the value - no colour scales). */
+   twelve equal wedges shaded by ink opacity - no colour scales - with an
+   optional white pattern per shade, Sun-Clock style, so adjacent steps stay
+   discernible. */
 .hist-toggle { width: 100%; margin-bottom: var(--s-4); }
 .hist-toggle .seg-item { flex: 1 1 0; text-align: center; }
-.wg-wedge { fill: var(--ink); opacity: 0.82; }
-.wg-miss { fill: var(--ink); opacity: 0.16; }
+/* Pattern overlays are always drawn; .hg-nopat hides them so the toggle can
+   animate in place. White + difference blend keeps them legible on any shade. */
+.hg-pat { pointer-events: none; mix-blend-mode: difference; opacity: 0.32; }
+.hg-nopat .hg-pat { display: none; }
 .wg-guide { fill: none; stroke: var(--ink); stroke-width: 1; opacity: 0.14; }
 .wg-key-wedge { fill: var(--ink); opacity: 0.1; stroke: var(--surface); stroke-width: 0.7; }
 .wg-key-lab { fill: var(--ink-soft); font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: 9px; text-anchor: middle; dominant-baseline: middle; }
@@ -330,8 +334,14 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
 .wg-donut { display: block; width: 100%; height: auto; }
 .wg-year { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 0.62rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
 
-/* Month-key legend. */
-.wg-legend { margin-top: var(--s-6); }
+/* Shade key + month-position key. */
+.hg-legend { margin-top: var(--s-6); display: flex; flex-direction: column; gap: var(--s-4); }
+.hg-scale { display: flex; align-items: center; gap: var(--s-3); }
+.hg-scale-end { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: var(--t-cap); color: var(--ink-soft); font-variant-numeric: tabular-nums; flex: none; }
+.hg-swatches { display: flex; flex: 1 1 0; gap: 2px; }
+.hg-swatch { position: relative; flex: 1 1 0; aspect-ratio: 1 / 1; border-radius: var(--r-xs); overflow: hidden; }
+.hg-swatch svg { display: block; width: 100%; height: 100%; }
+.hg-scale-cap { font-size: var(--t-sm); line-height: 1.45; color: var(--ink-soft); font-weight: 500; }
 .wg-key { display: flex; align-items: center; gap: var(--s-4); }
 .wg-key-svg { width: 92px; height: 92px; flex: none; color: var(--ink); }
 .wg-key-cap { font-size: var(--t-sm); line-height: 1.45; color: var(--ink-soft); font-weight: 500; }

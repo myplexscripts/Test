@@ -81,6 +81,7 @@ const state = {
   dark: false,
   clock24: false,
   clockPattern: false,
+  histPattern: false,
   animate: true,
   drawerOpen: false,
   sheetOpen: false,
@@ -3903,56 +3904,65 @@ function annularWedge(cx, cy, ri, ro, a0, a1) {
   const pt = (r, a) => `${(cx + r * Math.sin(a)).toFixed(2)} ${(cy - r * Math.cos(a)).toFixed(2)}`;
   return `M${pt(ro, a0)} A${ro} ${ro} 0 0 1 ${pt(ro, a1)} L${pt(ri, a1)} A${ri} ${ri} 0 0 0 ${pt(ri, a0)} Z`;
 }
-// Shared value->radius scale across every year, so the roses are comparable.
+// Value -> discrete ink shade, Sun-Clock style: six opacity steps spaced for
+// contrast (light = less, dark = more), each with its own toggleable pattern so
+// adjacent steps stay discernible without any colour.
+const HIST_SHADES = [0.10, 0.28, 0.46, 0.64, 0.82, 1.0];
+const HIST_PAT = ["", "golden", "civil", "nautical", "astro", "night"];   // level 0 has no pattern
 function histScale(monthly, metric) {
   const vals = [];
   monthly.years.forEach((yr) => (metric === "precip" ? yr.p : yr.t).forEach((v) => { if (Number.isFinite(v)) vals.push(v); }));
   if (!vals.length) return { lo: 0, hi: 1 };
-  let lo = Math.min(...vals), hi = Math.max(...vals);
-  if (metric === "precip") lo = 0;   // rainfall reads from an absolute zero
-  else { const pad = (hi - lo) * 0.05; lo -= pad; }
+  let lo = metric === "precip" ? 0 : Math.min(...vals), hi = Math.max(...vals);
   if (hi <= lo) hi = lo + 1;
   return { lo, hi };
 }
-// The petals themselves: twelve monthly wedges, each length = that month's
-// average on the shared scale. Solid ink, no colour - like the Sun Clock.
-function monthRose(yr, metric, scale, cx, cy, rHub, rOut, gap) {
-  const arr = metric === "precip" ? yr.p : yr.t;
-  let w = "";
-  for (let m = 0; m < 12; m++) {
-    const a0 = m * Math.PI / 6 + gap, a1 = (m + 1) * Math.PI / 6 - gap, v = arr[m];
-    if (!Number.isFinite(v)) { w += `<path d="${annularWedge(cx, cy, rHub, rHub + 1.5, a0, a1)}" class="wg-miss"/>`; continue; }
-    const f = Math.max(0, Math.min(1, (v - scale.lo) / (scale.hi - scale.lo)));
-    w += `<path d="${annularWedge(cx, cy, rHub, rHub + (rOut - rHub) * f, a0, a1)}" class="wg-wedge"/>`;
-  }
-  return w;
+function histLevel(v, scale) {
+  if (!Number.isFinite(v)) return -1;
+  const f = Math.max(0, Math.min(0.99999, (v - scale.lo) / (scale.hi - scale.lo)));
+  return Math.floor(f * HIST_SHADES.length);   // 0..5
 }
-function yearRose(yr, metric, scale) {
+// A full ring: twelve equal wedges, each shaded by its month's value, with a
+// pattern overlay (white, difference-blended so it reads on any shade).
+function monthDonut(yr, metric, scale, cx, cy, ri, ro, gap) {
+  const arr = metric === "precip" ? yr.p : yr.t;
+  let shade = "", pat = "";
+  for (let m = 0; m < 12; m++) {
+    const a0 = m * Math.PI / 6 + gap, a1 = (m + 1) * Math.PI / 6 - gap, d = annularWedge(cx, cy, ri, ro, a0, a1);
+    const lvl = histLevel(arr[m], scale);
+    if (lvl < 0) { shade += `<path d="${d}" fill="var(--ink)" opacity="0.05"/>`; continue; }
+    shade += `<path d="${d}" fill="var(--ink)" opacity="${HIST_SHADES[lvl]}"/>`;
+    if (lvl >= 1) pat += `<path d="${d}" class="hg-pat" fill="url(#scpat-${HIST_PAT[lvl]})"/>`;
+  }
+  return shade + pat;
+}
+function yearDonut(yr, metric, scale) {
   const S = 48, c = S / 2;
-  return `<svg viewBox="0 0 ${S} ${S}" class="wg-donut" aria-hidden="true"><circle cx="${c}" cy="${c}" r="${c - 1}" class="wg-guide"/>${monthRose(yr, metric, scale, c, c, 4, c - 2, 0.05)}</svg>`;
+  return `<svg viewBox="0 0 ${S} ${S}" class="wg-donut" aria-hidden="true"><circle cx="${c}" cy="${c}" r="${c - 1}" class="wg-guide"/>${monthDonut(yr, metric, scale, c, c, c * 0.40, c - 1.5, 0.045)}</svg>`;
 }
 function warmingGrid(monthly, metric, scale) {
   return `<div class="wg-grid">` + monthly.years.map((yr) =>
-    `<button class="wg-cell" type="button" data-year="${yr.y}" aria-label="${yr.y}">${yearRose(yr, metric, scale)}<span class="wg-year">${String(yr.y).slice(2)}</span></button>`
+    `<button class="wg-cell" type="button" data-year="${yr.y}" aria-label="${yr.y}">${yearDonut(yr, metric, scale)}<span class="wg-year">${String(yr.y).slice(2)}</span></button>`
   ).join("") + `</div>`;
 }
-// Enlarged view of one year: labelled rose + a month-by-month value list.
+function fmtHistVal(v, metric) {
+  if (!Number.isFinite(v)) return "–";
+  return metric === "precip" ? (state.units === "imperial" ? `${(v / 25.4).toFixed(1)}"` : `${Math.round(v)}mm`) : `${Math.round(v)}°`;
+}
+// Enlarged view of one year: labelled ring + a month-by-month value list.
 function histDetailHTML(yr, metric, scale) {
-  const S = 184, c = S / 2, rOut = 66, labR = 82;
+  const S = 184, c = S / 2, ri = 24, ro = 66, labR = 82;
   const ini = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
   const full = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
   let lab = "";
   for (let m = 0; m < 12; m++) { const am = (m + 0.5) * Math.PI / 6; lab += `<text x="${(c + labR * Math.sin(am)).toFixed(1)}" y="${(c - labR * Math.cos(am)).toFixed(1)}" class="wg-key-lab">${ini[m]}</text>`; }
   const arr = metric === "precip" ? yr.p : yr.t;
-  const fmt = (v) => !Number.isFinite(v) ? "–" : (metric === "precip"
-    ? (state.units === "imperial" ? `${(v / 25.4).toFixed(1)}"` : `${Math.round(v)}mm`)
-    : `${Math.round(v)}°`);
-  const chips = full.map((mn, i) => `<span class="wg-chip"><span class="wg-chip-m">${mn}</span><strong>${fmt(arr[i])}</strong></span>`).join("");
+  const chips = full.map((mn, i) => `<span class="wg-chip"><span class="wg-chip-m">${mn}</span><strong>${fmtHistVal(arr[i], metric)}</strong></span>`).join("");
   const what = metric === "precip" ? "monthly precipitation" : "monthly average temperature";
   return `<div class="wg-detail">
     <div class="wg-detail-head">${yr.y}<span>${what}</span></div>
     <div class="wg-detail-body">
-      <svg viewBox="0 0 ${S} ${S}" class="wg-detail-svg" role="img" aria-label="${yr.y} ${what}"><circle cx="${c}" cy="${c}" r="${rOut + 2}" class="wg-guide"/>${monthRose(yr, metric, scale, c, c, 12, rOut, 0.05)}${lab}</svg>
+      <svg viewBox="0 0 ${S} ${S}" class="wg-detail-svg" role="img" aria-label="${yr.y} ${what}"><circle cx="${c}" cy="${c}" r="${ro + 2}" class="wg-guide"/><circle cx="${c}" cy="${c}" r="${ri}" class="wg-guide"/>${monthDonut(yr, metric, scale, c, c, ri, ro, 0.04)}${lab}</svg>
       <div class="wg-chips">${chips}</div>
     </div>
   </div>`;
@@ -3983,19 +3993,50 @@ function renderHistorySheet(err) {
   }
   const span = `${m.years[0].y}–${m.years[m.years.length - 1].y}`;
   el.sheetNote.textContent = metric === "temp"
-    ? `Average temperature for every month, ${span}. Each ring is a year; a longer petal is a warmer month. Tap a year to open it.`
-    : `Total precipitation for every month, ${span}. Each ring is a year; a longer petal is a wetter month. Tap a year to open it.`;
+    ? `Average temperature for every month, ${span}. Each ring is a year; darker months are warmer. Tap a year to open it.`
+    : `Total precipitation for every month, ${span}. Each ring is a year; darker months are wetter. Tap a year to open it.`;
   const scale = histScale(m, metric);
+  const patOn = state.histPattern;
   const toggle = `<div class="segmented small seg-slide hist-toggle" role="group" aria-label="Metric" data-pos="${metric === "precip" ? 1 : 0}">`
     + `<button class="seg-item ${metric === "temp" ? "is-active" : ""}" data-hm="temp">Temperature</button>`
     + `<button class="seg-item ${metric === "precip" ? "is-active" : ""}" data-hm="precip">Precipitation</button></div>`;
-  el.sheetList.innerHTML = toggle + `<div class="wg-detail-wrap" id="wgDetail"></div>` + warmingGrid(m, metric, scale) + histLegend(metric);
+  // Shared pattern defs (referenced by url() from every ring, swatch and detail).
+  const defs = `<svg class="hg-defs" width="0" height="0" aria-hidden="true"><defs>${SUN_PATTERN_DEFS}</defs></svg>`;
+  // Pattern toggle mirrors the Sun clock: overlays are always drawn and shown/
+  // hidden with the .hg-nopat class, so the switch animates without a re-render.
+  const controls = `<div class="sc-controls"><span class="sc-controls-label">Shade patterns</span>`
+    + `<button class="switch sc-switch" id="hgPattern" type="button" role="switch" aria-checked="${patOn ? "true" : "false"}" aria-label="Shade patterns">`
+    + `<i class="ph ph-circle switch-ic switch-ic-off" aria-hidden="true"></i>`
+    + `<i class="ph ph-dots-nine switch-ic switch-ic-on" aria-hidden="true"></i>`
+    + `<span class="switch-thumb"></span></button></div>`;
+  el.sheetList.innerHTML = toggle + defs
+    + `<div class="hg-wrap${patOn ? "" : " hg-nopat"}" id="hgWrap">`
+    + `<div class="wg-detail-wrap" id="wgDetail"></div>` + warmingGrid(m, metric, scale)
+    + controls + histLegend(metric, scale) + `</div>`;
   el.sheetList.querySelectorAll("[data-hm]").forEach((b) => b.onclick = () => { state.otdMetric = b.dataset.hm; renderHistorySheet(); });
   el.sheetList.querySelectorAll(".wg-cell").forEach((b) => b.onclick = () => selectHistYear(Number(b.dataset.year), true));
+  const patBtn = el.sheetList.querySelector("#hgPattern");
+  if (patBtn) patBtn.addEventListener("click", () => {
+    state.histPattern = !state.histPattern;
+    saveState();
+    patBtn.setAttribute("aria-checked", state.histPattern ? "true" : "false");
+    const wrap = el.sheetList.querySelector("#hgWrap");
+    if (wrap) wrap.classList.toggle("hg-nopat", !state.histPattern);
+  });
   const init = (state.histYear && m.years.some((r) => r.y === state.histYear)) ? state.histYear : m.years[m.years.length - 1].y;
   selectHistYear(init, false);   // fill the detail without yanking the scroll on first paint
 }
-function histLegend(metric) {
+function histLegend(metric, scale) {
+  // Shade key: six ink steps light->dark, each carrying its own pattern so the
+  // steps stay discernible without colour once the pattern toggle is on.
+  let sw = "";
+  for (let i = 0; i < HIST_SHADES.length; i++) {
+    const pat = i >= 1 ? `<rect width="26" height="26" class="hg-pat" fill="url(#scpat-${HIST_PAT[i]})"/>` : "";
+    sw += `<span class="hg-swatch"><svg viewBox="0 0 26 26" aria-hidden="true"><rect width="26" height="26" fill="var(--ink)" opacity="${HIST_SHADES[i]}"/>${pat}</svg></span>`;
+  }
+  const lo = fmtHistVal(scale.lo, metric), hi = fmtHistVal(scale.hi, metric);
+  const more = metric === "precip" ? "wetter" : "warmer";
+  // Month-position key: which wedge is which month, clockwise from January.
   const S = 116, c = S / 2, ro = 40, ri = 19, labR = 50;
   const names = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
   let w = "", lab = "";
@@ -4004,8 +4045,16 @@ function histLegend(metric) {
     w += `<path d="${annularWedge(c, c, ri, ro, a0, a1)}" class="wg-key-wedge"/>`;
     lab += `<text x="${(c + labR * Math.sin(am)).toFixed(1)}" y="${(c - labR * Math.cos(am)).toFixed(1)}" class="wg-key-lab">${names[m]}</text>`;
   }
-  return `<div class="wg-legend"><div class="wg-key"><svg viewBox="0 0 ${S} ${S}" class="wg-key-svg">${w}${lab}</svg>`
-    + `<span class="wg-key-cap">Each ring is one year. Months run clockwise from January at the top; a longer petal means a ${metric === "precip" ? "wetter" : "warmer"} month.</span></div></div>`;
+  return `<div class="hg-legend">
+    <div class="hg-scale">
+      <span class="hg-scale-end">${lo}</span>
+      <div class="hg-swatches">${sw}</div>
+      <span class="hg-scale-end">${hi}</span>
+    </div>
+    <span class="hg-scale-cap">Shade shows the value — lighter is less, darker is more. A darker month is a ${more} one; flip on the patterns above to tell neighbouring shades apart.</span>
+    <div class="wg-key"><svg viewBox="0 0 ${S} ${S}" class="wg-key-svg">${w}${lab}</svg>`
+    + `<span class="wg-key-cap">Each ring is one year. Months run clockwise from January at the top.</span></div>
+  </div>`;
 }
 
 let otdPendingKey = null;
@@ -5569,7 +5618,7 @@ function fmtClock(dt, tz) {
 }
 
 function saveState() {
-  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, tinted: state.tinted, clock24: state.clock24, clockPattern: state.clockPattern, animate: state.animate })); } catch {}
+  try { localStorage.setItem(STATE_KEY, JSON.stringify({ units: state.units, loc: state.loc, theme: state.theme, tinted: state.tinted, clock24: state.clock24, clockPattern: state.clockPattern, histPattern: state.histPattern, animate: state.animate })); } catch {}
 }
 function loadActivityPlan() { try { return JSON.parse(localStorage.getItem(ACTIVITY_KEY) || "null"); } catch { return null; } }
 function saveActivityPlan(p) { try { localStorage.setItem(ACTIVITY_KEY, JSON.stringify(p)); } catch {} }
@@ -5584,6 +5633,7 @@ function loadState() {
       state.tinted = true;
       state.clock24 = !!s.clock24;
       state.clockPattern = !!s.clockPattern;
+      state.histPattern = !!s.histPattern;
       state.animate = s.animate !== false;
     }
   } catch {}
