@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' data: https://fonts.gstatic.com; img-src 'self' data: blob: https:; connect-src 'self' https://api.open-meteo.com https://geocoding-api.open-meteo.com https://air-quality-api.open-meteo.com https://api.openweathermap.org https://api.rainviewer.com https://geo.weather.gc.ca https://api.weather.gc.ca https://archive-api.open-meteo.com https://rss-proxy.davidbusch-02.workers.dev https://otd-weather.contactdavidbusch.workers.dev; worker-src 'self'; manifest-src 'self'; base-uri 'self'; object-src 'none'">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#0a0a0a">
   <meta name="description" content="A bold, flat, personal weather app.">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -73,11 +73,11 @@
     <section class="alerts" id="alerts" aria-label="Weather alerts" hidden></section>
 
     <section class="conditions-tile" aria-label="Conditions and daily summary">
-    <div class="metrics" id="metrics"></div>
-    <div class="summary">
-      <p class="summary-text" id="summary">Loading your local weather…</p>
-      <div class="quickhits" id="quickHits"></div>
-    </div>
+      <div class="metrics" id="metrics"></div>
+      <div class="summary">
+        <p class="summary-text" id="summary">Loading your local weather…</p>
+        <div class="quickhits" id="quickHits"></div>
+      </div>
     </section>
 
       </div>
@@ -102,9 +102,9 @@
       </div>
     </section>
 
-<section class="block b-hourly" aria-label="Hourly forecast">
+    <section class="block b-hourly" aria-label="Hourly forecast">
       <div class="block-head">
-        <h2>Hourly Forecast</h2>
+        <h2>Hourly forecast</h2>
         <button class="arrow-btn" id="hourlyMore" aria-label="Open hourly graph"><svg class="arrow-ic" viewBox="-144 0 368 256" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="16" aria-hidden="true"><line x1="-136" y1="128" x2="216" y2="128"/><polyline points="144 56 216 128 144 200"/></svg></button>
       </div>
       <div class="rail" id="hourRail"></div>
@@ -138,7 +138,7 @@
 
     <section class="block b-otd" id="onThisDay" aria-label="Historical weather data" hidden>
       <div class="block-head">
-        <h2>Historical Data</h2>
+        <h2>Historical data</h2>
       </div>
       <div class="otd-card" id="otdCard"></div>
     </section>
@@ -155,7 +155,7 @@
     </div>
 
     <footer class="foot">
-      <span id="status">Starting…</span>
+      <span id="status" role="status">Starting…</span>
       <span class="foot-credit">Current conditions provided by Open-Meteo</span>
       <button class="foot-link" id="creditsBtn">Acknowledgements</button>
     </footer>

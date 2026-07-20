@@ -237,8 +237,18 @@ function wireEvents() {
   el.dailyMore.onclick = () => openDetail("temp", "daily");
   el.sheetBack.onclick = sheetBack;
   el.windCard.onclick = () => openDetail("wind");
-  if (el.moonCard) el.moonCard.onclick = () => openDetail("moon");
-  if (el.sunCard) el.sunCard.onclick = () => openDetail("sun");
+  // Sun and moon cards are divs (their innerHTML is rebuilt each render), so
+  // give them the button semantics the wind card gets for free from <button>.
+  const cardButton = (elm, label, open) => {
+    if (!elm) return;
+    elm.setAttribute("role", "button");
+    elm.setAttribute("tabindex", "0");
+    elm.setAttribute("aria-label", label);
+    elm.onclick = open;
+    elm.onkeydown = (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } };
+  };
+  cardButton(el.moonCard, "Open moon detail", () => openDetail("moon"));
+  cardButton(el.sunCard, "Open sun detail", () => openDetail("sun"));
   el.detailGrid.addEventListener("click", (e) => {
     const card = e.target.closest("[data-metric]");
     if (card) openDetail(card.dataset.metric, card.dataset.range || "hourly");
@@ -3051,6 +3061,10 @@ function applyMeshColors(time) {
   r.setProperty("--card-bg-hi", "rgba(255,255,255,0.15)");
   r.setProperty("--card-border", "transparent");
   r.setProperty("--hairline", "rgba(255,255,255,0.20)");
+  // Keep the browser/PWA chrome in step with the sky: the top of the gradient
+  // sits behind the status bar, so that's the colour the chrome should carry.
+  const themeMeta = document.querySelector('meta[name="theme-color"]');
+  if (themeMeta) themeMeta.setAttribute("content", sky[0]);
   updateSkyPlayback();
 }
 
@@ -3817,7 +3831,7 @@ function loadOnThisDay() {
   if (!el.onThisDay) return;
   const key = otdKey();
   const { mmdd, label } = todayMonthDay();
-  if (state.otd && state.otd.key === key && state.otd.mmdd === mmdd) { renderOnThisDay(); return; }
+  if (state.otd && state.otd.key === key && state.otd.mmdd === mmdd && Array.isArray(state.otd.series) && state.otd.series.length >= 4) { renderOnThisDay(); return; }
   // Small processed result, cached a couple of days so re-opens are instant.
   // Require a series too, so a copy cached before the graph/series existed is
   // treated as a miss and refetched instead of silently showing no graph.

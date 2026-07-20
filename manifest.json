@@ -2,18 +2,26 @@
   "name": "Weather",
   "short_name": "Weather",
   "description": "A bold, flat, personal weather app.",
+  "id": "./",
+  "lang": "en",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",
-  "orientation": "portrait",
   "background_color": "#F3E17B",
   "theme_color": "#F3E17B",
+  "categories": ["weather", "utilities"],
   "icons": [
     {
       "src": "icon.svg",
       "sizes": "any",
       "type": "image/svg+xml",
-      "purpose": "any maskable"
+      "purpose": "any"
+    },
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
     }
   ]
 }

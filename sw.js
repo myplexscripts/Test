@@ -1,10 +1,9 @@
-const CACHE_NAME = "home-weather-shell-v234";
+const CACHE_NAME = "home-weather-shell-v235";
 const SHELL_FILES = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
-  "./activities.js",
   "./manifest.json",
   "./icon.svg",
   "./vendor/leaflet/leaflet.js",
@@ -39,8 +38,12 @@ self.addEventListener("fetch", (event) => {
   event.respondWith(
     fetch(event.request)
       .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        // Only cache good responses - a transient 404/500 must never replace a
+        // working cached copy of the shell.
+        if (response.ok) {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+        }
         return response;
       })
       .catch(async () => {

@@ -454,7 +454,7 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
   .b-today { grid-area: today; align-self: start; }
   /* Not part of the named grid; span the full width below the details so it
      reads as its own band rather than a stray narrow cell. */
-  .b-otd { grid-column: 1 / -1; }
+  .b-otd, .b-news { grid-column: 1 / -1; }
 
   .col-now .hero { padding-top: var(--s-2); }
   .col-now .hero-readout .display { font-size: 6.5rem; }
@@ -1210,7 +1210,7 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
 .insight-label { font-size: var(--t-cap); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); }
 .insight-when {
   flex: none;
-  font-size: 0.62rem;
+  font-size: 0.68rem;
   font-weight: 800;
   letter-spacing: 0.03em;
   text-transform: uppercase;
@@ -2133,13 +2133,18 @@ body:has(.sheet.is-full) .bottomnav {
   background-color: transparent;
   color: var(--ink);
   transform: translateX(100%);
-  transition: transform var(--dur-slow) var(--ease-spring);
+  /* Closed sheets are off-screen but still in the DOM: visibility keeps their
+     buttons out of the tab order (matching their aria-hidden state), delayed so
+     the slide-out animation finishes before the sheet blinks away. */
+  visibility: hidden;
+  transition: transform var(--dur-slow) var(--ease-spring), visibility 0s var(--dur-slow);
   padding: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden;
   will-change: transform;
 }
+.sheet.is-open { visibility: visible; transition: transform var(--dur-slow) var(--ease-spring); }
 .sheet.is-open { transform: translateX(0); }
 body:has(.sheet.is-open) .app { visibility: hidden; }
 .sheet > * { width: 100%; max-width: var(--max); margin-inline: auto; position: relative; z-index: 1; }
@@ -2532,3 +2537,52 @@ button.row { width: 100%; text-align: left; color: inherit; font: inherit; curso
   }
   .b-today .detail-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 }
+
+/* ============================================================================
+   Site-wide interaction consistency
+   One focus treatment, one hover treatment, one cursor rule - every
+   interactive element responds the same way wherever it lives. :where() keeps
+   specificity at zero so a component can still override deliberately, but
+   never silently miss a state. */
+
+/* Keyboard focus: a single token-driven ring that works on every surface
+   (the ink colour always contrasts with its background by design). The search
+   field is the one exception - it signals focus with its lit border instead. */
+:where(button, [role="button"], [role="switch"], a, input, select, [tabindex]:not([tabindex="-1"])):focus-visible {
+  outline: 2.5px solid var(--ink);
+  outline-offset: 2px;
+}
+
+/* Every actionable element gets the pointer, full stop. */
+:where(button, [role="button"], [role="switch"], .seg-item, .bn-item) { cursor: pointer; }
+
+/* Hover: mouse and trackpad users get the same "lift" language everywhere -
+   resting card surfaces brighten one step, ghost icon buttons gain a wash,
+   solid action buttons brighten slightly. Touch devices skip all of it. */
+@media (hover: hover) and (pointer: fine) {
+  :where(.news-item, .news-tile, .detail:not(.static), .insight-tap, .hour-card, .day-card,
+         .wind-card, .moon-card, .sun-card, .alert-modal-close):hover {
+    background: var(--card-bg-hi);
+  }
+  :where(.icon-btn, .arrow-btn, .back-btn, .loc-btn, .search-clear,
+         .map-full-btn, .qh-toggle):hover {
+    background: var(--card-bg);
+  }
+  :where(.drawer-action):hover { background: var(--fill-hi); }
+  :where(.mappick-confirm, .radar-play):hover { filter: brightness(1.08); }
+  :where(.foot-link):hover { color: var(--ink-soft); }
+  :where(.seg-item:not(.is-active)):hover { opacity: 0.85; }
+  :where(.bn-item:not(.is-active)):hover { opacity: 0.85; }
+
+  /* Rails hide their scrollbar on touch, but a mouse needs one: show a slim,
+     token-coloured bar so horizontal content is clearly scrollable. */
+  .rail { scrollbar-width: thin; scrollbar-color: var(--ink-faint) transparent; }
+  .rail::-webkit-scrollbar { display: block; height: 6px; }
+  .rail::-webkit-scrollbar-thumb { background: var(--ink-faint); border-radius: var(--r-pill); }
+  .rail::-webkit-scrollbar-track { background: transparent; }
+}
+
+/* The hero locate button is visually small; give it a full-size invisible hit
+   area so it meets the 44px target without changing the design. */
+.loc-btn { position: relative; }
+.loc-btn::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; }

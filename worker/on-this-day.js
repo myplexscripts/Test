@@ -40,7 +40,11 @@ export default {
 
       const latR = lat.toFixed(2), lonR = lon.toFixed(2);
       const today = new Date().toISOString().slice(0, 10);
-      const cacheKey = new Request(`https://otd-cache.internal/${latR},${lonR},${unit},${mmdd},${today}`);
+      // VERSION busts the edge cache on deploys that change the response shape -
+      // without it, a response cached earlier the same day by the previous code
+      // keeps being served until midnight UTC.
+      const VERSION = "v2";
+      const cacheKey = new Request(`https://otd-cache.internal/${VERSION}/${latR},${lonR},${unit},${mmdd},${today}`);
       // Cache API is a no-op on workers.dev, and shouldn't ever be fatal.
       let cache = null;
       try {
