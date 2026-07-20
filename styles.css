@@ -296,38 +296,45 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
 .otd-open:active { transform: scale(0.98); background: var(--card-bg-hi); }
 .otd-open i { font-size: 1.2rem; color: var(--ink-faint); }
 
-/* Historical detail screen: warming-circles grid */
+/* Historical detail screen: monochrome monthly-average roses (Sun-Clock language:
+   ink petals whose length encodes the value - no colour scales). */
 .hist-toggle { width: 100%; margin-bottom: var(--s-4); }
 .hist-toggle .seg-item { flex: 1 1 0; text-align: center; }
-.wg-readout {
-  min-height: 1.4em; margin: 0 0 var(--s-3);
-  font-family: Rubik, Inter, sans-serif; font-weight: 600; font-size: var(--t-sm);
-  color: var(--ink-soft); font-variant-numeric: tabular-nums;
-}
-.wg-readout strong { color: var(--ink); font-weight: 800; }
-.wg-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(46px, 1fr));
-  gap: var(--s-2);
-}
+.wg-wedge { fill: var(--ink); opacity: 0.82; }
+.wg-miss { fill: var(--ink); opacity: 0.16; }
+.wg-guide { fill: none; stroke: var(--ink); stroke-width: 1; opacity: 0.14; }
+.wg-key-wedge { fill: var(--ink); opacity: 0.1; stroke: var(--surface); stroke-width: 0.7; }
+.wg-key-lab { fill: var(--ink-soft); font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: 9px; text-anchor: middle; dominant-baseline: middle; }
+
+/* Enlarged selected year, pinned at the top of the sheet. */
+.wg-detail-wrap { margin-bottom: var(--s-5); }
+.wg-detail { border: 2px solid var(--card-border); background: var(--card-bg); border-radius: var(--r-lg); padding: var(--s-5); color: var(--ink); }
+.wg-detail-head { font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: 1.5rem; line-height: 1; display: flex; align-items: baseline; gap: var(--s-3); }
+.wg-detail-head span { font-size: var(--t-cap); font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: var(--ink-soft); }
+.wg-detail-body { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s-5); margin-top: var(--s-4); }
+.wg-detail-svg { width: 168px; height: 168px; flex: none; color: var(--ink); overflow: visible; }
+.wg-chips { flex: 1 1 180px; display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--s-2) var(--s-3); min-width: 0; }
+.wg-chip { display: flex; flex-direction: column; font-variant-numeric: tabular-nums; }
+.wg-chip-m { font-size: var(--t-cap); font-weight: 700; color: var(--ink-soft); }
+.wg-chip strong { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1rem; }
+
+/* Grid of every year. */
+.wg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(46px, 1fr)); gap: var(--s-2); }
 .wg-cell {
   display: flex; flex-direction: column; align-items: center; gap: 2px;
-  padding: 3px 0; border-radius: var(--r-xs); cursor: pointer;
+  padding: 4px 2px; border-radius: var(--r-xs); cursor: pointer;
   transition: background var(--dur-fast), transform var(--dur-fast) var(--ease-spring);
 }
 .wg-cell.is-sel { background: var(--card-bg-hi); }
 .wg-cell:active { transform: scale(0.94); }
 .wg-donut { display: block; width: 100%; height: auto; }
-.wg-cell.is-sel .wg-donut { outline: 2px solid var(--ink); outline-offset: 1px; border-radius: 50%; }
 .wg-year { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 0.62rem; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
-/* Legend: diverging scale bar + a month-key ring. */
-.wg-legend { margin-top: var(--s-5); }
-.wg-scale { height: 12px; border-radius: var(--r-pill); }
-.wg-scale-ends { display: flex; justify-content: space-between; margin-top: var(--s-1); font-size: var(--t-cap); font-weight: 700; color: var(--ink-soft); }
-.wg-key { display: flex; align-items: center; gap: var(--s-4); margin-top: var(--s-5); }
-.wg-key-svg { width: 96px; height: 96px; flex: none; color: var(--ink); }
-.wg-key-lab { fill: var(--ink-soft); font-family: Rubik, Inter, sans-serif; font-weight: 800; font-size: 9px; text-anchor: middle; dominant-baseline: middle; }
-.wg-key-cap { font-size: var(--t-sm); line-height: 1.4; color: var(--ink-soft); font-weight: 500; }
+
+/* Month-key legend. */
+.wg-legend { margin-top: var(--s-6); }
+.wg-key { display: flex; align-items: center; gap: var(--s-4); }
+.wg-key-svg { width: 92px; height: 92px; flex: none; color: var(--ink); }
+.wg-key-cap { font-size: var(--t-sm); line-height: 1.45; color: var(--ink-soft); font-weight: 500; }
 .otd-legend { display: flex; gap: var(--s-4); margin-top: var(--s-2); font-size: var(--t-cap); font-weight: 600; color: var(--ink-soft); }
 .otd-leg { display: inline-flex; align-items: center; gap: 6px; }
 .otd-leg-line { width: 14px; height: 0; border-top: 2px solid var(--ink); border-radius: 2px; }
