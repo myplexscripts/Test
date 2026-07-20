@@ -1345,11 +1345,18 @@ function nextPrecipHour() {
 function stargazingTonight() {
   const tz = state.tz || 0;
   const now = Math.floor(Date.now() / 1000);
-  const hrs = (state.hourly || []).filter((p) => {
-    if (p.dt < now - 3600) return false;
-    const h = new Date((p.dt + tz) * 1000).getUTCHours();
-    return h >= 20 || h <= 5;
-  }).slice(0, 12);
+  // Only count genuinely dark hours: past dusk and before dawn (with ~45-60 min
+  // of twilight trimmed off each end), so a brightening pre-dawn hour never
+  // counts as a good window. Falls back to clock hours if sun times are missing.
+  const sun = state.data?.current?.sys || {};
+  const sr = sun.sunrise, ss = sun.sunset;
+  const darkAt = (dt) => {
+    if (!sr || !ss) { const h = new Date((dt + tz) * 1000).getUTCHours(); return h >= 21 || h <= 4; }
+    const nextRise = Math.min(Infinity, ...[sr, sr + 86400].filter((r) => r >= dt));
+    const prevSet = Math.max(-Infinity, ...[ss - 86400, ss].filter((s) => s <= dt));
+    return dt >= prevSet + 3600 && dt <= nextRise - 5400;   // 60 min past dusk … 90 min before dawn
+  };
+  const hrs = (state.hourly || []).filter((p) => p.dt >= now - 3600 && darkAt(p.dt)).slice(0, 12);
   if (hrs.length < 2) return null;
 
   const clarity = (p) => {
@@ -1685,7 +1692,7 @@ function renderQuickHits() {
   const s = seasonalCallout();
   const seasonalTile = insightTileHTML(s.icon, s.label, s.value, s.sub, s.when);
   const star = stargazingTonight();
-  const starTile = star ? insightTileHTML("ph-shooting-star", "Stargazing tonight", star.rating, star.note, star.when) : "";
+  const starTile = star ? insightTileHTML("ph-shooting-star", "Stargazing", star.rating, star.note, star.when) : "";
   const open = state.quickHitsOpen;
   if (open) el.quickHits.classList.add("qh-no-anim");
   el.quickHits.innerHTML = `
