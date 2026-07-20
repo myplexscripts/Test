@@ -36,9 +36,12 @@ export default {
       const lon = parseFloat(url.searchParams.get("lon"));
       const unit = url.searchParams.get("unit") === "imperial" ? "imperial" : "metric";
       const mmdd = (url.searchParams.get("mmdd") || "").slice(0, 5);
+      // mode "day" (default) returns the records for one calendar day; "monthly"
+      // returns per-year monthly means + the long-run baseline for the grid view.
+      const mode = url.searchParams.get("mode") === "monthly" ? "monthly" : "day";
       // Range start: the app defaults to 2000 (fast) and offers 1970 on demand.
       const start = Math.min(2020, Math.max(1940, parseInt(url.searchParams.get("start"), 10) || 2000));
-      if (!isFinite(lat) || !isFinite(lon) || !/^\d\d-\d\d$/.test(mmdd)) {
+      if (!isFinite(lat) || !isFinite(lon) || (mode === "day" && !/^\d\d-\d\d$/.test(mmdd))) {
         return json({ error: "bad params" }, 400);
       }
 
@@ -48,7 +51,7 @@ export default {
       // without it, a response cached earlier the same day by the previous code
       // keeps being served until midnight UTC.
       const VERSION = "v3";
-      const cacheKey = new Request(`https://otd-cache.internal/${VERSION}/${latR},${lonR},${unit},${mmdd},${start},${today}`);
+      const cacheKey = new Request(`https://otd-cache.internal/${VERSION}/${mode}/${latR},${lonR},${unit},${mmdd},${start},${today}`);
       // Cache API is a no-op on workers.dev, and shouldn't ever be fatal.
       let cache = null;
       try {
@@ -74,6 +77,37 @@ export default {
 
       const d = j.daily || {};
       const time = d.time || [], tmax = d.temperature_2m_max || [], tmin = d.temperature_2m_min || [], pr = d.precipitation_sum || [];
+
+      if (mode === "monthly") {
+        // Aggregate to a per-year, per-month matrix: mean temp ((max+min)/2) and
+        // total precip for each month, plus the long-run monthly baseline.
+        const byYear = new Map();   // year -> { t:[12 sum], tn:[12 count], p:[12 sum], pn:[12 count] }
+        for (let i = 0; i < time.length; i++) {
+          const y = Number(String(time[i]).slice(0, 4)), m = Number(String(time[i]).slice(5, 7)) - 1;
+          if (!(m >= 0 && m < 12)) continue;
+          let rec = byYear.get(y);
+          if (!rec) { rec = { t: Array(12).fill(0), tn: Array(12).fill(0), p: Array(12).fill(0), pn: Array(12).fill(0) }; byYear.set(y, rec); }
+          const mx = tmax[i], mn = tmin[i], p = pr[i];
+          if (Number.isFinite(mx) && Number.isFinite(mn)) { rec.t[m] += (mx + mn) / 2; rec.tn[m]++; }
+          if (Number.isFinite(p)) { rec.p[m] += p; rec.pn[m]++; }
+        }
+        const rnd = (v) => Math.round(v * 10) / 10;
+        const years = [...byYear.keys()].sort((a, b) => a - b).map((y) => {
+          const rec = byYear.get(y);
+          return {
+            y,
+            t: rec.t.map((s, m) => rec.tn[m] ? rnd(s / rec.tn[m]) : null),
+            // Only count a month's precip total if it's reasonably complete.
+            p: rec.p.map((s, m) => rec.pn[m] >= 20 ? Math.round(s) : null),
+          };
+        });
+        const baseT = Array(12).fill(0).map((_, m) => { const v = years.map((yr) => yr.t[m]).filter(Number.isFinite); return v.length ? rnd(v.reduce((a, b) => a + b, 0) / v.length) : null; });
+        const baseP = Array(12).fill(0).map((_, m) => { const v = years.map((yr) => yr.p[m]).filter(Number.isFinite); return v.length ? Math.round(v.reduce((a, b) => a + b, 0) / v.length) : null; });
+        const resp = json({ mode: "monthly", start, unit, years, baseT, baseP }, 200, { "Cache-Control": "public, max-age=86400" });
+        try { if (cache) await cache.put(cacheKey, resp.clone()); } catch { /* best effort */ }
+        return resp;
+      }
+
       let hi = null, lo = null, wet = null, sumHi = 0, nHi = 0;
       const years = new Set();
       const series = [];   // one point per year for the year-over-year graph
