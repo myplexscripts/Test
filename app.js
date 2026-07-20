@@ -3513,9 +3513,9 @@ function renderDaySheet() {
     <div class="row">
       <span class="row-label">${fmtHour(it.dt, tz)}</span>
       ${wxIcon(it.weather?.[0], h < 6 || h >= 20, "row-icon")}
-      <span class="row-temp">${Math.round(it.main.temp)}°<span class="row-sub">${Math.round(it.main.feels_like)}°</span></span>
+      <span class="row-temp">${tempDot(it.main.temp)}${Math.round(it.main.temp)}°<span class="row-sub">${Math.round(it.main.feels_like)}°</span></span>
     </div>`;
-  }).join("");
+  }).join("") + tempScaleSection();
 }
 
 function dayFull(dt, tz) {
@@ -3600,6 +3600,53 @@ function aboutSection(metric, m) {
   return section(ABOUT_TITLES[metric] || `About ${m.label}`, `<p class="info-text">${m.about}</p>`);
 }
 
+// Temperature colour scale - the "Sky diverging" ramp, sampled from the app's
+// own sky gradients (night-indigo at the cold pole, sunset-amber at the warm)
+// so a temperature tint sits inside the palette. Stops are in degrees C; cool
+// to warm through a warm neutral (= the page off-white) so "mild" stays calm
+// and the poles carry the signal. Values between stops interpolate.
+const TEMP_SCALE = [
+  [-20, [43, 47, 110]],    // #2b2f6e  deep indigo
+  [-12, [51, 73, 159]],    // #33499f
+  [-4,  [63, 127, 208]],   // #3f7fd0
+  [4,   [104, 176, 216]],  // #68b0d8
+  [13,  [231, 229, 219]],  // #e7e5db  mild neutral
+  [18,  [240, 207, 134]],  // #f0cf86
+  [24,  [232, 162, 74]],   // #e8a24a
+  [30,  [221, 111, 44]],   // #dd6f2c
+  [36,  [194, 58, 63]]     // #c23a3f  deep red
+];
+function tempTintC(c) {
+  const s = TEMP_SCALE;
+  if (!Number.isFinite(c)) return "transparent";
+  if (c <= s[0][0]) return `rgb(${s[0][1].join(",")})`;
+  if (c >= s[s.length - 1][0]) return `rgb(${s[s.length - 1][1].join(",")})`;
+  for (let i = 1; i < s.length; i++) {
+    if (c <= s[i][0]) {
+      const [c0, a] = s[i - 1], [c1, b] = s[i], f = (c - c0) / (c1 - c0);
+      return `rgb(${a.map((v, k) => Math.round(v + (b[k] - v) * f)).join(",")})`;
+    }
+  }
+  return `rgb(${s[s.length - 1][1].join(",")})`;
+}
+// tempTintC wants degrees C; toCelsius() (defined above) maps the display unit.
+function tempTint(v) { return tempTintC(toCelsius(v)); }
+function tempDot(v) { return Number.isFinite(v) ? `<span class="temp-dot" style="background:${tempTint(v)}"></span>` : ""; }
+const METRIC_TINTS = { temp: 1, feels: 1 };
+function fmtScaleTick(cVal) {
+  const v = state.units === "imperial" ? Math.round(cVal * 9 / 5 + 32) : cVal;
+  return `${v}°`;
+}
+function tempScaleSection() {
+  const stops = TEMP_SCALE.map(([, rgb], i) => `rgb(${rgb.join(",")}) ${Math.round(i / (TEMP_SCALE.length - 1) * 100)}%`).join(", ");
+  const ticks = [-20, -4, 13, 24, 36].map((c) => `<span>${fmtScaleTick(c)}</span>`).join("");
+  return section("Temperature scale",
+    `<div class="temp-scale">`
+    + `<div class="temp-scale-bar" style="background:linear-gradient(90deg, ${stops})"></div>`
+    + `<div class="temp-scale-ticks">${ticks}</div>`
+    + `<p class="info-text">Cool to warm, drawn from the app's own sky - deep indigo of a cold night, through a mild neutral, to sunset amber and red. Each hour's dot marks where its temperature falls.</p></div>`);
+}
+
 function renderDetailList() {
   const m = METRICS[state.detail.metric];
   const tz = state.tz || 0;
@@ -3609,11 +3656,11 @@ function renderDetailList() {
         <span class="row-label">${d.label}</span>
         ${wxIcon({ main: d.main, icon: d.icon }, false, "row-icon")}
         <span class="row-hilo">
-          <span class="hilo-item"><i class="ph ph-arrow-up" aria-hidden="true"></i>${Math.round(d.max)}°</span>
+          <span class="hilo-item">${tempDot(d.max)}<i class="ph ph-arrow-up" aria-hidden="true"></i>${Math.round(d.max)}°</span>
           <span class="hilo-item"><i class="ph ph-arrow-down" aria-hidden="true"></i>${Math.round(d.min)}°</span>
         </span>
         <i class="ph ph-caret-right row-go"></i>
-      </button>`).join("") + aboutSection(state.detail.metric, m);
+      </button>`).join("") + tempScaleSection() + aboutSection(state.detail.metric, m);
     el.sheetList.querySelectorAll("[data-day]").forEach((b) => b.onclick = () => openDay(Number(b.dataset.day)));
     return;
   }
@@ -3624,6 +3671,7 @@ function renderDetailList() {
     return unit === "°" ? `${n}°` : `${n} ${unit}`;
   };
   const showWx = state.detail.metric === "temp";
+  const tint = !!METRIC_TINTS[state.detail.metric];
   el.sheetList.innerHTML = (state.hourly || []).map((it) => {
     const hh = new Date((it.dt + tz) * 1000).getUTCHours();
     const pop = Math.round((it.pop || 0) * 100);
@@ -3637,9 +3685,9 @@ function renderDetailList() {
       <span class="row-label">${fmtHour(it.dt, tz)}</span>
       ${wxIcon(it.weather?.[0], hh < 6 || hh >= 20, "row-icon")}
       ${wx}
-      <span class="row-temp">${valTxt(m.get(it))}</span>
+      <span class="row-temp">${tint ? tempDot(m.get(it)) : ""}${valTxt(m.get(it))}</span>
     </div>`;
-  }).join("") + aboutSection(state.detail.metric, m);
+  }).join("") + (tint ? tempScaleSection() : "") + aboutSection(state.detail.metric, m);
 }
 
 function hexA(hex, a) {
