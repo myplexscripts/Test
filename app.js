@@ -2970,6 +2970,35 @@ function phaseForHour(h) {
   if (h < 21.5) return "dusk";
   return "night";
 }
+
+// The sky phase for a moment, from the location's *actual* sun geometry rather
+// than fixed clock hours: twilight bands (astronomical/nautical/civil) on the
+// night side, the sunrise glow anchored to real civil-dawn→sunrise, the evening
+// golden/sunset/dusk anchored to real sunset, and the daylight split into
+// morning/midday/golden by fraction of the day's length. This is what lines the
+// background up with the location's real day. Handles polar day/night and the
+// high-latitude summer case where it never gets fully dark.
+function skyPhaseAt(t, lat, lon) {
+  const st = sunTimes(t, lat, lon);
+  const SR = st.sunrise.up, SS = st.sunrise.down;
+  const aU = st.astro.up, cU = st.civil.up, cD = st.civil.down, aD = st.astro.down;
+  if (SR == null || SS == null) return st.maxAlt > 0.1 ? "midday" : "night";   // polar day / night
+  if (t >= SR && t <= SS) {
+    const day = SS - SR;
+    if (t < SR + 0.09 * day) return "sunrise";   // just-risen glow
+    if (t < SR + 0.42 * day) return "morning";
+    if (t < SS - 0.16 * day) return "midday";
+    return "golden";                             // afternoon warmth down to sunset
+  }
+  if (t < SR) {                                  // morning twilight
+    if (cU != null && t >= cU) return "sunrise"; // civil dawn into sunrise
+    if (aU != null && t >= aU) return "dawn";    // astronomical/nautical twilight
+    return aU == null ? "dusk" : "night";        // never-dark summer night reads as lingering dusk
+  }
+  if (cD != null && t <= cD) return "sunset";    // afterglow past sunset
+  if (aD != null && t <= aD) return "dusk";      // deepening twilight
+  return aD == null ? "dusk" : "night";
+}
 // Current weather -> Sky condition key (from OpenWeather main/description, cloud
 // cover and wind). Defaults to clear when there is no data yet.
 function currentSkyCond() {
@@ -2990,11 +3019,11 @@ function currentSkyCond() {
   return "clear";
 }
 
-// h = local hour as a float in [0, 24), or null to clear the tint. Drives the
-// Sky engine (time of day + current condition) and the chrome tokens.
-function applyMeshColors(h) {
+// time = resolved sky phase ("night", "sunrise", …), or null to clear the tint.
+// Drives the Sky engine (time of day + current condition) and the chrome tokens.
+function applyMeshColors(time) {
   const r = document.documentElement.style;
-  if (!state.tinted || h == null) {
+  if (!state.tinted || time == null) {
     BLOOM_VARS.forEach((v) => r.removeProperty(v));
     const base = PALETTES[themeKind()];
     if (base) {
@@ -3004,7 +3033,6 @@ function applyMeshColors(h) {
     updateSkyPlayback();
     return;
   }
-  const time = phaseForHour(h);
   Sky.set(time, currentSkyCond());
   const sky = Sky.skyStops(time);
   // The page background continues the sky's *bottom* stop (the horizon), so the
@@ -3074,17 +3102,16 @@ let dynamicTimer = null;
 function updateDynamicBackground() {
   const c = state.center || {};
   const lat = c.lat, lon = c.lon;
-  let h;
+  let time;
   if (Number.isFinite(lat) && Number.isFinite(lon)) {
-    // Local hour at the viewed location.
-    const tz = state.tz || state.data?.current?.timezone || 0;
-    h = hourOfDay(Math.floor(Date.now() / 1000), tz);
+    // Phase from the viewed location's real sun/twilight times.
+    time = skyPhaseAt(Math.floor(Date.now() / 1000), lat, lon);
   } else {
-    // No location yet: fall back to the device's local time.
+    // No location yet: fall back to the device's local hour.
     const d = new Date();
-    h = d.getHours() + d.getMinutes() / 60;
+    time = phaseForHour(d.getHours() + d.getMinutes() / 60);
   }
-  applyMeshColors(h);
+  applyMeshColors(time);
 }
 
 function startDynamicTheme() {
