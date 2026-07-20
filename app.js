@@ -2129,8 +2129,36 @@ function segCondition(list) {
   return "mixed";
 }
 
-// How the evening (5-9pm) and overnight (9pm-6am) shape up, so the summary
-// covers the whole day even once the rest-of-today lead has moved past them.
+// The evening (5-9pm): a plain "clear/cloudy in the evening near 18°" lead-in.
+function eveningPhrase(evening) {
+  const adj = { clear: "clear", cloud: "cloudy", rain: "showery", snow: "snowy", thunder: "stormy", fog: "foggy", mixed: "part-cloudy" };
+  const w = adj[segCondition(evening)];
+  if (!w) return "";
+  const t = evening.length ? Math.round(evening.reduce((s, h) => s + (h.main?.temp ?? 0), 0) / evening.length) : null;
+  return `${w} in the evening${t != null ? ` near ${t}°` : ""}`;
+}
+
+// The overnight (9pm-6am) as an evocative noun phrase - wind and clear skies get
+// called out, e.g. "a breezy night" or "a clear night to catch the moon".
+function nightPhrase(night) {
+  if (!night.length) return "";
+  const cond = segCondition(night);
+  const winds = night.map((h) => h.wind?.gust ?? h.wind?.speed ?? 0);
+  const kmh = (state.units === "imperial" ? 1.609 : 3.6) * (winds.length ? Math.max(...winds) : 0);
+  const wind = kmh >= 45 ? "windy" : kmh >= 28 ? "breezy" : "";
+  const sky = { clear: "clear", cloud: "cloudy", rain: "wet", snow: "snowy", thunder: "stormy", fog: "foggy", mixed: "" }[cond] || "";
+  const adjs = [wind, sky].filter(Boolean);
+  if (!adjs.length) adjs.push("quiet");
+  const phrase = adjs.join(", ");
+  const art = /^[aeiou]/i.test(phrase) ? "an" : "a";
+  let out = `${art} ${phrase} night`;
+  if (cond === "clear") out += " to catch the moon";
+  else if (cond === "snow") out += " with snow around";
+  return out;
+}
+
+// How the evening and overnight shape up, so the summary covers the whole day
+// even once the rest-of-today lead has moved past them.
 function eveningNightClause(tz) {
   const now = Math.floor(Date.now() / 1000);
   const hrs = (state.hourly || []).filter((h) => h.dt >= now - 1800 && h.dt <= now + 33 * 3600);
@@ -2139,17 +2167,10 @@ function eveningNightClause(tz) {
   const inSeg = (h, lo, hi) => { const x = H(h.dt); return lo <= hi ? (x >= lo && x < hi) : (x >= lo || x < hi); };
   const evening = hrs.filter((h) => inSeg(h, 17, 21));
   const night = hrs.filter((h) => inSeg(h, 21, 6));
-  if (!evening.length && !night.length) return null;
-  const adj = { clear: "clear", cloud: "cloudy", rain: "showery", snow: "snowy", thunder: "stormy", fog: "foggy", mixed: "part-cloudy" };
-  const eW = adj[segCondition(evening)], nW = adj[segCondition(night)];
-  const eTemp = evening.length ? Math.round(evening.reduce((s, h) => s + (h.main?.temp ?? 0), 0) / evening.length) : null;
-  const evPhrase = eW ? `${eW} in the evening${eTemp != null ? ` near ${eTemp}°` : ""}` : "";
-  if (evening.length && night.length) {
-    if (eW && nW && eW === nW) return cap(`staying ${eW} into the evening and overnight.`);
-    return cap(`${evPhrase || "unsettled in the evening"}, ${nW ? `turning ${nW}` : "changing"} overnight.`);
-  }
-  if (evening.length && eW) return cap(`${evPhrase}.`);
-  if (night.length && nW) return cap(`${nW} overnight.`);
+  const ev = eveningPhrase(evening), ni = nightPhrase(night);
+  if (ev && ni) return cap(`${ev}, then ${ni}.`);
+  if (ev) return cap(`${ev}.`);
+  if (ni) return cap(`${ni}.`);
   return null;
 }
 
