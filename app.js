@@ -3952,19 +3952,6 @@ function annularWedge(cx, cy, ri, ro, a0, a1) {
   const pt = (r, a) => `${(cx + r * Math.sin(a)).toFixed(2)} ${(cy - r * Math.cos(a)).toFixed(2)}`;
   return `M${pt(ro, a0)} A${ro} ${ro} 0 0 1 ${pt(ro, a1)} L${pt(ri, a1)} A${ri} ${ri} 0 0 0 ${pt(ri, a0)} Z`;
 }
-// Diverging anomaly ramp, built from the "Sky diverging" palette: how far a
-// month sat from its long-run normal. Cool indigo/blue below the normal, warm
-// amber/red above, through the page off-white at the normal. Input t in [-1, 1].
-const HIST_DIVERGE = [
-  [-1.00, [43, 47, 110]],    // #2b2f6e  deep indigo
-  [-0.55, [63, 127, 208]],   // #3f7fd0  blue
-  [-0.22, [104, 176, 216]],  // #68b0d8  soft cyan
-  [0.00,  [231, 229, 219]],  // #e7e5db  neutral (= at normal)
-  [0.22,  [240, 207, 134]],  // #f0cf86  gold
-  [0.50,  [232, 162, 74]],   // #e8a24a  amber
-  [0.75,  [221, 111, 44]],   // #dd6f2c  orange
-  [1.00,  [194, 58, 63]]     // #c23a3f  deep red
-];
 function rampAt(stops, t) {
   t = Math.max(-1, Math.min(1, t));
   if (t <= stops[0][0]) return `rgb(${stops[0][1].join(",")})`;
@@ -3976,33 +3963,40 @@ function rampAt(stops, t) {
   }
   return `rgb(${stops[stops.length - 1][1].join(",")})`;
 }
-// Scale = each month's baseline + the largest departure from it, so the ramp
-// stretches to fill the data. sign flips precipitation so wetter reads cool.
+// Precipitation sequential ramp (dry -> wet), palette-suited: pale neutral up
+// through soft cyan to deep blue. Domain [-1, 1] to share rampAt.
+const PRECIP_SEQ = [
+  [-1, [231, 229, 219]],   // #e7e5db  pale (dry)
+  [0,  [104, 176, 216]],   // #68b0d8  soft cyan
+  [1,  [40, 74, 140]]      // deep blue (wet)
+];
+// Colour is each month's own average value: temperature on the fixed cool->hot
+// scale (so a given temperature is always the same colour), precipitation on a
+// dry->wet ramp stretched to this location's range. No comparison to a normal.
 function histScale(monthly, metric) {
-  const base = (metric === "precip" ? monthly.baseP : monthly.baseT) || [];
-  let maxAbs = 0;
-  monthly.years.forEach((yr) => {
-    const arr = metric === "precip" ? yr.p : yr.t;
-    for (let m = 0; m < 12; m++) { const b = base[m]; if (Number.isFinite(arr[m]) && Number.isFinite(b)) maxAbs = Math.max(maxAbs, Math.abs(arr[m] - b)); }
-  });
-  return { base, maxAbs: maxAbs > 0 ? maxAbs : 1, sign: metric === "precip" ? -1 : 1 };
+  if (metric !== "precip") return { metric };   // temperature uses the fixed absolute ramp
+  const vals = [];
+  monthly.years.forEach((yr) => yr.p.forEach((v) => { if (Number.isFinite(v)) vals.push(v); }));
+  const hi = vals.length ? Math.max(...vals) : 1;
+  return { metric, lo: 0, hi: hi > 0 ? hi : 1 };
 }
-function histAnom(v, m, scale) {
-  const b = scale.base[m];
-  return (Number.isFinite(v) && Number.isFinite(b)) ? v - b : null;
+function histColor(v, metric, scale) {
+  if (!Number.isFinite(v)) return null;
+  if (metric === "precip") {
+    const f = Math.max(0, Math.min(1, (v - scale.lo) / (scale.hi - scale.lo)));
+    return rampAt(PRECIP_SEQ, f * 2 - 1);
+  }
+  return tempTint(v);   // absolute temperature -> fixed Sky cool->hot scale
 }
-function histColor(v, m, scale) {
-  const a = histAnom(v, m, scale);
-  return a == null ? null : rampAt(HIST_DIVERGE, scale.sign * a / scale.maxAbs);
-}
-// A full ring: twelve equal wedges, each coloured by its month's departure from
-// the long-run normal (cool below, warm above); grey where a month has no data.
+// A full ring: twelve equal wedges, each coloured by that month's own average
+// value (cool->hot for temperature, dry->wet for precipitation); grey where a
+// month has no data.
 function monthDonut(yr, metric, scale, cx, cy, ri, ro, gap) {
   const arr = metric === "precip" ? yr.p : yr.t;
   let out = "";
   for (let m = 0; m < 12; m++) {
     const a0 = m * Math.PI / 6 + gap, a1 = (m + 1) * Math.PI / 6 - gap, d = annularWedge(cx, cy, ri, ro, a0, a1);
-    const col = histColor(arr[m], m, scale);
+    const col = histColor(arr[m], metric, scale);
     out += col ? `<path d="${d}" fill="${col}" class="hg-wedge"/>` : `<path d="${d}" fill="var(--ink)" opacity="0.06"/>`;
   }
   return out;
@@ -4020,15 +4014,6 @@ function fmtHistVal(v, metric) {
   if (!Number.isFinite(v)) return "–";
   return metric === "precip" ? (state.units === "imperial" ? `${(v / 25.4).toFixed(1)}"` : `${Math.round(v)}mm`) : `${Math.round(v)}°`;
 }
-// A signed departure-from-normal, for the legend ends and the detail chips.
-function fmtAnom(v, metric, signed) {
-  if (!Number.isFinite(v)) return "";
-  const s = signed && v > 0 ? "+" : signed && v < 0 ? "−" : "";
-  const a = Math.abs(v);
-  if (metric === "precip") return `${s}${state.units === "imperial" ? `${(a / 25.4).toFixed(1)}"` : `${Math.round(a)}mm`}`;
-  const d = state.units === "imperial" ? a * 9 / 5 : a;   // a temperature *difference* has no +32 offset
-  return `${s}${d < 1 ? d.toFixed(1) : Math.round(d)}°`;
-}
 // Enlarged view of one year: labelled ring + a month-by-month value list.
 function histDetailHTML(yr, metric, scale) {
   const S = 184, c = S / 2, ri = 24, ro = 66, labR = 82;
@@ -4038,9 +4023,9 @@ function histDetailHTML(yr, metric, scale) {
   for (let m = 0; m < 12; m++) { const am = (m + 0.5) * Math.PI / 6; lab += `<text x="${(c + labR * Math.sin(am)).toFixed(1)}" y="${(c - labR * Math.cos(am)).toFixed(1)}" class="wg-key-lab">${ini[m]}</text>`; }
   const arr = metric === "precip" ? yr.p : yr.t;
   const chips = full.map((mn, i) => {
-    const a = histAnom(arr[i], i, scale);
-    const anom = a == null ? "" : `<span class="wg-chip-anom" style="color:${histColor(arr[i], i, scale)}">${fmtAnom(a, metric, true)}</span>`;
-    return `<span class="wg-chip"><span class="wg-chip-m">${mn}</span><strong>${fmtHistVal(arr[i], metric)}</strong>${anom}</span>`;
+    const col = histColor(arr[i], metric, scale);
+    const dot = col ? `<span class="wg-chip-dot" style="background:${col}"></span>` : "";
+    return `<span class="wg-chip"><span class="wg-chip-m">${dot}${mn}</span><strong>${fmtHistVal(arr[i], metric)}</strong></span>`;
   }).join("");
   const what = metric === "precip" ? "monthly precipitation" : "monthly average temperature";
   return `<div class="wg-detail">
@@ -4077,8 +4062,8 @@ function renderHistorySheet(err) {
   }
   const span = `${m.years[0].y}–${m.years[m.years.length - 1].y}`;
   el.sheetNote.textContent = metric === "temp"
-    ? `Every month's average temperature against the ${span} normal. Blue ran cooler than usual, red warmer. Each ring is a year — tap one to open it.`
-    : `Every month's precipitation against the ${span} normal. Blue was wetter than usual, warm drier. Each ring is a year — tap one to open it.`;
+    ? `Average temperature for every month, ${span}. Each ring is a year; cool months read blue, warm months red. Tap a year to open it.`
+    : `Total precipitation for every month, ${span}. Each ring is a year; drier months read pale, wetter months blue. Tap a year to open it.`;
   const scale = histScale(m, metric);
   const toggle = `<div class="segmented small seg-slide hist-toggle" role="group" aria-label="Metric" data-pos="${metric === "precip" ? 1 : 0}">`
     + `<button class="seg-item ${metric === "temp" ? "is-active" : ""}" data-hm="temp">Temperature</button>`
@@ -4091,14 +4076,18 @@ function renderHistorySheet(err) {
   selectHistYear(init, false);   // fill the detail without yanking the scroll on first paint
 }
 function histLegend(metric, scale) {
-  // Diverging colour key: cool below the normal, warm above, off-white at it.
-  const bar = HIST_DIVERGE.map(([t, rgb]) => `rgb(${rgb.join(",")}) ${Math.round((t + 1) / 2 * 100)}%`).join(", ");
-  const end = fmtAnom(scale.maxAbs, metric, false);
-  const coolLab = metric === "precip" ? "Wetter" : "Cooler";
-  const warmLab = metric === "precip" ? "Drier" : "Warmer";
-  const cap = metric === "precip"
-    ? "Colour is each month against the long-run normal — blue wetter, warm drier, off-white about average. Grey means no data."
-    : "Colour is each month against the long-run normal — blue cooler, red warmer, off-white about average. Grey means no data.";
+  // Colour key for each month's own average value: fixed cool->hot for
+  // temperature, dry->wet stretched to the range for precipitation.
+  let bar, loLab, hiLab, cap;
+  if (metric === "precip") {
+    bar = PRECIP_SEQ.map(([t, rgb]) => `rgb(${rgb.join(",")}) ${Math.round((t + 1) / 2 * 100)}%`).join(", ");
+    loLab = fmtHistVal(scale.lo, metric); hiLab = fmtHistVal(scale.hi, metric);
+    cap = "Colour is each month's total precipitation — pale drier, deep blue wetter. Grey means no data.";
+  } else {
+    bar = TEMP_SCALE.map(([, rgb], i) => `rgb(${rgb.join(",")}) ${Math.round(i / (TEMP_SCALE.length - 1) * 100)}%`).join(", ");
+    loLab = fmtScaleTick(TEMP_SCALE[0][0]); hiLab = fmtScaleTick(TEMP_SCALE[TEMP_SCALE.length - 1][0]);
+    cap = "Colour is each month's average temperature — cool blue through to warm red. Grey means no data.";
+  }
   // Month-position key: which wedge is which month, clockwise from January.
   const S = 116, c = S / 2, ro = 40, ri = 19, labR = 50;
   const names = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
@@ -4110,9 +4099,9 @@ function histLegend(metric, scale) {
   }
   return `<div class="hg-legend">
     <div class="hg-scale">
-      <span class="hg-scale-end">${coolLab}<em>−${end}</em></span>
+      <span class="hg-scale-end">${loLab}</span>
       <div class="hg-scale-bar" style="background:linear-gradient(90deg, ${bar})"></div>
-      <span class="hg-scale-end hg-scale-end-hi">${warmLab}<em>+${end}</em></span>
+      <span class="hg-scale-end hg-scale-end-hi">${hiLab}</span>
     </div>
     <span class="hg-scale-cap">${cap}</span>
     <div class="wg-key"><svg viewBox="0 0 ${S} ${S}" class="wg-key-svg">${w}${lab}</svg>`
