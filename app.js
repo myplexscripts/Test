@@ -4007,7 +4007,7 @@ function yearDonut(yr, metric, scale) {
 }
 function warmingGrid(monthly, metric, scale) {
   return `<div class="wg-grid">` + monthly.years.map((yr) =>
-    `<button class="wg-cell" type="button" data-year="${yr.y}" aria-label="${yr.y}">${yearDonut(yr, metric, scale)}<span class="wg-year">${String(yr.y).slice(2)}</span></button>`
+    `<button class="wg-cell" type="button" data-year="${yr.y}" aria-label="${yr.y}">${yearDonut(yr, metric, scale)}<span class="wg-year">${yr.y}</span></button>`
   ).join("") + `</div>`;
 }
 function fmtHistVal(v, metric) {
