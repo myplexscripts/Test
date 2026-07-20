@@ -2050,7 +2050,7 @@ function buildSummary(current, daily, yesterday) {
   if (evening) parts.push(evening);
   const compare = compareOutlook(today, yesterday, tomorrow);
   if (compare) parts.push(compare);
-  for (const note of summaryNotes(current, hrs)) parts.push(note);
+  for (const note of summaryNotes(current, hrs, tz)) parts.push(note);
   return parts.join(" ");
 }
 
@@ -2088,9 +2088,11 @@ function dayLead(current, hrs, today) {
   const n = mains.length || 1;
   const cloud = mains.filter((m) => /cloud/i.test(m)).length;
   const clear = mains.filter((m) => /clear/i.test(m)).length;
-  if (clear >= n * 0.6) return "Clear and sunny";
+  // "Sunny" only reads right while the sun is actually up for some of what's left.
+  const daytime = hrs.some((h) => (h.weather?.[0]?.icon || "").endsWith("d"));
+  if (clear >= n * 0.6) return daytime ? "Clear and sunny" : "Clear skies";
   if (cloud >= n * 0.6) return "Cloudy";
-  if (clear && cloud) return "A mix of sun and cloud";
+  if (clear && cloud) return daytime ? "A mix of sun and cloud" : "Partly cloudy";
   const d = current.weather?.[0]?.description || current.weather?.[0]?.main;
   return d ? cap(d) : "A mixed day";
 }
@@ -2152,9 +2154,19 @@ function nightPhrase(night) {
   const phrase = adjs.join(", ");
   const art = /^[aeiou]/i.test(phrase) ? "an" : "a";
   let out = `${art} ${phrase} night`;
-  if (cond === "clear") out += " to catch the moon";
+  if (cond === "clear") out += ` ${skyWatchTag(night)}`;
   else if (cond === "snow") out += " with snow around";
   return out;
+}
+
+// On a clear night, say what's actually worth looking up at: the moon only when
+// it's above the horizon and lit; otherwise a dark sky is the stargazing draw.
+function skyWatchTag(night) {
+  const c = state.center || state.loc || {};
+  const moon = moonPhase();
+  const up = Number.isFinite(c.lat) && night.some((h) => moonAltitude(h.dt, c.lat, c.lon) > 5);
+  if (up && moon.illum >= 12) return (moon.name === "Full moon" || moon.illum >= 96) ? "to catch the full moon" : "to catch the moon";
+  return "for stargazing";
 }
 
 // How the evening and overnight shape up, so the summary covers the whole day
@@ -2174,23 +2186,28 @@ function eveningNightClause(tz) {
   return null;
 }
 
-function summaryNotes(current, hrs) {
+function summaryNotes(current, hrs, tz) {
   const out = [];
   const toC = (t) => t == null ? null : (state.units === "imperial" ? (t - 32) * 5 / 9 : t);
   const feels = (hrs.length ? hrs.map((h) => h.main?.feels_like ?? h.main?.temp) : [current.main?.feels_like ?? current.main?.temp]).filter((v) => v != null);
   if (feels.length) {
     const hi = toC(Math.max(...feels)), lo = toC(Math.min(...feels));
-    if (hi >= 32) out.push("It stays hot through the afternoon, so keep water handy.");
+    if (hi >= 32) out.push("It stays hot for the rest of the day, so keep water handy.");
     else if (lo <= -12) out.push("It stays bitterly cold, so dress in warm layers.");
   }
   const winds = hrs.length ? hrs.map((h) => h.wind?.gust ?? h.wind?.speed ?? 0) : [current.wind?.gust ?? current.wind?.speed ?? 0];
   const mw = Math.max(...winds);
   const kmh = state.units === "imperial" ? mw * 1.609 : mw * 3.6;
   if (kmh >= 45) out.push(`Winds pick up, gusting to ${windText(mw)}.`);
-  const uvArr = state.data?.air?.hourly?.uv_index;
-  const uvMax = uvArr && uvArr.length ? Math.max(...uvArr.filter(Number.isFinite)) : (state.data?.air?.uv_index ?? 0);
-  if (uvMax >= 8) out.push("UV climbs to very high near midday, so sun protection matters.");
-  else if (uvMax >= 6) out.push("UV is high near midday, so wear sunscreen.");
+  // UV only among the hours still to come, timed to its real peak - so it isn't
+  // mentioned once the sun is low, and never claims "midday" in the evening.
+  let uvPeak = -1, uvPeakDt = null;
+  for (const h of hrs) { const u = uvForHour(h.dt); if (Number.isFinite(u) && u > uvPeak) { uvPeak = u; uvPeakDt = h.dt; } }
+  if (uvPeak >= 6) {
+    const word = uvPeak >= 8 ? "very high" : "high";
+    const when = uvPeakDt ? `around ${fmtHour(uvPeakDt, tz)}` : "near midday";
+    out.push(`UV is ${word} ${when}, so ${uvPeak >= 8 ? "cover up and use sunscreen" : "wear sunscreen"}.`);
+  }
   const aqhiNow = airHealthIndex(state.data?.air).index;
   if (aqhiNow != null && aqhiNow >= 7) out.push("Air quality is poor today.");
   return out.slice(0, 2);
