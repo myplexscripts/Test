@@ -1200,8 +1200,21 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
   padding: var(--s-5);
 }
 .insight-ic { font-size: 2.2rem; flex: 0 0 auto; line-height: 1; margin-top: 2px; }
-.insight-body { min-width: 0; }
+.insight-body { min-width: 0; flex: 1; }
+.insight-top { display: flex; align-items: baseline; justify-content: space-between; gap: var(--s-3); }
 .insight-label { font-size: var(--t-cap); font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-soft); }
+.insight-when {
+  flex: none;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  background: var(--card-bg-hi);
+  padding: 2px 8px;
+  border-radius: var(--r-pill);
+  white-space: nowrap;
+}
 .insight-value { font-family: Rubik, Inter, sans-serif; font-weight: 700; font-size: 1.35rem; margin: 2px 0 4px; }
 .insight-sub { font-size: var(--t-sm); line-height: 1.45; color: var(--ink-soft); font-weight: 500; }
 

@@ -1310,22 +1310,101 @@ function renderMoon(current) {
 function toCelsius(t) { return state.units === "imperial" ? (t - 32) * 5 / 9 : t; }
 function windKmh(speed) { return (speed || 0) * (state.units === "imperial" ? 1.609 : 3.6); }
 
+// Short clock label for a timestamp ("11pm" / "23:00"), honouring the 24h setting.
+function clockHour(dt, tz) {
+  const h = new Date((dt + tz) * 1000).getUTCHours();
+  if (state.clock24) return `${h}:00`;
+  return `${h % 12 || 12}${h < 12 ? "am" : "pm"}`;
+}
+// The part of the day right now, for "when is this advice for" chips.
+function dayPartLabel(tz) {
+  const h = new Date((Date.now() / 1000 + tz) * 1000).getUTCHours();
+  if (h < 5) return "Overnight";
+  if (h < 12) return "This morning";
+  if (h < 17) return "This afternoon";
+  if (h < 21) return "This evening";
+  return "Tonight";
+}
+// First upcoming hour (within ~12h) that looks wet, and whether it's snow.
+function nextPrecipHour() {
+  const now = Math.floor(Date.now() / 1000);
+  const hrs = (state.hourly || []).filter((p) => p.dt >= now).slice(0, 12);
+  for (const p of hrs) {
+    if ((p.pop != null && p.pop >= 0.5) || (p.precip || 0) >= 0.2 || p.rain || p.snow) {
+      const snow = !!p.snow || (p.code >= 71 && p.code <= 77) || (p.code >= 85 && p.code <= 86);
+      return { dt: p.dt, snow };
+    }
+  }
+  return null;
+}
+
+// Stargazing tonight, hour by hour. Each night hour gets a "clarity" score from
+// cloud cover, knocked down by haze (humidity near saturation, low visibility)
+// and ruled out entirely by rain, snow or fog. We then find the best clear
+// window, rate it, and factor in whether a bright moon is up to wash it out.
 function stargazingTonight() {
   const tz = state.tz || 0;
-  const hrs = (state.hourly || []).filter((p) => { const h = new Date((p.dt + tz) * 1000).getUTCHours(); return h >= 21 || h <= 3; }).slice(0, 8);
-  if (!hrs.length) return null;
-  const cloud = Math.round(hrs.reduce((a, p) => a + (p.clouds?.all ?? 0), 0) / hrs.length);
-  const illum = moonPhase().illum;
-  let rating;
-  if (cloud < 20) rating = "Excellent";
-  else if (cloud < 45) rating = "Good";
-  else if (cloud < 70) rating = "Fair";
-  else rating = "Poor";
-  let note;
-  if (cloud >= 70) note = "Too cloudy to see the stars tonight.";
-  else if (illum > 65) note = `${100 - cloud}% clear, but a bright ${illum}% moon will wash out fainter stars.`;
-  else note = `${100 - cloud}% clear skies with a ${illum}% moon overhead.`;
-  return { rating, note };
+  const now = Math.floor(Date.now() / 1000);
+  const hrs = (state.hourly || []).filter((p) => {
+    if (p.dt < now - 3600) return false;
+    const h = new Date((p.dt + tz) * 1000).getUTCHours();
+    return h >= 20 || h <= 5;
+  }).slice(0, 12);
+  if (hrs.length < 2) return null;
+
+  const clarity = (p) => {
+    const wet = (p.precip || 0) > 0.05 || p.rain || p.snow;
+    const fog = p.code === 45 || p.code === 48 || (p.visibility != null && p.visibility < 3000);
+    if (wet || fog) return -1;
+    let s = 100 - (p.clouds?.all ?? 100);
+    const t = p.main?.temp != null ? toCelsius(p.main.temp) : null;
+    const d = p.dew != null ? toCelsius(p.dew) : null;
+    if (t != null && d != null && t - d < 3) s -= 15;                 // humid haze
+    if (p.visibility != null && p.visibility < 8000) s -= 10;
+    return Math.max(0, s);
+  };
+  const sc = hrs.map(clarity);
+
+  // Best run of "good" (>= 55) hours.
+  let bestS = -1, bestLen = 0, s0 = -1;
+  for (let i = 0; i <= sc.length; i++) {
+    if (i < sc.length && sc[i] >= 55) { if (s0 < 0) s0 = i; }
+    else { if (s0 >= 0 && i - s0 > bestLen) { bestLen = i - s0; bestS = s0; } s0 = -1; }
+  }
+
+  const moon = moonPhase().illum;
+  if (bestLen === 0) {
+    const washedOut = sc.some((v) => v < 0);
+    return {
+      rating: "Poor",
+      note: washedOut ? "Rain or fog tonight will keep the stars hidden." : "Cloud cover will hide most stars tonight.",
+      when: "Not tonight"
+    };
+  }
+
+  const startDt = hrs[bestS].dt, endDt = hrs[bestS + bestLen - 1].dt + 3600;
+  const windowLabel = `${clockHour(startDt, tz)}–${clockHour(endDt, tz)}`;
+  const win = sc.slice(bestS, bestS + bestLen);
+  const clear = Math.round(win.reduce((a, b) => a + b, 0) / win.length);
+
+  // A bright moon dims the rating; a nearly-new or already-set moon doesn't.
+  const c = state.center || {};
+  const base = Math.floor((now + tz) / 86400) * 86400 - tz;
+  const mt = Number.isFinite(c.lat) ? moonTimes(base, c.lat, c.lon) : {};
+  const moonSetsInWindow = mt.set != null && mt.set > startDt && mt.set < endDt + 3600;
+  const moonDownFirst = mt.set != null && mt.set <= startDt;
+  let moonPenalty = 0, moonNote;
+  if (moon <= 15) { moonNote = "a nearly new moon leaves the sky dark"; }
+  else if (moonDownFirst) { moonNote = `the ${moon}% moon has set, leaving it darker`; }
+  else if (moon > 55) {
+    moonPenalty = (moon - 55) * 0.35;
+    moonNote = moonSetsInWindow ? `the bright ${moon}% moon sets around ${clockHour(mt.set, tz)} — darker after` : `a bright ${moon}% moon will wash out fainter stars`;
+  } else { moonNote = `a ${moon}% moon overhead`; }
+
+  const eff = clear - moonPenalty;
+  const rating = eff >= 78 ? "Excellent" : eff >= 60 ? "Good" : eff >= 42 ? "Fair" : "Poor";
+  const sky = clear >= 82 ? "Clear skies" : clear >= 60 ? "Mostly clear" : "Partly clear";
+  return { rating, note: `${sky} around ${windowLabel}, with ${moonNote}.`, when: windowLabel };
 }
 
 function seasonalCallout() {
@@ -1338,13 +1417,15 @@ function seasonalCallout() {
   const uv = state.data?.air?.uv_index;
   const gust = cur.wind?.gust;
   const round = (v) => Math.round(v);
-  if (snowSum >= 0.4) return { icon: "ph-snowflake", label: "Snow expected", value: `${snowSum >= 10 ? round(snowSum) : Math.round(snowSum * 10) / 10} cm`, sub: "Allow extra time for travel and bundle up." };
-  if (depth != null && depth > 0.02) return { icon: "ph-snowflake", label: "Snow on the ground", value: `${round(depth * 100)} cm`, sub: "Watch for icy patches underfoot." };
-  if (low != null && toCelsius(low) <= 0.5) return { icon: "ph-thermometer-cold", label: "Frost tonight", value: `${round(low)}°`, sub: "Cover tender plants; roads may be icy early." };
-  if (high != null && toCelsius(high) >= 29) return { icon: "ph-thermometer-hot", label: "Hot day ahead", value: `${round(high)}°`, sub: "Stay hydrated and find shade midday." };
-  if (uv != null && uv >= 8) return { icon: "ph-sun", label: "Very high UV", value: `${round(uv)}`, sub: "Sunscreen, hat and sunglasses recommended." };
-  if (gust != null && windKmh(gust) >= 45) return { icon: "ph-wind", label: "Gusty winds", value: windText(gust), sub: "Secure loose outdoor items." };
-  return { icon: "ph-leaf", label: "Settled conditions", value: today ? `${round(high)}° / ${round(low)}°` : "--", sub: "Calm and seasonal, nothing to watch out for." };
+  const tz = state.tz || 0;
+  const snowWhen = nextPrecipHour();
+  if (snowSum >= 0.4) return { icon: "ph-snowflake", label: "Snow expected", value: `${snowSum >= 10 ? round(snowSum) : Math.round(snowSum * 10) / 10} cm`, sub: "Allow extra time for travel and bundle up.", when: snowWhen ? `From ${clockHour(snowWhen.dt, tz)}` : "Today" };
+  if (depth != null && depth > 0.02) return { icon: "ph-snowflake", label: "Snow on the ground", value: `${round(depth * 100)} cm`, sub: "Watch for icy patches underfoot.", when: "Right now" };
+  if (low != null && toCelsius(low) <= 0.5) return { icon: "ph-thermometer-cold", label: "Frost tonight", value: `${round(low)}°`, sub: "Cover tender plants; roads may be icy early.", when: "Overnight" };
+  if (high != null && toCelsius(high) >= 29) return { icon: "ph-thermometer-hot", label: "Hot day ahead", value: `${round(high)}°`, sub: "Stay hydrated and find shade midday.", when: "Midday peak" };
+  if (uv != null && uv >= 8) return { icon: "ph-sun", label: "Very high UV", value: `${round(uv)}`, sub: "Sunscreen, hat and sunglasses recommended.", when: "10am–4pm" };
+  if (gust != null && windKmh(gust) >= 45) return { icon: "ph-wind", label: "Gusty winds", value: windText(gust), sub: "Secure loose outdoor items.", when: dayPartLabel(tz) };
+  return { icon: "ph-leaf", label: "Settled conditions", value: today ? `${round(high)}° / ${round(low)}°` : "--", sub: "Calm and seasonal, nothing to watch out for.", when: "Today" };
 }
 
 function seasonOf(month, lat) {
@@ -1591,17 +1672,20 @@ function fitWindow(pool, fitFn, fullLabel, fmtH) {
   return { when, quality };
 }
 
-function insightTileHTML(icon, label, value, sub) {
-  return `<div class="insight-card"><i class="ph-duotone ${icon} insight-ic" aria-hidden="true"></i><div class="insight-body"><div class="insight-label">${label}</div>${value ? `<div class="insight-value">${value}</div>` : ""}<div class="insight-sub">${sub}</div></div></div>`;
+function insightTileHTML(icon, label, value, sub, when) {
+  return `<div class="insight-card"><i class="ph-duotone ${icon} insight-ic" aria-hidden="true"></i><div class="insight-body">`
+    + `<div class="insight-top"><span class="insight-label">${label}</span>${when ? `<span class="insight-when">${when}</span>` : ""}</div>`
+    + `${value ? `<div class="insight-value">${value}</div>` : ""}<div class="insight-sub">${sub}</div></div></div>`;
 }
 
 function renderQuickHits() {
   if (!el.quickHits) return;
-  const wearTile = insightTileHTML("ph-coat-hanger", "What to wear", "", buildWear(state.data?.current || {}, state.daily || []));
+  const wear = buildWear();
+  const wearTile = insightTileHTML("ph-coat-hanger", "What to wear", wear.value, wear.sub, wear.when);
   const s = seasonalCallout();
-  const seasonalTile = insightTileHTML(s.icon, s.label, s.value, s.sub);
+  const seasonalTile = insightTileHTML(s.icon, s.label, s.value, s.sub, s.when);
   const star = stargazingTonight();
-  const starTile = star ? insightTileHTML("ph-shooting-star", "Stargazing tonight", star.rating, star.note) : "";
+  const starTile = star ? insightTileHTML("ph-shooting-star", "Stargazing tonight", star.rating, star.note, star.when) : "";
   const open = state.quickHitsOpen;
   if (open) el.quickHits.classList.add("qh-no-anim");
   el.quickHits.innerHTML = `
@@ -2028,28 +2112,64 @@ function summaryNotes(current, hrs) {
   return out.slice(0, 2);
 }
 
-function buildWear(current, daily) {
-  const m = current.main || {};
-  const raw = m.feels_like ?? m.temp;
-  const t = raw == null ? 15 : (state.units === "imperial" ? (raw - 32) * 5 / 9 : raw);
-  let base;
-  if (t <= -10) base = "Heavy winter gear today: an insulated coat, hat, gloves and warm boots.";
-  else if (t <= 0) base = "Dress warm with a winter coat, plus a hat and gloves.";
-  else if (t <= 8) base = "A warm jacket with a layer underneath.";
-  else if (t <= 15) base = "A light jacket or sweater should be enough.";
-  else if (t <= 21) base = "A long sleeve or light top is comfortable today.";
-  else if (t <= 27) base = "Light clothing like a t-shirt is ideal.";
-  else base = "Stay cool in light, breathable clothing, and keep water handy.";
-  const extras = [];
-  const pop = daily?.[0] ? Math.round((daily[0].pop || 0) * 100) : 0;
-  if (pop >= 50) extras.push("Bring an umbrella or a waterproof layer.");
-  else if (pop >= 25) extras.push("An umbrella may come in handy.");
+// What to wear, reasoned from how the air actually feels: apparent temperature
+// (which already folds in wind chill and humidity) sets the base layer, then
+// wind, mugginess, damp cold, incoming precip, strong sun and the day's swing
+// each add a specific, human-sounding note. Returns { value, sub, when }.
+function buildWear() {
+  const cur = state.data?.current || {};
+  const m = cur.main || {};
+  const tz = state.tz || 0;
+  if (m.temp == null && m.feels_like == null) {
+    return { value: "--", sub: "Conditions unavailable right now.", when: dayPartLabel(tz) };
+  }
+  const feels = toCelsius(m.feels_like ?? m.temp);           // °C, for thresholds
+  const tempC = m.temp != null ? toCelsius(m.temp) : feels;
+  const dTemp = Math.round(m.temp ?? m.feels_like);          // display units, for text
+  const dFeels = Math.round(m.feels_like ?? m.temp);
+  const humidity = m.humidity ?? null;
+  const dewC = cur.dew != null ? toCelsius(cur.dew) : null;
+  const windK = windKmh(cur.wind?.speed);
+  const gustK = cur.wind?.gust != null ? windKmh(cur.wind.gust) : null;
+  const cloud = cur.clouds?.all ?? 0;
+  const rainingNow = !!cur.rain, snowingNow = !!cur.snow;
   const uv = state.data?.air?.uv_index;
-  if (uv != null && uv >= 6) extras.push("Add sunglasses and sunscreen for the strong sun.");
-  const spd = current.wind?.speed || 0;
-  const kmh = state.units === "imperial" ? spd * 1.609 : spd * 3.6;
-  if (kmh >= 30) extras.push("A windbreaker helps against the wind.");
-  return base + (extras.length ? " " + extras.join(" ") : "");
+  const isDay = !curIsNight();
+
+  let value, base;
+  if (feels <= -12) { value = "Serious winter gear"; base = "an insulated parka, a hat, gloves and warm boots"; }
+  else if (feels <= -4) { value = "Bundle up"; base = "a winter coat with a hat and gloves"; }
+  else if (feels <= 3) { value = "Warm coat weather"; base = "a proper coat over a warm layer"; }
+  else if (feels <= 9) { value = "Jacket weather"; base = "a warm jacket with a long sleeve underneath"; }
+  else if (feels <= 15) { value = "Light layers"; base = "a light jacket or a sweater"; }
+  else if (feels <= 20) { value = "Long-sleeve weather"; base = "a long sleeve or a light top"; }
+  else if (feels <= 26) { value = "T-shirt weather"; base = "light clothes like a t-shirt"; }
+  else if (feels <= 31) { value = "Keep it light"; base = "loose, breathable clothing"; }
+  else { value = "Beat the heat"; base = "loose, breathable clothing — and keep water close"; }
+
+  // How it feels vs the raw temperature (wind chill / humid warmth).
+  let feelsClause = "";
+  if (tempC - feels >= 4 && windK >= 15) feelsClause = ` It's ${dTemp}° but the ${Math.round(windK)} km/h wind makes it feel like ${dFeels}°.`;
+  else if (feels - tempC >= 3 && dewC != null && dewC >= 16) feelsClause = ` Humid air makes ${dTemp}° feel like ${dFeels}°.`;
+  else if (Math.abs(dTemp - dFeels) >= 2) feelsClause = ` Feels like ${dFeels}°.`;
+
+  // Specific add-ons, in priority order; keep the two most relevant.
+  const extras = [];
+  if (snowingNow) extras.push("Snow is falling, so waterproof boots and a warm hat.");
+  else if (rainingNow) extras.push("It's raining now — a waterproof shell or an umbrella.");
+  else {
+    const up = nextPrecipHour();
+    if (up) extras.push(`${up.snow ? "Snow" : "Rain"} moves in around ${clockHour(up.dt, tz)}, so pack ${up.snow ? "warm, waterproof layers" : "a shell or umbrella"}.`);
+  }
+  if (tempC >= 24 && dewC != null && dewC >= 18) extras.push(dewC >= 21 ? "The air is oppressively humid, so stick to light, breathable fabrics." : "It's muggy out, so breathable fabrics help.");
+  else if (tempC <= 12 && humidity != null && humidity >= 88 && !rainingNow) extras.push("The damp air feels raw, so a wind-resistant layer takes the bite off.");
+  if (gustK != null && gustK >= 40 && !feelsClause.includes("wind")) extras.push("Gusty winds — a windbreaker cuts the chill.");
+  if (uv != null && uv >= 6 && isDay && cloud < 65) extras.push(uv >= 8 ? "Strong sun: sunglasses, a hat and sunscreen." : "Sunny enough for sunglasses and a little sunscreen.");
+  const lo = state.daily?.[0]?.min;
+  if (isDay && lo != null && feels - toCelsius(lo) >= 7) extras.push(`Bring a layer for later — it dips to ${Math.round(lo)}° tonight.`);
+
+  const sub = `Reach for ${base}.${feelsClause}${extras.length ? " " + extras.slice(0, 2).join(" ") : ""}`;
+  return { value, sub, when: dayPartLabel(tz) };
 }
 
 function escapeHTML(s) {
