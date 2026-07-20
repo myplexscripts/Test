@@ -2041,17 +2041,82 @@ function buildSummary(current, daily, yesterday) {
   const tomorrow = daily && daily[1];
   const hrs = restOfToday(tz);
   const parts = [];
-  const lead = dayLead(current, hrs, today);
-  if (today) parts.push(`${lead}, with a high of ${Math.round(today.max)}° and a low of ${Math.round(today.min)}°.`);
-  else parts.push(`${lead}.`);
-  const precip = precipOutlook(hrs, today, tz);
-  if (precip) parts.push(precip);
-  const evening = eveningNightClause(tz);
-  if (evening) parts.push(evening);
+  // One flowing narrative: the sky, then how precipitation and the night
+  // actually unfold (one thread, so it never says "dry" and "showery" at once),
+  // then how today stacks up, then any advisories.
+  parts.push(overviewSentence(current, hrs, today));
+  const unfold = unfoldSentence(tz);
+  if (unfold) parts.push(unfold);
   const compare = compareOutlook(today, yesterday, tomorrow);
   if (compare) parts.push(compare);
   for (const note of summaryNotes(current, hrs, tz)) parts.push(note);
   return parts.join(" ");
+}
+
+// "Expect a cloudy day with a high of 25° and a low of 11°." Just the sky's
+// character - whether and when it rains is the next sentence's job, so the two
+// never contradict.
+function skyNoun(current, hrs, today) {
+  const mains = (hrs.length ? hrs.map((h) => h.weather?.[0]?.main) : [today && today.main]).filter(Boolean);
+  const any = (re) => mains.some((m) => re.test(m));
+  const daytime = hrs.some((h) => (h.weather?.[0]?.icon || "").endsWith("d"));
+  if (any(/thunder/i)) return "a stormy day";
+  if (any(/mist|fog|haze|smoke/i)) return "a foggy day";
+  const n = mains.length || 1;
+  const overcast = mains.filter((m) => /cloud|rain|drizzle|snow/i.test(m)).length;   // rain and snow skies are cloudy
+  const clear = mains.filter((m) => /clear/i.test(m)).length;
+  if (clear >= n * 0.6) return daytime ? "a bright, sunny day" : "clear skies";
+  if (overcast >= n * 0.6) return "a cloudy day";
+  if (clear && overcast) return "a day of sun and cloud";
+  return "a mixed day";
+}
+function overviewSentence(current, hrs, today) {
+  const sky = skyNoun(current, hrs, today);
+  if (today && today.max != null && today.min != null) {
+    return `Expect ${sky} with a high of ${Math.round(today.max)}° and a low of ${Math.round(today.min)}°.`;
+  }
+  return `Expect ${sky}.`;
+}
+
+const partOfDay = (dt, tz) => {
+  const h = new Date((dt + tz) * 1000).getUTCHours();
+  return h < 12 ? "the morning" : h < 17 ? "the afternoon" : h < 21 ? "the evening" : "overnight";
+};
+
+// One coherent thread covering precipitation timing and the overnight, so the
+// summary reads naturally: "Dry until the evening, when showers move in around
+// 24°, followed by a breezy, cloudy night."
+function unfoldSentence(tz) {
+  const now = Math.floor(Date.now() / 1000);
+  const up = (state.hourly || []).filter((h) => h.dt >= now - 1800 && h.dt <= now + 20 * 3600).sort((a, b) => a.dt - b.dt);
+  if (!up.length) return null;
+  const H = (t) => new Date((t + tz) * 1000).getUTCHours();
+  const inSeg = (h, lo, hi) => { const x = H(h.dt); return lo <= hi ? (x >= lo && x < hi) : (x >= lo || x < hi); };
+  const evening = up.filter((h) => inSeg(h, 17, 21));
+  const night = up.filter((h) => inSeg(h, 21, 6));
+  const isWet = (h) => (h.pop || 0) >= 0.45 || /rain|drizzle|snow|thunder/i.test(h.weather?.[0]?.main || "");
+  const wetType = (h) => /snow/i.test(h.weather?.[0]?.main || "") ? "snow" : /thunder/i.test(h.weather?.[0]?.main || "") ? "thunderstorms" : "showers";
+  const firstWet = up.find(isWet);
+  const tail = nightPhrase(night);
+
+  let core, nightCovered = false;
+  if (!firstWet) {
+    if (!evening.length) return tail ? cap(`${tail}.`) : "Staying dry overnight.";
+    core = "staying dry through the evening";
+  } else if (isWet(up[0])) {
+    let end = up[0].dt;
+    for (const h of up) { if (isWet(h)) end = h.dt; else break; }
+    const part = partOfDay(end, tz);
+    nightCovered = part === "overnight";
+    core = `${cap(wetType(up[0]))} continue ${nightCovered ? "into the night" : `into ${part}`}`;
+  } else if (partOfDay(firstWet.dt, tz) === "overnight") {
+    core = evening.length ? "staying dry through the evening" : "dry to start";   // the night tail carries the rain
+  } else {
+    const when = partOfDay(firstWet.dt, tz), t = firstWet.main?.temp;
+    core = `dry until ${when}, when ${wetType(firstWet)} move in${Number.isFinite(t) ? ` around ${Math.round(t)}°` : ""}`;
+  }
+  if (tail && !nightCovered) return cap(`${core}, followed by ${tail}.`);
+  return cap(`${core}.`);
 }
 
 function tempCompareClause(diff, label) {
@@ -2066,7 +2131,7 @@ function compareOutlook(today, yesterday, tomorrow) {
   if (yesterday && yesterday.max != null) clauses.push(tempCompareClause(today.max - yesterday.max, "yesterday"));
   if (tomorrow && tomorrow.max != null) clauses.push(tempCompareClause(today.max - tomorrow.max, "tomorrow"));
   if (!clauses.length) return null;
-  return `That's ${clauses.join(" and ")}.`;
+  return `Today will be ${clauses.join(" and ")}.`;
 }
 
 function restOfToday(tz) {
@@ -2077,42 +2142,6 @@ function restOfToday(tz) {
 }
 
 function cap(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; }
-
-function dayLead(current, hrs, today) {
-  const mains = (hrs.length ? hrs.map((h) => h.weather?.[0]?.main) : [today && today.main]).filter(Boolean);
-  const any = (re) => mains.some((m) => re.test(m));
-  if (any(/thunder/i)) return "Thunderstorms are possible";
-  if (any(/snow/i)) return "Snow at times";
-  if (any(/rain|drizzle/i)) return "Cloudy with rain at times";
-  if (any(/mist|fog|haze|smoke/i)) return "Areas of fog and haze";
-  const n = mains.length || 1;
-  const cloud = mains.filter((m) => /cloud/i.test(m)).length;
-  const clear = mains.filter((m) => /clear/i.test(m)).length;
-  // "Sunny" only reads right while the sun is actually up for some of what's left.
-  const daytime = hrs.some((h) => (h.weather?.[0]?.icon || "").endsWith("d"));
-  if (clear >= n * 0.6) return daytime ? "Clear and sunny" : "Clear skies";
-  if (cloud >= n * 0.6) return "Cloudy";
-  if (clear && cloud) return daytime ? "A mix of sun and cloud" : "Partly cloudy";
-  const d = current.weather?.[0]?.description || current.weather?.[0]?.main;
-  return d ? cap(d) : "A mixed day";
-}
-
-function precipOutlook(hrs, today, tz) {
-  if (!hrs.length) {
-    const p = today ? Math.round((today.pop || 0) * 100) : 0;
-    if (p >= 40) return `There is a ${p}% chance of precipitation.`;
-    return p > 0 ? "Mostly dry." : "Staying dry.";
-  }
-  const wet = hrs.filter((h) => (h.pop || 0) >= 0.5 || /rain|drizzle|snow|thunder/i.test(h.weather?.[0]?.main || ""));
-  if (!wet.length) {
-    const maxPop = Math.max(...hrs.map((h) => h.pop || 0));
-    return maxPop >= 0.3 ? "A slight chance of a shower later." : "Staying dry.";
-  }
-  const snowy = wet.some((h) => /snow/i.test(h.weather?.[0]?.main || "")) || wet.every((h) => (h.main?.temp ?? 5) <= 0);
-  const type = snowy ? "snow" : "rain";
-  if (wet.length >= hrs.length * 0.6) return `Periods of ${type} through the day.`;
-  return `${cap(type)} likely from around ${fmtHour(wet[0].dt, tz)}.`;
-}
 
 // Dominant sky condition across a set of hours -> short keyword.
 function segCondition(list) {
@@ -2129,15 +2158,6 @@ function segCondition(list) {
   if (clear >= n * 0.6) return "clear";
   if (cloud >= n * 0.6) return "cloud";
   return "mixed";
-}
-
-// The evening (5-9pm): a plain "clear/cloudy in the evening near 18°" lead-in.
-function eveningPhrase(evening) {
-  const adj = { clear: "clear", cloud: "cloudy", rain: "showery", snow: "snowy", thunder: "stormy", fog: "foggy", mixed: "part-cloudy" };
-  const w = adj[segCondition(evening)];
-  if (!w) return "";
-  const t = evening.length ? Math.round(evening.reduce((s, h) => s + (h.main?.temp ?? 0), 0) / evening.length) : null;
-  return `${w} in the evening${t != null ? ` near ${t}°` : ""}`;
 }
 
 // The overnight (9pm-6am) as an evocative noun phrase - wind and clear skies get
@@ -2167,23 +2187,6 @@ function skyWatchTag(night) {
   const up = Number.isFinite(c.lat) && night.some((h) => moonAltitude(h.dt, c.lat, c.lon) > 5);
   if (up && moon.illum >= 12) return (moon.name === "Full moon" || moon.illum >= 96) ? "to catch the full moon" : "to catch the moon";
   return "for stargazing";
-}
-
-// How the evening and overnight shape up, so the summary covers the whole day
-// even once the rest-of-today lead has moved past them.
-function eveningNightClause(tz) {
-  const now = Math.floor(Date.now() / 1000);
-  const hrs = (state.hourly || []).filter((h) => h.dt >= now - 1800 && h.dt <= now + 33 * 3600);
-  if (!hrs.length) return null;
-  const H = (t) => new Date((t + tz) * 1000).getUTCHours();
-  const inSeg = (h, lo, hi) => { const x = H(h.dt); return lo <= hi ? (x >= lo && x < hi) : (x >= lo || x < hi); };
-  const evening = hrs.filter((h) => inSeg(h, 17, 21));
-  const night = hrs.filter((h) => inSeg(h, 21, 6));
-  const ev = eveningPhrase(evening), ni = nightPhrase(night);
-  if (ev && ni) return cap(`${ev}, then ${ni}.`);
-  if (ev) return cap(`${ev}.`);
-  if (ni) return cap(`${ni}.`);
-  return null;
 }
 
 function summaryNotes(current, hrs, tz) {
