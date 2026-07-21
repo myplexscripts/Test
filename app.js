@@ -698,8 +698,10 @@ function renderNews(articles) {
     if (!g || g.label !== label) { g = { label, items: [] }; groups.push(g); }
     g.items.push(a);
   }
+  // Plain day header + standalone tiles (same full-radius tile as Quick Hits and
+  // the Home news list), rather than a nested folder box.
   el.newsList.innerHTML = groups.map((g) =>
-    section(escapeHTML(g.label), `<div class="news-tiles">${g.items.map((a) => newsCardHtml(a, "news-tile")).join("")}</div>`)
+    `<h3 class="news-group">${escapeHTML(g.label)}</h3><div class="news-tiles">${g.items.map((a) => newsCardHtml(a, "news-tile")).join("")}</div>`
   ).join("");
 }
 

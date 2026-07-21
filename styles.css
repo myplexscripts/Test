@@ -323,13 +323,13 @@ body:has(.sheet.is-open) .mesh-wrap { opacity: 0; }
   flex-direction: column;
   gap: 4px;
   padding: var(--s-4);
-  border-radius: calc(var(--r-lg) - var(--s-5));
-  background: var(--card-bg-hi);
+  border-radius: var(--r-lg);
+  background: var(--card-bg);
   color: var(--ink);
   text-decoration: none;
   transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-spring);
 }
-.news-tile:active { transform: scale(0.985); background: var(--card-bg); }
+.news-tile:active { transform: scale(0.985); background: var(--card-bg-hi); }
 
 /* Status-bar scrim: purely a masked backdrop blur, no tint. Strongest at the
    very top so the status bar stays legible over any bloom, then the mask
