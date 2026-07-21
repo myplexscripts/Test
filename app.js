@@ -3141,9 +3141,12 @@ function applyMeshColors(time) {
   r.setProperty("--on-surface", "#f7f5f0");
   r.setProperty("--on-surface-soft", "rgba(247,245,240,0.60)");
   r.setProperty("--surface", "#161c26");
-  r.setProperty("--card-bg", "rgba(255,255,255,0.09)");
-  r.setProperty("--card-bg-hi", "rgba(255,255,255,0.15)");
-  r.setProperty("--card-border", "transparent");
+  // Tint the tiles *dark* (not a white wash) so the light text keeps its contrast
+  // over bright skies like golden hour; a faint light edge keeps them defined on
+  // dark night skies. Moderate opacity - readable without going heavy/black.
+  r.setProperty("--card-bg", "rgba(18,22,32,0.40)");
+  r.setProperty("--card-bg-hi", "rgba(18,22,32,0.54)");
+  r.setProperty("--card-border", "rgba(255,255,255,0.12)");
   r.setProperty("--hairline", "rgba(255,255,255,0.20)");
   // Keep the browser/PWA chrome in step with the sky: the top of the gradient
   // sits behind the status bar, so that's the colour the chrome should carry.
