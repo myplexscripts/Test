@@ -2114,8 +2114,7 @@ function unfoldSentence(tz) {
   } else if (partOfDay(firstWet.dt, tz) === "overnight") {
     core = evening.length ? "staying dry through the evening" : "dry to start";   // the night tail carries the rain
   } else {
-    const when = partOfDay(firstWet.dt, tz), t = firstWet.main?.temp;
-    core = `dry until ${when}, when ${wetType(firstWet)} move in${Number.isFinite(t) ? ` around ${Math.round(t)}°` : ""}`;
+    core = `dry until around ${fmtHour(firstWet.dt, tz)}, when ${wetType(firstWet)} move in`;
   }
   if (tail && !nightCovered) return cap(`${core}, followed by ${tail}.`);
   return cap(`${core}.`);
